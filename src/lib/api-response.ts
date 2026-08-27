@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { ZodError } from 'zod';
+import { type ZodType, ZodError } from 'zod';
 
 import { BizError, ERROR_DEFINITIONS } from '@/lib/errors';
 import { logger } from '@/lib/logger';
@@ -28,6 +28,19 @@ export function fail(error: BizError): NextResponse<ApiFailure> {
     { code: error.code, data: null, message: error.message },
     { status: error.httpStatus },
   );
+}
+
+export async function parseJsonBody<T>(
+  request: Request,
+  schema: ZodType<T>,
+): Promise<T> {
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    throw new BizError('PARAM_INVALID', '请求体必须是有效的 JSON');
+  }
+  return schema.parse(body);
 }
 
 type RouteHandler<TArgs extends unknown[]> = (
