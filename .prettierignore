@@ -1,0 +1,6 @@
+.next
+coverage
+pnpm-lock.yaml
+src/lib/db/migrations
+docs
+README.md
