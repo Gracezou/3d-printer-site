@@ -35,7 +35,12 @@ const navigation = [
     icon: FolderTree,
     enabled: true,
   },
-  { href: '#', label: '商品管理', icon: ShoppingBag, enabled: false },
+  {
+    href: '/admin/products',
+    label: '商品管理',
+    icon: ShoppingBag,
+    enabled: true,
+  },
   { href: '#', label: '订单管理', icon: PackageSearch, enabled: false },
   { href: '#', label: '用户管理', icon: Users, enabled: false },
   { href: '#', label: '系统设置', icon: Settings, enabled: false },

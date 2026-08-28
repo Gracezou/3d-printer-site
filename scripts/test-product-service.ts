@@ -277,6 +277,60 @@ async function main(): Promise<void> {
       5,
     );
 
+    const fourVariants = await replaceProductVariants(
+      createdProductId,
+      {
+        variants: [
+          {
+            id: activeVariant.id,
+            skuCode: activeVariant.skuCode,
+            name: '小号 / 白色',
+            attributes: { size: '小号', color: '白色' },
+            price: '49.00',
+            comparePrice: '79.00',
+            weightGrams: '120.00',
+            printHours: '3.50',
+            imageUrl: null,
+            isActive: true,
+            sortOrder: 0,
+            bom: [
+              { materialId: materialAId, grams: '100.00' },
+              { materialId: materialBId, grams: '20.00' },
+            ],
+          },
+          ...[
+            ['小号', '黑色', '59.00'],
+            ['大号', '白色', '69.00'],
+            ['大号', '黑色', '79.00'],
+          ].map(([size, color, price], index) => ({
+            id: null,
+            skuCode: `T033-4X2-${index + 1}-${suffix}`,
+            name: `${size} / ${color}`,
+            attributes: { size: size!, color: color! },
+            price: price!,
+            comparePrice: null,
+            weightGrams: '120.00',
+            printHours: '3.50',
+            imageUrl: null,
+            isActive: true,
+            sortOrder: index + 1,
+            bom: [
+              { materialId: materialAId, grams: '100.00' },
+              { materialId: materialBId, grams: '20.00' },
+            ],
+          })),
+        ],
+      },
+      context,
+    );
+    assert.equal(fourVariants.variants.length, 4);
+    assert(
+      fourVariants.variants.every(
+        (variant) => variant.bom.length === 2 && variant.availableQty === 5,
+      ),
+    );
+    assert.equal(fourVariants.minPrice, '49.00');
+
     const replaced = await replaceProductVariants(
       createdProductId,
       {
