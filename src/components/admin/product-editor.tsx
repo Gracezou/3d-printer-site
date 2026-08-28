@@ -18,6 +18,7 @@ import {
   Save,
   Sparkles,
   Trash2,
+  UploadCloud,
   X,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -133,9 +134,10 @@ const inputClass =
 async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...init,
-    headers: init?.body
-      ? { 'Content-Type': 'application/json', ...init.headers }
-      : init?.headers,
+    headers:
+      typeof init?.body === 'string'
+        ? { 'Content-Type': 'application/json', ...init.headers }
+        : init?.headers,
   });
   const result = (await response.json()) as ApiEnvelope<T>;
   if (!response.ok || result.data === null) {
@@ -143,6 +145,65 @@ async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
     throw new Error(result.message || '请求失败');
   }
   return result.data;
+}
+
+function AssetUploadButton({
+  type,
+  label,
+  onUploaded,
+  onError,
+}: {
+  type: 'image' | 'model';
+  label: string;
+  onUploaded: (url: string) => void;
+  onError: (message: string) => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+
+  async function selectFile(file: File | undefined): Promise<void> {
+    if (!file) return;
+    setUploading(true);
+    onError('');
+    try {
+      const body = new FormData();
+      body.set('type', type);
+      body.set('file', file);
+      const result = await apiRequest<{ url: string }>('/api/admin/upload', {
+        method: 'POST',
+        body,
+      });
+      onUploaded(result.url);
+    } catch (caught: unknown) {
+      onError(caught instanceof Error ? caught.message : '上传失败');
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <label className="flex h-11 shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-black/10 bg-neutral-50 px-4 text-sm font-medium transition hover:bg-neutral-100">
+      {uploading ? (
+        <LoaderCircle className="size-4 animate-spin" />
+      ) : (
+        <UploadCloud className="size-4" />
+      )}
+      {uploading ? '上传中…' : label}
+      <input
+        type="file"
+        disabled={uploading}
+        accept={
+          type === 'image'
+            ? '.jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp'
+            : '.glb,model/gltf-binary'
+        }
+        className="hidden"
+        onChange={(event) => {
+          void selectFile(event.target.files?.[0]);
+          event.target.value = '';
+        }}
+      />
+    </label>
+  );
 }
 
 function Field({
@@ -155,7 +216,7 @@ function Field({
   children: ReactNode;
 }) {
   return (
-    <label className="block">
+    <div className="block">
       <span className="mb-2 block text-sm font-medium text-neutral-700">
         {label}
       </span>
@@ -163,7 +224,7 @@ function Field({
       {hint ? (
         <span className="mt-1 block text-xs text-neutral-400">{hint}</span>
       ) : null}
-    </label>
+    </div>
   );
 }
 
@@ -863,19 +924,30 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
         <Section
           icon={<ImageIcon className="size-5" />}
           title="图片与模型"
-          description="T035 接入文件上传前，可填写已有的公开 URL"
+          description="图片支持 JPG、PNG、WebP（≤5MB），模型支持 GLB（≤20MB）"
         >
           <div className="space-y-5 px-5 py-6 sm:px-7">
             <Field label="主图 URL">
-              <input
-                type="url"
-                value={form.mainImageUrl}
-                onChange={(event) =>
-                  patchForm('mainImageUrl', event.target.value)
-                }
-                className={inputClass}
-                placeholder="https://..."
-              />
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  value={form.mainImageUrl}
+                  onChange={(event) =>
+                    patchForm('mainImageUrl', event.target.value)
+                  }
+                  className={inputClass}
+                  placeholder="https://..."
+                />
+                <AssetUploadButton
+                  type="image"
+                  label="上传主图"
+                  onUploaded={(url) => {
+                    patchForm('mainImageUrl', url);
+                    setNotice('主图上传成功');
+                  }}
+                  onError={setError}
+                />
+              </div>
             </Field>
             <Field label="图集 URL">
               <div className="space-y-2">
@@ -919,18 +991,38 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
                   <Plus className="size-4" />
                   添加图片地址
                 </button>
+                <AssetUploadButton
+                  type="image"
+                  label="上传并加入图集"
+                  onUploaded={(url) => {
+                    patchForm('gallery', [...form.gallery, url]);
+                    setNotice('图集图片上传成功');
+                  }}
+                  onError={setError}
+                />
               </div>
             </Field>
             <Field label="GLB 模型预览 URL">
-              <input
-                type="url"
-                value={form.modelPreviewUrl}
-                onChange={(event) =>
-                  patchForm('modelPreviewUrl', event.target.value)
-                }
-                className={inputClass}
-                placeholder="https://.../model.glb"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  value={form.modelPreviewUrl}
+                  onChange={(event) =>
+                    patchForm('modelPreviewUrl', event.target.value)
+                  }
+                  className={inputClass}
+                  placeholder="https://.../model.glb"
+                />
+                <AssetUploadButton
+                  type="model"
+                  label="上传 GLB"
+                  onUploaded={(url) => {
+                    patchForm('modelPreviewUrl', url);
+                    setNotice('GLB 模型上传成功');
+                  }}
+                  onError={setError}
+                />
+              </div>
             </Field>
           </div>
         </Section>
@@ -1191,16 +1283,27 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
                           </Field>
                           <div className="sm:col-span-2">
                             <Field label="变体图片 URL">
-                              <input
-                                type="url"
-                                value={variant.imageUrl}
-                                onChange={(event) =>
-                                  patchVariant(index, {
-                                    imageUrl: event.target.value,
-                                  })
-                                }
-                                className={inputClass}
-                              />
+                              <div className="flex gap-2">
+                                <input
+                                  type="url"
+                                  value={variant.imageUrl}
+                                  onChange={(event) =>
+                                    patchVariant(index, {
+                                      imageUrl: event.target.value,
+                                    })
+                                  }
+                                  className={inputClass}
+                                />
+                                <AssetUploadButton
+                                  type="image"
+                                  label="上传图片"
+                                  onUploaded={(url) => {
+                                    patchVariant(index, { imageUrl: url });
+                                    setNotice('变体图片上传成功');
+                                  }}
+                                  onError={setError}
+                                />
+                              </div>
                             </Field>
                           </div>
                         </div>
