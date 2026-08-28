@@ -13,7 +13,13 @@ import {
 import { cache } from 'react';
 
 import { getDb } from '@/lib/db/client';
-import { categories, products, settings } from '@/lib/db/schema';
+import {
+  categories,
+  productVariants,
+  products,
+  settings,
+} from '@/lib/db/schema';
+import { BizError } from '@/lib/errors';
 import type { StorefrontProductListQuery } from '@/lib/validators/storefront';
 
 export interface StorefrontBanner {
@@ -283,3 +289,59 @@ export async function listStorefrontProducts(
     pageCount: Math.ceil(total / query.pageSize),
   };
 }
+
+async function loadStorefrontProductBySlug(slug: string) {
+  const db = getDb();
+  const [product] = await db
+    .select({
+      id: products.id,
+      name: products.name,
+      slug: products.slug,
+      subtitle: products.subtitle,
+      description: products.description,
+      mainImageUrl: products.mainImageUrl,
+      gallery: products.gallery,
+      modelPreviewUrl: products.modelPreviewUrl,
+      specs: products.specs,
+      categoryId: products.categoryId,
+      categoryName: categories.name,
+      categorySlug: categories.slug,
+    })
+    .from(products)
+    .leftJoin(categories, eq(categories.id, products.categoryId))
+    .where(
+      and(
+        eq(products.slug, slug),
+        eq(products.status, 'on_sale'),
+        isNull(products.deletedAt),
+      ),
+    )
+    .limit(1);
+
+  if (!product) {
+    throw new BizError('PRODUCT_UNAVAILABLE', '商品不存在或已下架');
+  }
+
+  const variants = await db
+    .select({
+      id: productVariants.id,
+      skuCode: productVariants.skuCode,
+      name: productVariants.name,
+      attributes: productVariants.attributes,
+      price: productVariants.price,
+      comparePrice: productVariants.comparePrice,
+      imageUrl: productVariants.imageUrl,
+    })
+    .from(productVariants)
+    .where(
+      and(
+        eq(productVariants.productId, product.id),
+        eq(productVariants.isActive, true),
+      ),
+    )
+    .orderBy(asc(productVariants.sortOrder), asc(productVariants.createdAt));
+
+  return { ...product, variants };
+}
+
+export const getStorefrontProductBySlug = cache(loadStorefrontProductBySlug);

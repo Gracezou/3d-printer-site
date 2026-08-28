@@ -1,0 +1,104 @@
+'use client';
+
+import { Expand, X } from 'lucide-react';
+import { useState } from 'react';
+
+interface ProductGalleryProps {
+  productName: string;
+  images: string[];
+}
+
+function ProductImage({
+  src,
+  alt,
+  className,
+}: {
+  src: string;
+  alt: string;
+  className: string;
+}) {
+  return (
+    <div
+      role="img"
+      aria-label={alt}
+      className={`bg-cover bg-center ${className}`}
+      style={{ backgroundImage: `url(${JSON.stringify(src)})` }}
+    />
+  );
+}
+
+export function ProductGallery({ productName, images }: ProductGalleryProps) {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [zoomed, setZoomed] = useState(false);
+  const activeImage = images[activeIndex];
+
+  if (!activeImage) {
+    return (
+      <div className="grid aspect-square place-items-center rounded-[2rem] bg-[radial-gradient(circle_at_70%_25%,#d9ff68_0,transparent_24%),linear-gradient(145deg,#f1eee5,#d7d4ca)]">
+        <span className="text-7xl font-black tracking-[-0.08em] text-stone-900/10">
+          3D
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <button
+        type="button"
+        aria-label="放大查看商品图片"
+        onClick={() => setZoomed(true)}
+        className="group relative block aspect-square w-full overflow-hidden rounded-[2rem] bg-[#e8e5dc]"
+      >
+        <ProductImage
+          src={activeImage}
+          alt={`${productName} 图片 ${activeIndex + 1}`}
+          className="absolute inset-0 transition duration-500 group-hover:scale-[1.02]"
+        />
+        <span className="absolute right-5 bottom-5 grid size-11 place-items-center rounded-full bg-white/90 shadow-lg backdrop-blur">
+          <Expand className="size-4" />
+        </span>
+      </button>
+
+      {images.length > 1 ? (
+        <div className="mt-4 grid grid-cols-5 gap-3">
+          {images.map((image, index) => (
+            <button
+              key={`${image}-${index}`}
+              type="button"
+              aria-label={`查看第 ${index + 1} 张商品图片`}
+              aria-current={index === activeIndex}
+              onClick={() => setActiveIndex(index)}
+              className={`relative aspect-square overflow-hidden rounded-xl border-2 bg-[#e8e5dc] ${index === activeIndex ? 'border-[#17251c]' : 'border-transparent'}`}
+            >
+              <ProductImage src={image} alt="" className="absolute inset-0" />
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {zoomed ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="商品图片大图"
+          className="fixed inset-0 z-50 grid place-items-center bg-black/88 p-5"
+        >
+          <button
+            type="button"
+            aria-label="关闭大图"
+            onClick={() => setZoomed(false)}
+            className="absolute top-5 right-5 grid size-11 place-items-center rounded-full bg-white text-stone-950"
+          >
+            <X className="size-5" />
+          </button>
+          <ProductImage
+            src={activeImage}
+            alt={`${productName} 大图`}
+            className="h-[85vh] w-[90vw] bg-contain bg-center bg-no-repeat"
+          />
+        </div>
+      ) : null}
+    </div>
+  );
+}

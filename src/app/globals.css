@@ -36,3 +36,51 @@ input {
   background: #d9ff68;
   color: #17251c;
 }
+
+.product-markdown > * + * {
+  margin-top: 1.25rem;
+}
+
+.product-markdown h1,
+.product-markdown h2,
+.product-markdown h3 {
+  margin-top: 2rem;
+  font-weight: 650;
+  letter-spacing: -0.025em;
+}
+
+.product-markdown ul,
+.product-markdown ol {
+  padding-left: 1.5rem;
+}
+
+.product-markdown ul {
+  list-style: disc;
+}
+
+.product-markdown ol {
+  list-style: decimal;
+}
+
+.product-markdown a {
+  color: #3d6247;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.product-markdown img {
+  max-width: 100%;
+  border-radius: 1rem;
+}
+
+.product-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.product-markdown th,
+.product-markdown td {
+  border: 1px solid rgb(28 25 23 / 10%);
+  padding: 0.6rem 0.75rem;
+  text-align: left;
+}
