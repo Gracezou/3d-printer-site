@@ -1,0 +1,47 @@
+'use client';
+
+import { ShoppingBag } from 'lucide-react';
+import Link from 'next/link';
+import { useCallback, useEffect, useState } from 'react';
+
+interface CartResponse {
+  code: number;
+  data: { items: Array<{ quantity: number }> } | null;
+}
+
+export const CART_UPDATED_EVENT = 'cart-updated';
+
+export function CartIndicator() {
+  const [count, setCount] = useState(0);
+  const refresh = useCallback(async () => {
+    try {
+      const response = await fetch('/api/cart', { cache: 'no-store' });
+      if (!response.ok) return setCount(0);
+      const body = (await response.json()) as CartResponse;
+      setCount(
+        body.data?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0,
+      );
+    } catch {
+      setCount(0);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+    window.addEventListener(CART_UPDATED_EVENT, refresh);
+    return () => window.removeEventListener(CART_UPDATED_EVENT, refresh);
+  }, [refresh]);
+
+  return (
+    <Link
+      href="/cart"
+      aria-label={`购物车，当前 ${count} 件商品`}
+      className="relative grid size-10 place-items-center rounded-full transition hover:bg-stone-900/5"
+    >
+      <ShoppingBag className="size-5" />
+      <span className="absolute top-0 right-0 grid min-w-4 place-items-center rounded-full bg-[#d9ff68] px-1 text-[10px] font-bold text-[#17251c] ring-2 ring-[#f7f5ef]">
+        {count > 99 ? '99+' : count}
+      </span>
+    </Link>
+  );
+}

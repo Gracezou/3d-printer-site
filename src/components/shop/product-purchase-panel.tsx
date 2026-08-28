@@ -11,6 +11,8 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { CART_UPDATED_EVENT } from './cart-indicator';
+
 interface ProductVariant {
   id: string;
   skuCode: string;
@@ -26,6 +28,14 @@ interface AvailabilityResponse {
   data: { variants: Array<{ variantId: string; availableQty: number }> } | null;
   message: string;
 }
+
+interface ApiResponse<T> {
+  code: number;
+  data: T | null;
+  message: string;
+}
+
+const PENDING_CART_KEY = 'pending-cart-item';
 
 interface ProductPurchasePanelProps {
   slug: string;
@@ -52,6 +62,7 @@ export function ProductPurchasePanel({
   >({});
   const [quantity, setQuantity] = useState(1);
   const [notice, setNotice] = useState<string | null>(null);
+  const [isAdding, setIsAdding] = useState(false);
 
   const normalizedVariants = useMemo(
     () =>
@@ -152,6 +163,85 @@ export function ProductPurchasePanel({
   const purchasable = Boolean(
     selectedVariant && selectedAvailableQty > 0 && !availabilityError,
   );
+
+  const submitCartItem = useCallback(
+    async (variantId: string, itemQuantity: number, redirectToCart = false) => {
+      setIsAdding(true);
+      setNotice(null);
+      try {
+        const response = await fetch('/api/cart/items', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ variantId, quantity: itemQuantity }),
+        });
+        const body = (await response.json()) as ApiResponse<{
+          id: string;
+          quantity: number;
+        }>;
+        if (response.status === 401) {
+          window.sessionStorage.setItem(
+            PENDING_CART_KEY,
+            JSON.stringify({
+              slug,
+              variantId,
+              quantity: itemQuantity,
+              redirectToCart,
+            }),
+          );
+          window.location.assign(
+            `/auth/login?next=${encodeURIComponent(`/products/${slug}?resumeCart=1`)}`,
+          );
+          return;
+        }
+        if (!response.ok || body.code !== 0) throw new Error(body.message);
+        window.dispatchEvent(new Event(CART_UPDATED_EVENT));
+        if (redirectToCart) {
+          window.location.assign('/cart');
+          return;
+        }
+        setNotice(
+          `已加入购物车，购物车内共 ${body.data?.quantity ?? itemQuantity} 件`,
+        );
+      } catch (error: unknown) {
+        setNotice(
+          error instanceof Error ? error.message : '加入购物车失败，请重试',
+        );
+        await loadAvailability();
+      } finally {
+        setIsAdding(false);
+      }
+    },
+    [loadAvailability, slug],
+  );
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('resumeCart') !== '1')
+      return;
+    const pendingValue = window.sessionStorage.getItem(PENDING_CART_KEY);
+    if (!pendingValue) return;
+    window.sessionStorage.removeItem(PENDING_CART_KEY);
+    try {
+      const pending = JSON.parse(pendingValue) as {
+        slug?: string;
+        variantId?: string;
+        quantity?: number;
+        redirectToCart?: boolean;
+      };
+      if (
+        pending.slug === slug &&
+        typeof pending.variantId === 'string' &&
+        typeof pending.quantity === 'number'
+      ) {
+        void submitCartItem(
+          pending.variantId,
+          pending.quantity,
+          pending.redirectToCart,
+        );
+      }
+    } catch {
+      setNotice('登录成功，请重新加入购物车');
+    }
+  }, [slug, submitCartItem]);
 
   return (
     <div>
@@ -277,16 +367,22 @@ export function ProductPurchasePanel({
         </div>
         <button
           type="button"
-          disabled={!purchasable}
-          onClick={() => setNotice('购物车将在下一阶段接入。')}
+          disabled={!purchasable || isAdding}
+          onClick={() =>
+            selectedVariant && void submitCartItem(selectedVariant.id, quantity)
+          }
           className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-full border border-[#17251c] px-6 text-sm font-bold text-[#17251c] disabled:cursor-not-allowed disabled:border-stone-200 disabled:text-stone-300"
         >
-          <ShoppingBag className="size-4" /> 加入购物车
+          <ShoppingBag className="size-4" />
+          {isAdding ? '处理中…' : '加入购物车'}
         </button>
         <button
           type="button"
-          disabled={!purchasable}
-          onClick={() => setNotice('立即购买将在购物车与下单阶段接入。')}
+          disabled={!purchasable || isAdding}
+          onClick={() =>
+            selectedVariant &&
+            void submitCartItem(selectedVariant.id, quantity, true)
+          }
           className="h-12 flex-1 rounded-full bg-[#17251c] px-6 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-stone-200 disabled:text-stone-400"
         >
           立即购买

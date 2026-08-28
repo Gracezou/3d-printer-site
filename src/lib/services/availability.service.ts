@@ -8,7 +8,7 @@ export interface VariantAvailability {
   availableQty: number;
 }
 
-const publicAvailableQty = sql<number>`
+export const publicAvailableQty = sql<number>`
   LEAST(
     GREATEST(
       COALESCE(

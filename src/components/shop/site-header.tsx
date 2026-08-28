@@ -1,8 +1,10 @@
 'use client';
 
-import { Menu, Search, ShoppingBag, UserRound, X } from 'lucide-react';
+import { Menu, Search, UserRound, X } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
+
+import { CartIndicator } from './cart-indicator';
 
 interface SiteHeaderProps {
   siteName: string;
@@ -78,16 +80,7 @@ export function SiteHeader({ siteName }: SiteHeaderProps) {
           >
             <UserRound className="size-5" />
           </Link>
-          <Link
-            href="/cart"
-            aria-label="购物车，当前 0 件商品"
-            className="relative grid size-10 place-items-center rounded-full transition hover:bg-stone-900/5"
-          >
-            <ShoppingBag className="size-5" />
-            <span className="absolute top-0 right-0 grid min-w-4 place-items-center rounded-full bg-[#d9ff68] px-1 text-[10px] font-bold text-[#17251c] ring-2 ring-[#f7f5ef]">
-              0
-            </span>
-          </Link>
+          <CartIndicator />
         </div>
       </div>
 
