@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { type output, type ZodType, type ZodTypeAny, ZodError } from 'zod';
+import { type output, type ZodTypeAny, ZodError } from 'zod';
 
 import { BizError, ERROR_DEFINITIONS } from '@/lib/errors';
 import { logger } from '@/lib/logger';
@@ -30,10 +30,10 @@ export function fail(error: BizError): NextResponse<ApiFailure> {
   );
 }
 
-export async function parseJsonBody<T>(
+export async function parseJsonBody<TSchema extends ZodTypeAny>(
   request: Request,
-  schema: ZodType<T>,
-): Promise<T> {
+  schema: TSchema,
+): Promise<output<TSchema>> {
   let body: unknown;
   try {
     body = await request.json();

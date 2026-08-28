@@ -23,7 +23,8 @@
     "test:inventory": "dotenv -e .env.dev -- tsx scripts/test-inventory-sql.ts",
     "test:admin-auth": "dotenv -e .env.dev -- tsx scripts/test-admin-auth.ts",
     "test:super-admin": "dotenv -e .env.dev -- tsx scripts/test-super-admin-role.ts",
-    "test:materials": "dotenv -e .env.dev -- tsx scripts/test-material-service.ts"
+    "test:materials": "dotenv -e .env.dev -- tsx scripts/test-material-service.ts",
+    "test:categories": "dotenv -e .env.dev -- tsx scripts/test-category-service.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.4",
