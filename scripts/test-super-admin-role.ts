@@ -70,6 +70,12 @@ async function main(): Promise<void> {
     assert.deepEqual(verifiedClaims, claims);
 
     await withAdminLog(
+      async (tx) => {
+        await tx
+          .update(adminUsers)
+          .set({ name: '超级管理员功能测试已通过' })
+          .where(eq(adminUsers.id, createdAdminId));
+      },
       {
         adminId: createdAdminId,
         adminName: claims.name,
@@ -78,12 +84,6 @@ async function main(): Promise<void> {
         targetId: createdAdminId,
         payload: { permissionsChecked: PERMISSIONS.length },
         ip: '127.0.0.1',
-      },
-      async (tx) => {
-        await tx
-          .update(adminUsers)
-          .set({ name: '超级管理员功能测试已通过' })
-          .where(eq(adminUsers.id, createdAdminId));
       },
     );
 

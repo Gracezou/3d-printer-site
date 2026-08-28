@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { type ZodType, ZodError } from 'zod';
+import { type output, type ZodType, type ZodTypeAny, ZodError } from 'zod';
 
 import { BizError, ERROR_DEFINITIONS } from '@/lib/errors';
 import { logger } from '@/lib/logger';
@@ -41,6 +41,14 @@ export async function parseJsonBody<T>(
     throw new BizError('PARAM_INVALID', '请求体必须是有效的 JSON');
   }
   return schema.parse(body);
+}
+
+export function parseSearchParams<TSchema extends ZodTypeAny>(
+  request: Request,
+  schema: TSchema,
+): output<TSchema> {
+  const entries = new URL(request.url).searchParams.entries();
+  return schema.parse(Object.fromEntries(entries));
 }
 
 type RouteHandler<TArgs extends unknown[]> = (

@@ -82,6 +82,12 @@ async function main(): Promise<void> {
     assert.deepEqual(claims.permissions, ['order:view']);
 
     await withAdminLog(
+      async (tx) => {
+        await tx
+          .update(adminUsers)
+          .set({ name: 'P2 test admin updated' })
+          .where(eq(adminUsers.id, createdAdminId));
+      },
       {
         adminId: createdAdminId,
         adminName: 'P2 test admin',
@@ -89,12 +95,6 @@ async function main(): Promise<void> {
         targetType: 'admin_user',
         targetId: createdAdminId,
         ip: '127.0.0.1',
-      },
-      async (tx) => {
-        await tx
-          .update(adminUsers)
-          .set({ name: 'P2 test admin updated' })
-          .where(eq(adminUsers.id, createdAdminId));
       },
     );
     const logs = await db

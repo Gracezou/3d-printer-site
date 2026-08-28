@@ -93,14 +93,6 @@ export async function changeAdminPassword(
   ip: string,
 ): Promise<void> {
   await withAdminLog(
-    {
-      adminId: admin.sub,
-      adminName: admin.name,
-      action: 'admin.password.change',
-      targetType: 'admin_user',
-      targetId: admin.sub,
-      ip,
-    },
     async (tx) => {
       const [record] = await tx
         .select({ passwordHash: adminUsers.passwordHash })
@@ -123,6 +115,14 @@ export async function changeAdminPassword(
         .update(adminUsers)
         .set({ passwordHash, failedLoginCount: 0, lockedUntil: null })
         .where(eq(adminUsers.id, admin.sub));
+    },
+    {
+      adminId: admin.sub,
+      adminName: admin.name,
+      action: 'admin.password.change',
+      targetType: 'admin_user',
+      targetId: admin.sub,
+      ip,
     },
   );
 }
