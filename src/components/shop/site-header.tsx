@@ -74,8 +74,8 @@ export function SiteHeader({ siteName }: SiteHeaderProps) {
 
         <div className="flex items-center gap-1">
           <Link
-            href="/auth/login"
-            aria-label="登录或进入用户中心"
+            href="/account/addresses"
+            aria-label="进入用户中心"
             className="grid size-10 place-items-center rounded-full transition hover:bg-stone-900/5"
           >
             <UserRound className="size-5" />

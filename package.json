@@ -30,7 +30,8 @@
     "test:availability": "dotenv -e .env.dev -- tsx scripts/test-availability-service.ts",
     "test:storefront": "dotenv -e .env.dev -- tsx scripts/test-storefront-products.ts",
     "test:product-detail": "dotenv -e .env.dev -- tsx scripts/test-product-detail.ts",
-    "test:cart": "dotenv -e .env.dev -- tsx scripts/test-cart-service.ts"
+    "test:cart": "dotenv -e .env.dev -- tsx scripts/test-cart-service.ts",
+    "test:addresses": "dotenv -e .env.dev -- tsx scripts/test-address-service.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.5",
