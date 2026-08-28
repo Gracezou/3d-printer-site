@@ -57,6 +57,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
     (image): image is string => Boolean(image),
   );
   const uniqueImages = [...new Set(images)];
+  const ModelPreviewLauncher = product.modelPreviewUrl
+    ? (await import('@/components/shop/model-preview-launcher'))
+        .ModelPreviewLauncher
+    : undefined;
 
   return (
     <main>
@@ -89,7 +93,15 @@ export default async function ProductPage({ params }: ProductPageProps) {
       </div>
 
       <section className="mx-auto grid max-w-7xl gap-10 px-5 pb-16 sm:px-8 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16 lg:pb-24">
-        <ProductGallery productName={product.name} images={uniqueImages} />
+        <div className="relative">
+          <ProductGallery productName={product.name} images={uniqueImages} />
+          {product.modelPreviewUrl && ModelPreviewLauncher ? (
+            <ModelPreviewLauncher
+              modelUrl={product.modelPreviewUrl}
+              productName={product.name}
+            />
+          ) : null}
+        </div>
         <div className="lg:pt-6">
           <p className="text-xs font-bold tracking-[0.2em] text-[#59705f]">
             MADE TO ORDER
