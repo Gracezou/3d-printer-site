@@ -27,7 +27,8 @@
     "test:categories": "dotenv -e .env.dev -- tsx scripts/test-category-service.ts",
     "test:products": "dotenv -e .env.dev -- tsx scripts/test-product-service.ts",
     "test:upload": "dotenv -e .env.dev -- tsx scripts/test-upload-service.ts",
-    "test:availability": "dotenv -e .env.dev -- tsx scripts/test-availability-service.ts"
+    "test:availability": "dotenv -e .env.dev -- tsx scripts/test-availability-service.ts",
+    "test:storefront": "dotenv -e .env.dev -- tsx scripts/test-storefront-products.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.4",

@@ -36,7 +36,10 @@ describe('admin JWT', () => {
       roleCode: 'operator',
       permissions: [],
     });
-    const tampered = `${token.slice(0, -1)}${token.endsWith('a') ? 'b' : 'a'}`;
+    const segments = token.split('.');
+    const signature = segments[2]!;
+    segments[2] = `${signature.startsWith('a') ? 'b' : 'a'}${signature.slice(1)}`;
+    const tampered = segments.join('.');
     await expect(verifyAdminToken(tampered)).rejects.toThrow();
   });
 });

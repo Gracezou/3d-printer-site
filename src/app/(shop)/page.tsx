@@ -144,7 +144,7 @@ export default async function HomePage() {
           <SectionHeading
             eyebrow="CURATED FOR YOU"
             title="本期推荐"
-            href="/products?featured=true"
+            href="/products"
           />
           {data.featuredProducts.length > 0 ? (
             <div className="grid grid-cols-2 gap-x-4 gap-y-10 md:grid-cols-3 lg:grid-cols-4">

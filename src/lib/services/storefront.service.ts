@@ -1,8 +1,20 @@
-import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  ilike,
+  isNull,
+  or,
+  type SQL,
+  sql,
+} from 'drizzle-orm';
 import { cache } from 'react';
 
 import { getDb } from '@/lib/db/client';
 import { categories, products, settings } from '@/lib/db/schema';
+import type { StorefrontProductListQuery } from '@/lib/validators/storefront';
 
 export interface StorefrontBanner {
   title: string;
@@ -27,6 +39,14 @@ export interface StorefrontProduct {
   mainImageUrl: string | null;
   minPrice: string | null;
   isSoldOut: boolean;
+}
+
+export interface StorefrontCategory {
+  id: string;
+  parentId: string | null;
+  name: string;
+  slug: string;
+  sortOrder: number;
 }
 
 const defaultBanner: StorefrontBanner = {
@@ -93,7 +113,7 @@ const productSelection = {
     FROM product_variants variant
     INNER JOIN v_variant_availability availability
       ON availability.variant_id = variant.id
-    WHERE variant.product_id = ${products.id}
+    WHERE variant.product_id = products.id
       AND variant.is_active = true
       AND availability.available_qty > 0
   )`.as('is_sold_out'),
@@ -151,3 +171,115 @@ async function loadHomePageData() {
 }
 
 export const getHomePageData = cache(loadHomePageData);
+
+async function loadStorefrontCategories(): Promise<StorefrontCategory[]> {
+  return getDb()
+    .select({
+      id: categories.id,
+      parentId: categories.parentId,
+      name: categories.name,
+      slug: categories.slug,
+      sortOrder: categories.sortOrder,
+    })
+    .from(categories)
+    .where(eq(categories.isVisible, true))
+    .orderBy(asc(categories.sortOrder), asc(categories.createdAt));
+}
+
+export const getStorefrontCategories = cache(loadStorefrontCategories);
+
+export const getStorefrontCategoryBySlug = cache(async (slug: string) => {
+  const [category] = await getDb()
+    .select({
+      id: categories.id,
+      parentId: categories.parentId,
+      name: categories.name,
+      slug: categories.slug,
+      imageUrl: categories.imageUrl,
+    })
+    .from(categories)
+    .where(and(eq(categories.slug, slug), eq(categories.isVisible, true)))
+    .limit(1);
+  return category;
+});
+
+function getProductOrder(sort: StorefrontProductListQuery['sort']): SQL[] {
+  switch (sort) {
+    case 'price_asc':
+      return [asc(products.minPrice), desc(products.sortOrder)];
+    case 'price_desc':
+      return [desc(products.minPrice), desc(products.sortOrder)];
+    case 'newest':
+      return [desc(products.createdAt)];
+    default:
+      return [
+        desc(products.sortOrder),
+        desc(products.soldCount),
+        desc(products.createdAt),
+      ];
+  }
+}
+
+export async function listStorefrontProducts(
+  query: StorefrontProductListQuery,
+) {
+  const db = getDb();
+  const filters: SQL[] = [
+    eq(products.status, 'on_sale'),
+    isNull(products.deletedAt),
+  ];
+
+  if (query.keyword) {
+    const keyword = `%${query.keyword}%`;
+    filters.push(
+      or(ilike(products.name, keyword), ilike(products.subtitle, keyword))!,
+    );
+  }
+  if (query.categoryId) {
+    filters.push(sql`(
+      ${products.categoryId} = ${query.categoryId}
+      OR ${products.categoryId} IN (
+        SELECT child.id
+        FROM categories child
+        WHERE child.parent_id = ${query.categoryId}
+          AND child.is_visible = true
+      )
+    )`);
+  }
+  if (query.minPrice) {
+    filters.push(sql`${products.minPrice} >= ${query.minPrice}`);
+  }
+  if (query.maxPrice) {
+    filters.push(sql`${products.minPrice} <= ${query.maxPrice}`);
+  }
+  if (query.materialType) {
+    filters.push(sql`EXISTS (
+      SELECT 1
+      FROM product_variants variant
+      WHERE variant.product_id = ${products.id}
+        AND variant.is_active = true
+        AND UPPER(variant.attributes ->> 'material') = ${query.materialType}
+    )`);
+  }
+
+  const where = and(...filters);
+  const [list, totalRows] = await Promise.all([
+    db
+      .select(productSelection)
+      .from(products)
+      .where(where)
+      .orderBy(...getProductOrder(query.sort))
+      .limit(query.pageSize)
+      .offset((query.page - 1) * query.pageSize),
+    db.select({ total: count() }).from(products).where(where),
+  ]);
+  const total = totalRows[0]?.total ?? 0;
+
+  return {
+    list,
+    total,
+    page: query.page,
+    pageSize: query.pageSize,
+    pageCount: Math.ceil(total / query.pageSize),
+  };
+}
