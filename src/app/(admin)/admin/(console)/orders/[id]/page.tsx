@@ -19,6 +19,7 @@ export default async function AdminOrderDetailPage({
         remark: hasPermission(admin.permissions, 'order:remark'),
         ship: hasPermission(admin.permissions, 'order:ship'),
         cancel: hasPermission(admin.permissions, 'order:cancel'),
+        refund: hasPermission(admin.permissions, 'order:refund'),
       }}
     />
   );

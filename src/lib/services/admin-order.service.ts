@@ -10,6 +10,7 @@ import {
   type SQL,
   sql,
 } from 'drizzle-orm';
+import Decimal from 'decimal.js';
 
 import type { AdminIdentity } from '@/lib/auth/admin';
 import { getDb } from '@/lib/db/client';
@@ -17,10 +18,12 @@ import {
   orderItems,
   orders,
   payments,
+  refunds,
   shipments,
   userProfiles,
 } from '@/lib/db/schema';
 import { BizError } from '@/lib/errors';
+import { toFixed2 } from '@/lib/money';
 import { withAdminLog } from '@/lib/services/admin-log.service';
 import { releaseDiscount } from '@/lib/services/promotion.service';
 import type {
@@ -137,7 +140,7 @@ export async function getAdminOrderDetail(orderId: string) {
     .limit(1);
   if (!order) throw new BizError('NOT_FOUND', '订单不存在');
 
-  const [items, paymentRows, shipmentRows] = await Promise.all([
+  const [items, paymentRows, refundRows, shipmentRows] = await Promise.all([
     db
       .select()
       .from(orderItems)
@@ -160,12 +163,40 @@ export async function getAdminOrderDetail(orderId: string) {
       .where(eq(payments.orderId, orderId))
       .orderBy(desc(payments.createdAt)),
     db
+      .select({
+        id: refunds.id,
+        outRefundNo: refunds.outRefundNo,
+        providerRefundId: refunds.providerRefundId,
+        amount: refunds.amount,
+        isFullRefund: refunds.isFullRefund,
+        restock: refunds.restock,
+        reason: refunds.reason,
+        status: refunds.status,
+        createdAt: refunds.createdAt,
+        updatedAt: refunds.updatedAt,
+      })
+      .from(refunds)
+      .where(eq(refunds.orderId, orderId))
+      .orderBy(desc(refunds.createdAt)),
+    db
       .select()
       .from(shipments)
       .where(eq(shipments.orderId, orderId))
       .orderBy(desc(shipments.shippedAt)),
   ]);
-  return { ...order, items, payments: paymentRows, shipments: shipmentRows };
+  return {
+    ...order,
+    refundableAmount: toFixed2(
+      Decimal.max(
+        new Decimal(order.paidAmount).minus(order.refundedAmount),
+        new Decimal(0),
+      ),
+    ),
+    items,
+    payments: paymentRows,
+    refunds: refundRows,
+    shipments: shipmentRows,
+  };
 }
 
 export async function updateAdminOrderRemark(

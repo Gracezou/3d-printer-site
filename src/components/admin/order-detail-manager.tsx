@@ -5,6 +5,7 @@ import {
   CircleAlert,
   LoaderCircle,
   PackageCheck,
+  RotateCcw,
   Save,
   Truck,
 } from 'lucide-react';
@@ -53,6 +54,19 @@ interface Shipment {
   remark: string | null;
 }
 
+interface Refund {
+  id: string;
+  outRefundNo: string;
+  providerRefundId: string | null;
+  amount: string;
+  isFullRefund: boolean;
+  restock: boolean;
+  reason: string | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface OrderDetail {
   id: string;
   orderNo: string;
@@ -65,6 +79,7 @@ interface OrderDetail {
   payableAmount: string;
   paidAmount: string;
   refundedAmount: string;
+  refundableAmount: string;
   discountCode: string | null;
   receiverName: string;
   receiverPhone: string;
@@ -84,6 +99,7 @@ interface OrderDetail {
   updatedAt: string;
   items: OrderItem[];
   payments: Payment[];
+  refunds: Refund[];
   shipments: Shipment[];
 }
 
@@ -136,7 +152,12 @@ export function OrderDetailManager({
   permissions,
 }: {
   orderId: string;
-  permissions: { remark: boolean; ship: boolean; cancel: boolean };
+  permissions: {
+    remark: boolean;
+    ship: boolean;
+    cancel: boolean;
+    refund: boolean;
+  };
 }) {
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -147,6 +168,9 @@ export function OrderDetailManager({
   const [carrierCode, setCarrierCode] = useState('sf');
   const [carrierName, setCarrierName] = useState('顺丰速运');
   const [trackingNo, setTrackingNo] = useState('');
+  const [refundAmount, setRefundAmount] = useState('');
+  const [refundReason, setRefundReason] = useState('');
+  const [refundRestock, setRefundRestock] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -157,6 +181,7 @@ export function OrderDetailManager({
       );
       setOrder(detail);
       setAdminRemark(detail.adminRemark ?? '');
+      setRefundAmount(detail.refundableAmount);
     } catch (caught: unknown) {
       setError(caught instanceof Error ? caught.message : '订单详情加载失败');
     } finally {
@@ -225,6 +250,38 @@ export function OrderDetailManager({
       await load();
     } catch (caught: unknown) {
       setError(caught instanceof Error ? caught.message : '取消失败');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function refundOrder(): Promise<void> {
+    const restockMessage = refundRestock
+      ? '；若为全额退款，将同时回补耗材库存'
+      : '';
+    if (
+      !window.confirm(
+        `确认退款 ¥${refundAmount}${restockMessage}？退款请求提交后不可撤销。`,
+      )
+    )
+      return;
+    setBusy('refund');
+    setError('');
+    try {
+      await apiRequest(`/api/admin/orders/${orderId}/refund`, {
+        method: 'POST',
+        body: JSON.stringify({
+          amount: refundAmount,
+          reason: refundReason.trim(),
+          restock: refundRestock,
+        }),
+      });
+      setNotice('退款成功');
+      setRefundReason('');
+      setRefundRestock(false);
+      await load();
+    } catch (caught: unknown) {
+      setError(caught instanceof Error ? caught.message : '退款失败');
     } finally {
       setBusy('');
     }
@@ -360,6 +417,38 @@ export function OrderDetailManager({
               <p className="mt-4 text-sm text-neutral-400">
                 暂无支付记录（支付阶段暂未接入）
               </p>
+            )}
+          </section>
+
+          <section className="rounded-2xl border border-black/6 bg-white p-5 shadow-sm">
+            <h2 className="font-semibold">退款记录</h2>
+            {order.refunds.length ? (
+              <div className="mt-4 space-y-3">
+                {order.refunds.map((refund) => (
+                  <div
+                    key={refund.id}
+                    className="rounded-xl bg-neutral-50 p-4 text-sm"
+                  >
+                    <div className="flex justify-between gap-3">
+                      <span className="font-medium">
+                        {refund.isFullRefund ? '全额退款' : '部分退款'} ·{' '}
+                        {refund.status}
+                      </span>
+                      <span>¥{refund.amount}</span>
+                    </div>
+                    <p className="mt-2 text-xs break-all text-neutral-500">
+                      退款单号 {refund.outRefundNo}
+                    </p>
+                    <p className="mt-1 text-xs text-neutral-500">
+                      {refund.reason || '未填写原因'} ·{' '}
+                      {refund.restock ? '已回补库存' : '未回补库存'} ·{' '}
+                      {formatDate(refund.createdAt)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-4 text-sm text-neutral-400">暂无退款记录</p>
             )}
           </section>
         </div>
@@ -506,6 +595,63 @@ export function OrderDetailManager({
                 className="mt-3 h-10 w-full rounded-xl border border-rose-300 text-sm font-semibold text-rose-700 disabled:opacity-50"
               >
                 确认取消订单
+              </button>
+            </section>
+          ) : null}
+
+          {permissions.refund &&
+          order.refundableAmount !== '0.00' &&
+          !['pending_payment', 'cancelled', 'refunding'].includes(
+            order.status,
+          ) ? (
+            <section className="rounded-2xl border border-indigo-200 bg-indigo-50 p-5">
+              <h2 className="flex items-center gap-2 font-semibold text-indigo-950">
+                <RotateCcw className="size-4" />
+                订单退款
+              </h2>
+              <p className="mt-2 text-xs leading-5 text-indigo-700">
+                当前最多可退 ¥{order.refundableAmount}。部分退款不会回补库存，
+                也不会释放折扣码；只有一次性退回应付总额才视为全额退款。
+              </p>
+              <label className="mt-4 block text-xs font-medium text-indigo-900">
+                退款金额
+              </label>
+              <input
+                value={refundAmount}
+                onChange={(event) => setRefundAmount(event.target.value)}
+                inputMode="decimal"
+                placeholder={order.refundableAmount}
+                className="mt-2 h-10 w-full rounded-xl border border-indigo-200 bg-white px-3 text-sm"
+              />
+              <label className="mt-3 block text-xs font-medium text-indigo-900">
+                退款原因
+              </label>
+              <textarea
+                value={refundReason}
+                onChange={(event) => setRefundReason(event.target.value)}
+                maxLength={200}
+                rows={3}
+                placeholder="请填写退款原因"
+                className="mt-2 w-full resize-none rounded-xl border border-indigo-200 bg-white p-3 text-sm"
+              />
+              <label className="mt-3 flex items-start gap-2 text-xs leading-5 text-indigo-800">
+                <input
+                  type="checkbox"
+                  checked={refundRestock}
+                  onChange={(event) => setRefundRestock(event.target.checked)}
+                  className="mt-1"
+                />
+                全额退款成功后回补该订单消耗的耗材库存（部分退款勾选无效）
+              </label>
+              <button
+                disabled={
+                  busy !== '' || !refundAmount.trim() || !refundReason.trim()
+                }
+                onClick={() => void refundOrder()}
+                className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-indigo-700 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                <RotateCcw className="size-4" />
+                确认退款
               </button>
             </section>
           ) : null}

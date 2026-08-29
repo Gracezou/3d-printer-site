@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import Decimal from 'decimal.js';
 
 export const orderStatuses = [
   'pending_payment',
@@ -46,5 +47,18 @@ export const adminOrderShipSchema = z
   })
   .strict();
 
+export const adminOrderRefundSchema = z
+  .object({
+    amount: z
+      .string()
+      .trim()
+      .regex(/^\d+(?:\.\d{1,2})?$/, '退款金额格式不正确')
+      .refine((value) => new Decimal(value).gt(0), '退款金额必须大于 0'),
+    reason: z.string().trim().min(1, '退款原因不能为空').max(200),
+    restock: z.boolean().default(false),
+  })
+  .strict();
+
 export type AdminOrderListQuery = z.infer<typeof adminOrderListQuerySchema>;
 export type AdminOrderShipInput = z.infer<typeof adminOrderShipSchema>;
+export type AdminOrderRefundInput = z.infer<typeof adminOrderRefundSchema>;
