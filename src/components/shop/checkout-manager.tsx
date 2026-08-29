@@ -282,14 +282,14 @@ export function CheckoutManager() {
           ¥{createdOrder.payableAmount}
         </p>
         <div className="mt-7 rounded-2xl bg-amber-50 px-5 py-4 text-sm leading-6 text-amber-800">
-          支付功能暂未接入。订单库存将保留至{' '}
+          请在以下时间前完成支付，超时后订单库存将被释放：{' '}
           {new Date(createdOrder.reservedUntil).toLocaleString('zh-CN')}。
         </div>
         <Link
-          href="/products"
+          href={`/checkout/pay/${createdOrder.orderNo}`}
           className="mt-8 inline-flex h-11 items-center rounded-full bg-[#17251c] px-6 text-sm font-bold text-white"
         >
-          继续浏览作品
+          去支付宝支付
         </Link>
       </div>
     );

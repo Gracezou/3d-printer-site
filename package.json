@@ -36,11 +36,14 @@
     "test:order-preview": "dotenv -e .env.dev -- tsx scripts/test-order-preview.ts",
     "test:order-create": "dotenv -e .env.dev -- tsx scripts/test-order-creation.ts",
     "test:admin-orders": "dotenv -e .env.dev -- tsx scripts/test-admin-orders.ts",
-    "test:promotions": "dotenv -e .env.dev -- tsx scripts/test-promotions.ts"
+    "test:promotions": "dotenv -e .env.dev -- tsx scripts/test-promotions.ts",
+    "test:payments": "dotenv -e .env.dev -- tsx scripts/test-payments.ts",
+    "test:alipay": "dotenv -e .env.dev -- tsx scripts/test-alipay-provider.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.5",
     "@supabase/supabase-js": "^2.112.4",
+    "alipay-sdk": "4.14.0",
     "bcryptjs": "^3.0.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
