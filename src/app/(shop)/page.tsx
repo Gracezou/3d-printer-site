@@ -45,7 +45,7 @@ function SectionHeading({
 
 export default async function HomePage() {
   const data = await getHomePageData();
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:5000';
   const structuredData = [
     {
       '@context': 'https://schema.org',

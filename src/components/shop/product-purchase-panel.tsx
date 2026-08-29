@@ -11,6 +11,8 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { CHECKOUT_STORAGE_KEY } from '@/lib/checkout-storage';
+
 import { CART_UPDATED_EVENT } from './cart-indicator';
 
 interface ProductVariant {
@@ -35,9 +37,10 @@ interface ApiResponse<T> {
   message: string;
 }
 
-const PENDING_CART_KEY = 'pending-cart-item';
+const PENDING_PURCHASE_KEY = 'pending-purchase';
 
 interface ProductPurchasePanelProps {
+  productName: string;
   slug: string;
   variants: ProductVariant[];
 }
@@ -50,6 +53,7 @@ const dimensionLabels: Record<string, string> = {
 };
 
 export function ProductPurchasePanel({
+  productName,
   slug,
   variants,
 }: ProductPurchasePanelProps) {
@@ -165,7 +169,7 @@ export function ProductPurchasePanel({
   );
 
   const submitCartItem = useCallback(
-    async (variantId: string, itemQuantity: number, redirectToCart = false) => {
+    async (variantId: string, itemQuantity: number) => {
       setIsAdding(true);
       setNotice(null);
       try {
@@ -180,25 +184,21 @@ export function ProductPurchasePanel({
         }>;
         if (response.status === 401) {
           window.sessionStorage.setItem(
-            PENDING_CART_KEY,
+            PENDING_PURCHASE_KEY,
             JSON.stringify({
               slug,
               variantId,
               quantity: itemQuantity,
-              redirectToCart,
+              mode: 'cart',
             }),
           );
           window.location.assign(
-            `/auth/login?next=${encodeURIComponent(`/products/${slug}?resumeCart=1`)}`,
+            `/auth/login?next=${encodeURIComponent(`/products/${slug}?resumePurchase=1`)}`,
           );
           return;
         }
         if (!response.ok || body.code !== 0) throw new Error(body.message);
         window.dispatchEvent(new Event(CART_UPDATED_EVENT));
-        if (redirectToCart) {
-          window.location.assign('/cart');
-          return;
-        }
         setNotice(
           `已加入购物车，购物车内共 ${body.data?.quantity ?? itemQuantity} 件`,
         );
@@ -214,34 +214,88 @@ export function ProductPurchasePanel({
     [loadAvailability, slug],
   );
 
+  const startCheckout = useCallback(
+    async (variantId: string, itemQuantity: number) => {
+      setIsAdding(true);
+      setNotice(null);
+      try {
+        const response = await fetch('/api/auth/me', { cache: 'no-store' });
+        if (response.status === 401) {
+          window.sessionStorage.setItem(
+            PENDING_PURCHASE_KEY,
+            JSON.stringify({
+              slug,
+              variantId,
+              quantity: itemQuantity,
+              mode: 'checkout',
+            }),
+          );
+          window.location.assign(
+            `/auth/login?next=${encodeURIComponent(`/products/${slug}?resumePurchase=1`)}`,
+          );
+          return;
+        }
+        if (!response.ok) throw new Error('登录状态校验失败');
+        window.sessionStorage.setItem(
+          CHECKOUT_STORAGE_KEY,
+          JSON.stringify({
+            items: [{ variantId, quantity: itemQuantity }],
+            fromCart: false,
+            displayItems: variants
+              .filter((variant) => variant.id === variantId)
+              .map((variant) => ({
+                variantId,
+                productName,
+                productSlug: slug,
+                variantName: variant.name,
+                imageUrl: variant.imageUrl,
+                unitPrice: variant.price,
+                quantity: itemQuantity,
+              })),
+          }),
+        );
+        window.location.assign('/checkout');
+      } catch (error: unknown) {
+        setNotice(
+          error instanceof Error ? error.message : '暂时无法结算，请重试',
+        );
+      } finally {
+        setIsAdding(false);
+      }
+    },
+    [productName, slug, variants],
+  );
+
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get('resumeCart') !== '1')
+    if (
+      new URLSearchParams(window.location.search).get('resumePurchase') !== '1'
+    )
       return;
-    const pendingValue = window.sessionStorage.getItem(PENDING_CART_KEY);
+    const pendingValue = window.sessionStorage.getItem(PENDING_PURCHASE_KEY);
     if (!pendingValue) return;
-    window.sessionStorage.removeItem(PENDING_CART_KEY);
+    window.sessionStorage.removeItem(PENDING_PURCHASE_KEY);
     try {
       const pending = JSON.parse(pendingValue) as {
         slug?: string;
         variantId?: string;
         quantity?: number;
-        redirectToCart?: boolean;
+        mode?: 'cart' | 'checkout';
       };
       if (
         pending.slug === slug &&
         typeof pending.variantId === 'string' &&
         typeof pending.quantity === 'number'
       ) {
-        void submitCartItem(
-          pending.variantId,
-          pending.quantity,
-          pending.redirectToCart,
-        );
+        if (pending.mode === 'checkout') {
+          void startCheckout(pending.variantId, pending.quantity);
+        } else {
+          void submitCartItem(pending.variantId, pending.quantity);
+        }
       }
     } catch {
       setNotice('登录成功，请重新加入购物车');
     }
-  }, [slug, submitCartItem]);
+  }, [slug, startCheckout, submitCartItem]);
 
   return (
     <div>
@@ -380,8 +434,7 @@ export function ProductPurchasePanel({
           type="button"
           disabled={!purchasable || isAdding}
           onClick={() =>
-            selectedVariant &&
-            void submitCartItem(selectedVariant.id, quantity, true)
+            selectedVariant && void startCheckout(selectedVariant.id, quantity)
           }
           className="h-12 flex-1 rounded-full bg-[#17251c] px-6 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-stone-200 disabled:text-stone-400"
         >

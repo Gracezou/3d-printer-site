@@ -7,9 +7,9 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "dev": "dotenv -e .env.dev -- next dev --turbopack",
+    "dev": "dotenv -e .env.dev -- next dev --turbopack --port 5000",
     "build": "next build",
-    "start": "next start",
+    "start": "next start --port 5000",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",

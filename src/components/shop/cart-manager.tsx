@@ -5,6 +5,8 @@ import { Minus, Plus, RefreshCcw, ShoppingBag, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { CHECKOUT_STORAGE_KEY } from '@/lib/checkout-storage';
+
 import { CART_UPDATED_EVENT } from './cart-indicator';
 
 interface CartItem {
@@ -108,6 +110,21 @@ export function CartManager() {
     } finally {
       setPendingId(null);
     }
+  }
+
+  function proceedToCheckout(): void {
+    const selectedItems = items
+      .filter((item) => item.isAvailable && selectedIds.has(item.id))
+      .map((item) => ({
+        variantId: item.variantId,
+        quantity: item.quantity,
+      }));
+    if (selectedItems.length === 0) return;
+    window.sessionStorage.setItem(
+      CHECKOUT_STORAGE_KEY,
+      JSON.stringify({ items: selectedItems, fromCart: true }),
+    );
+    window.location.assign('/checkout');
   }
 
   if (loading && items.length === 0) {
@@ -289,12 +306,13 @@ export function CartManager() {
         <button
           type="button"
           disabled={selectedIds.size === 0}
+          onClick={proceedToCheckout}
           className="h-12 w-full rounded-full bg-[#d9ff68] text-sm font-bold text-[#17251c] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/30"
         >
           去结算
         </button>
         <p className="mt-3 text-center text-xs text-white/45">
-          结算功能将在下一阶段接入
+          提交前将重新校验价格与可售状态
         </p>
       </aside>
     </div>

@@ -116,6 +116,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
           ) : null}
           <div className="mt-8 border-t border-stone-900/8 pt-8">
             <ProductPurchasePanel
+              productName={product.name}
               slug={product.slug}
               variants={product.variants}
             />
