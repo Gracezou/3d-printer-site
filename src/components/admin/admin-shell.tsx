@@ -11,6 +11,7 @@ import {
   PackageSearch,
   Printer,
   Settings,
+  ShieldCheck,
   ShoppingBag,
   TicketPercent,
   Users,
@@ -69,6 +70,12 @@ const navigation = [
     enabled: true,
   },
   { href: '/admin/users', label: '用户管理', icon: Users, enabled: true },
+  {
+    href: '/admin/admins',
+    label: '权限管理',
+    icon: ShieldCheck,
+    enabled: true,
+  },
   { href: '#', label: '系统设置', icon: Settings, enabled: false },
 ] as const;
 

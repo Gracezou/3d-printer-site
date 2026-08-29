@@ -43,6 +43,7 @@
     "test:discount-codes": "dotenv -e .env.dev -- tsx scripts/test-discount-codes.ts",
     "test:customer-orders": "dotenv -e .env.dev -- tsx scripts/test-customer-orders.ts",
     "test:admin-users": "dotenv -e .env.dev -- tsx scripts/test-admin-users.ts",
+    "test:admin-access": "dotenv -e .env.dev -- tsx scripts/test-admin-access.ts",
     "test:alipay": "dotenv -e .env.dev -- tsx scripts/test-alipay-provider.ts"
   },
   "dependencies": {
