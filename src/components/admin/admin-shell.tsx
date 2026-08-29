@@ -68,7 +68,7 @@ const navigation = [
     icon: TicketPercent,
     enabled: true,
   },
-  { href: '#', label: '用户管理', icon: Users, enabled: false },
+  { href: '/admin/users', label: '用户管理', icon: Users, enabled: true },
   { href: '#', label: '系统设置', icon: Settings, enabled: false },
 ] as const;
 

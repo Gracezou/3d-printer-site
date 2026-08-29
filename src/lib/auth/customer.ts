@@ -83,6 +83,12 @@ export async function requireCustomer(): Promise<CustomerIdentity> {
     throw new BizError('UNAUTHORIZED', '请先登录');
   }
 
+  return getActiveCustomerIdentity(data.user.id);
+}
+
+export async function getActiveCustomerIdentity(
+  userId: string,
+): Promise<CustomerIdentity> {
   const [profile] = await getDb()
     .select({
       id: userProfiles.id,
@@ -92,7 +98,7 @@ export async function requireCustomer(): Promise<CustomerIdentity> {
       status: userProfiles.status,
     })
     .from(userProfiles)
-    .where(eq(userProfiles.id, data.user.id))
+    .where(eq(userProfiles.id, userId))
     .limit(1);
 
   if (!profile) {
