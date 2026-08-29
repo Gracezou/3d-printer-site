@@ -12,6 +12,7 @@ import {
   Printer,
   Settings,
   ShoppingBag,
+  TicketPercent,
   Users,
   X,
 } from 'lucide-react';
@@ -59,6 +60,12 @@ const navigation = [
     href: '/admin/promotions',
     label: '优惠规则',
     icon: BadgePercent,
+    enabled: true,
+  },
+  {
+    href: '/admin/discount-codes',
+    label: '折扣码',
+    icon: TicketPercent,
     enabled: true,
   },
   { href: '#', label: '用户管理', icon: Users, enabled: false },
