@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  BadgePercent,
   Boxes,
   ChevronRight,
   FolderTree,
@@ -41,7 +42,18 @@ const navigation = [
     icon: ShoppingBag,
     enabled: true,
   },
-  { href: '#', label: '订单管理', icon: PackageSearch, enabled: false },
+  {
+    href: '/admin/orders',
+    label: '订单管理',
+    icon: PackageSearch,
+    enabled: true,
+  },
+  {
+    href: '/admin/promotions',
+    label: '优惠规则',
+    icon: BadgePercent,
+    enabled: true,
+  },
   { href: '#', label: '用户管理', icon: Users, enabled: false },
   { href: '#', label: '系统设置', icon: Settings, enabled: false },
 ] as const;

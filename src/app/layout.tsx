@@ -5,7 +5,7 @@ import './globals.css';
 const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
 
 export const metadata: Metadata = {
-  metadataBase: new URL(configuredSiteUrl ?? 'http://localhost:5000'),
+  metadataBase: new URL(configuredSiteUrl ?? 'http://localhost:5003'),
   title: {
     default: '层光造物 · 3D 打印成品店',
     template: '%s | 层光造物',
