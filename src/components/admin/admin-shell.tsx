@@ -76,7 +76,12 @@ const navigation = [
     icon: ShieldCheck,
     enabled: true,
   },
-  { href: '#', label: '系统设置', icon: Settings, enabled: false },
+  {
+    href: '/admin/settings',
+    label: '系统设置',
+    icon: Settings,
+    enabled: true,
+  },
 ] as const;
 
 function initials(name: string): string {
