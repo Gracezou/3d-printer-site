@@ -59,3 +59,30 @@ export const createOrderSchema = z
   });
 
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
+
+export const customerOrderTabs = [
+  'all',
+  'pending_payment',
+  'in_production',
+  'shipped',
+  'completed',
+  'cancelled',
+] as const;
+
+export const customerOrderListQuerySchema = z
+  .object({
+    status: z.enum(customerOrderTabs).default('all'),
+    page: z.coerce.number().int().min(1).default(1),
+    pageSize: z.coerce.number().int().min(1).max(50).default(10),
+  })
+  .strict();
+
+export const customerOrderNoSchema = z
+  .string()
+  .trim()
+  .min(1, '订单号不能为空')
+  .max(32);
+
+export type CustomerOrderListQuery = z.infer<
+  typeof customerOrderListQuerySchema
+>;

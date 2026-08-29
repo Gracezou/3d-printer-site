@@ -14,6 +14,7 @@ const navigation = [
   { href: '/', label: '首页' },
   { href: '/products', label: '全部作品' },
   { href: '/products?sort=newest', label: '本周新作' },
+  { href: '/account/orders', label: '我的订单' },
 ] as const;
 
 export function SiteHeader({ siteName }: SiteHeaderProps) {
@@ -74,7 +75,7 @@ export function SiteHeader({ siteName }: SiteHeaderProps) {
 
         <div className="flex items-center gap-1">
           <Link
-            href="/account/addresses"
+            href="/account/orders"
             aria-label="进入用户中心"
             className="grid size-10 place-items-center rounded-full transition hover:bg-stone-900/5"
           >

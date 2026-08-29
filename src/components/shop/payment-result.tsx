@@ -115,10 +115,10 @@ export function PaymentResult({ outTradeNo }: { outTradeNo: string }) {
           订单 {payment.orderNo} 已进入生产流程
         </p>
         <Link
-          href="/products"
+          href={`/account/orders/${payment.orderNo}`}
           className="mt-7 inline-flex h-11 items-center rounded-full bg-[#17251c] px-6 text-sm font-bold text-white"
         >
-          继续浏览作品
+          查看订单进度
         </Link>
       </div>
     );
