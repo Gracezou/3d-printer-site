@@ -32,7 +32,8 @@
     "test:product-detail": "dotenv -e .env.dev -- tsx scripts/test-product-detail.ts",
     "test:cart": "dotenv -e .env.dev -- tsx scripts/test-cart-service.ts",
     "test:addresses": "dotenv -e .env.dev -- tsx scripts/test-address-service.ts",
-    "test:pricing": "dotenv -e .env.dev -- tsx scripts/test-pricing-services.ts"
+    "test:pricing": "dotenv -e .env.dev -- tsx scripts/test-pricing-services.ts",
+    "test:order-preview": "dotenv -e .env.dev -- tsx scripts/test-order-preview.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.5",
