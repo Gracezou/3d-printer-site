@@ -39,6 +39,7 @@
     "test:promotions": "dotenv -e .env.dev -- tsx scripts/test-promotions.ts",
     "test:payments": "dotenv -e .env.dev -- tsx scripts/test-payments.ts",
     "test:refunds": "dotenv -e .env.dev -- tsx scripts/test-refunds.ts",
+    "test:production": "dotenv -e .env.dev -- tsx scripts/test-production-dashboard.ts",
     "test:alipay": "dotenv -e .env.dev -- tsx scripts/test-alipay-provider.ts"
   },
   "dependencies": {

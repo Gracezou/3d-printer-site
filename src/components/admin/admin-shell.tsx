@@ -9,6 +9,7 @@ import {
   LogOut,
   Menu,
   PackageSearch,
+  Printer,
   Settings,
   ShoppingBag,
   Users,
@@ -46,6 +47,12 @@ const navigation = [
     href: '/admin/orders',
     label: '订单管理',
     icon: PackageSearch,
+    enabled: true,
+  },
+  {
+    href: '/admin/production',
+    label: '生产看板',
+    icon: Printer,
     enabled: true,
   },
   {
