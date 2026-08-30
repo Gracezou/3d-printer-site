@@ -1,2 +1,7 @@
 allowBuilds:
   esbuild: true
+
+overrides:
+  esbuild: '>=0.24.3'
+  postcss: '>=8.5.18'
+  urllib: '>=4.9.1'
