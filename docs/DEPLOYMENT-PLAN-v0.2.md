@@ -12,7 +12,7 @@
 
 1. 服务器保持 2 核 2G，**不配置 swap**。
 2. 禁止在服务器上执行 `next build` 或 Docker 镜像构建。
-3. 由 GitHub Actions 构建 linux/amd64、Node.js 20 的不可变镜像，服务器只拉取镜像并启动。
+3. 由 GitHub Actions 使用 Node.js 22（pnpm 11.22 的最低要求）构建 linux/amd64 不可变镜像，最终运行层保持 Node.js 20，服务器只拉取镜像并启动。
 4. 域名就绪前，应用临时映射公网 `0.0.0.0:5003 -> 容器 3000`，通过 `http://188.239.16.167:5003` 验收；域名就绪后改为仅绑定 loopback 并接入 Nginx。
 5. 保留服务器上宝塔的 Node.js 22，本应用的 Node.js 20 仅存在于容器。
 6. Supabase 使用新加坡 `ap-southeast-1`，PostgreSQL 使用 Supavisor `6543` transaction 连接池。
@@ -41,7 +41,7 @@
 
 ### D02 生产镜像
 
-- 新增多阶段 `Dockerfile`，锁定 Node.js 20，pnpm lockfile frozen install，Next.js standalone 运行。
+- 新增多阶段 `Dockerfile`，构建层锁定 Node.js 22、运行层锁定 Node.js 20，pnpm lockfile frozen install，Next.js standalone 运行。
 - 构建阶段只接收必需的 `NEXT_PUBLIC_*` 变量，不接收 Service Role、数据库、JWT 或支付私钥。
 - 运行阶段使用非 Root 用户，只包含 standalone/server/static 产物。
 - 镜像标签同时生成 Git SHA 与环境别名，部署必须锁定 SHA，禁止仅依赖 `latest`。
