@@ -8,8 +8,9 @@ interface CookieToSet {
 }
 
 export async function createCustomerAuthClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  // Dynamic lookup keeps these values configurable at container runtime.
+  const url = process.env['NEXT_PUBLIC_SUPABASE_URL'];
+  const anonKey = process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY'];
 
   if (!url || !anonKey) {
     throw new Error(
