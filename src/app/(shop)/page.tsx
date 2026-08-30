@@ -6,7 +6,9 @@ import { HeroCarousel } from '@/components/shop/hero-carousel';
 import { ProductCard } from '@/components/shop/product-card';
 import { getHomePageData } from '@/lib/services/storefront.service';
 
-export const revalidate = 300;
+// The storefront reads live database data. Keeping it dynamic prevents database
+// credentials from being required while the production image is being built.
+export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: '按单生产的 3D 打印作品',
