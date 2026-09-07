@@ -1,15 +1,38 @@
 import { z } from 'zod';
 
+const email = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .email('请输入有效的邮箱地址')
+  .max(320, '邮箱地址过长');
 const phone = z.string().regex(/^1[3-9]\d{9}$/, '请输入有效的中国大陆手机号');
 
-export const sendCodeSchema = z.object({ phone }).strict();
+export const sendCodeSchema = z.object({ email }).strict();
 
 export const verifyCodeSchema = z
   .object({
-    phone,
-    code: z.string().regex(/^\d{6}$/, '验证码必须是 6 位数字'),
+    email,
+    code: z.string().regex(/^\d{6,10}$/, '验证码必须是 6 至 10 位数字'),
   })
   .strict();
+
+export const customerProfileSchema = z
+  .object({
+    nickname: z
+      .string()
+      .trim()
+      .max(50, '昵称不能超过 50 个字符')
+      .optional()
+      .transform((value) => (value === '' ? null : value)),
+    phone: z
+      .union([phone, z.literal('')])
+      .optional()
+      .transform((value) => (value === '' ? null : value)),
+  })
+  .strict();
+
+export type CustomerProfileInput = z.infer<typeof customerProfileSchema>;
 
 export const adminLoginSchema = z
   .object({

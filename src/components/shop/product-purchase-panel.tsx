@@ -12,8 +12,13 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { CHECKOUT_STORAGE_KEY } from '@/lib/checkout-storage';
+import { productDimensionLabels } from '@/lib/display-labels';
+import {
+  optionHasStock,
+  selectCompatibleAttributes,
+} from '@/lib/product-selection';
 
-import { CART_UPDATED_EVENT } from './cart-indicator';
+import { dispatchCartUpdated } from './cart-indicator';
 
 interface ProductVariant {
   id: string;
@@ -44,13 +49,6 @@ interface ProductPurchasePanelProps {
   slug: string;
   variants: ProductVariant[];
 }
-
-const dimensionLabels: Record<string, string> = {
-  size: '尺寸',
-  material: '材质',
-  color: '颜色',
-  style: '款式',
-};
 
 export function ProductPurchasePanel({
   productName,
@@ -145,21 +143,20 @@ export function ProductPurchasePanel({
 
   function optionIsAvailable(dimension: string, value: string): boolean {
     if (!availability) return false;
-    return normalizedVariants.some((variant) => {
-      if (variant.selection[dimension] !== value) return false;
-      const matchesOtherSelections = dimensions.every(
-        (otherDimension) =>
-          otherDimension === dimension ||
-          !selectedAttributes[otherDimension] ||
-          variant.selection[otherDimension] ===
-            selectedAttributes[otherDimension],
-      );
-      return matchesOtherSelections && (availability.get(variant.id) ?? 0) > 0;
-    });
+    return optionHasStock(normalizedVariants, availability, dimension, value);
   }
 
   function chooseOption(dimension: string, value: string): void {
-    setSelectedAttributes((current) => ({ ...current, [dimension]: value }));
+    if (!availability) return;
+    setSelectedAttributes((current) =>
+      selectCompatibleAttributes(
+        normalizedVariants,
+        availability,
+        current,
+        dimension,
+        value,
+      ),
+    );
     setQuantity(1);
     setNotice(null);
   }
@@ -181,6 +178,7 @@ export function ProductPurchasePanel({
         const body = (await response.json()) as ApiResponse<{
           id: string;
           quantity: number;
+          cartCount: number;
         }>;
         if (response.status === 401) {
           window.sessionStorage.setItem(
@@ -198,7 +196,7 @@ export function ProductPurchasePanel({
           return;
         }
         if (!response.ok || body.code !== 0) throw new Error(body.message);
-        window.dispatchEvent(new Event(CART_UPDATED_EVENT));
+        dispatchCartUpdated(body.data?.cartCount);
         setNotice(
           `已加入购物车，购物车内共 ${body.data?.quantity ?? itemQuantity} 件`,
         );
@@ -329,7 +327,7 @@ export function ProductPurchasePanel({
             return (
               <fieldset key={dimension}>
                 <legend className="mb-3 text-sm font-semibold">
-                  {dimensionLabels[dimension] ?? dimension}
+                  {productDimensionLabels[dimension] ?? dimension}
                   {selectedAttributes[dimension] ? (
                     <span className="ml-2 font-normal text-stone-400">
                       {selectedAttributes[dimension]}

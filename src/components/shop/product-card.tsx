@@ -1,4 +1,5 @@
 import { ArrowUpRight } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
 
 import type { StorefrontProduct } from '@/lib/services/storefront.service';
@@ -15,13 +16,13 @@ export function ProductCard({ product }: ProductCardProps) {
         className="relative block aspect-[4/5] overflow-hidden rounded-[1.75rem] bg-[#e8e5dc]"
       >
         {product.mainImageUrl ? (
-          <div
-            role="img"
-            aria-label={product.name}
-            className="absolute inset-0 bg-cover bg-center transition duration-500 group-hover:scale-[1.03]"
-            style={{
-              backgroundImage: `url(${JSON.stringify(product.mainImageUrl)})`,
-            }}
+          <Image
+            src={product.mainImageUrl}
+            alt={product.name}
+            fill
+            unoptimized
+            sizes="(min-width: 1024px) 25vw, (min-width: 768px) 33vw, 50vw"
+            className="object-cover object-center transition duration-500 group-hover:scale-[1.03]"
           />
         ) : (
           <div className="absolute inset-0 grid place-items-center bg-[radial-gradient(circle_at_70%_25%,#d9ff68_0,transparent_24%),linear-gradient(145deg,#f1eee5,#d7d4ca)]">

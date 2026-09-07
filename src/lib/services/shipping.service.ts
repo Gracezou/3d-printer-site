@@ -12,6 +12,8 @@ export interface ShippingQuote {
   ruleId: string;
   ruleName: string;
   isFree: boolean;
+  freeThreshold: string | null;
+  freeReason: 'threshold' | null;
 }
 
 export async function calculateShipping(
@@ -41,6 +43,8 @@ export async function calculateShipping(
       ruleId: rule.id,
       ruleName: rule.name,
       isFree: true,
+      freeThreshold: rule.freeThreshold,
+      freeReason: 'threshold',
     };
   }
 
@@ -61,5 +65,7 @@ export async function calculateShipping(
     ruleId: rule.id,
     ruleName: rule.name,
     isFree: false,
+    freeThreshold: rule.freeThreshold,
+    freeReason: null,
   };
 }

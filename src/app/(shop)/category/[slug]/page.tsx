@@ -52,7 +52,7 @@ export default async function CategoryPage({
 
   return (
     <ProductListing
-      eyebrow="CATEGORY"
+      eyebrow="作品分类"
       title={category.name}
       description={`浏览 ${category.name} 分类下的全部在售作品。`}
       query={query}

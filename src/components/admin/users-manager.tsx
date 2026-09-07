@@ -17,6 +17,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 interface UserSummary {
   id: string;
+  email: string;
   phone: string;
   nickname: string | null;
   avatarUrl: string | null;
@@ -158,8 +159,8 @@ export function UsersManager({ canDisable }: { canDisable: boolean }) {
     if (
       !window.confirm(
         nextStatus === 'disabled'
-          ? `确认禁用用户 ${user.phone}？禁用后其当前登录态也无法继续访问和下单。`
-          : `确认重新启用用户 ${user.phone}？`,
+          ? `确认禁用用户 ${user.email}？禁用后其当前登录态也无法继续访问和下单。`
+          : `确认重新启用用户 ${user.email}？`,
       )
     )
       return;
@@ -228,7 +229,7 @@ export function UsersManager({ canDisable }: { canDisable: boolean }) {
           <input
             value={keywordInput}
             onChange={(event) => setKeywordInput(event.target.value)}
-            placeholder="手机号或昵称"
+            placeholder="邮箱、手机号或昵称"
             className="h-10 w-full rounded-xl border border-black/8 pl-10 text-sm outline-none"
           />
         </label>
@@ -288,7 +289,7 @@ export function UsersManager({ canDisable }: { canDisable: boolean }) {
                         {user.nickname || '未设置昵称'}
                       </p>
                       <p className="mt-1 font-mono text-xs text-neutral-400">
-                        {user.phone}
+                        {user.email} · {user.phone}
                       </p>
                     </td>
                     <td className="px-5 py-4 text-xs leading-5 text-neutral-500">
@@ -390,7 +391,7 @@ export function UsersManager({ canDisable }: { canDisable: boolean }) {
                   {detail.nickname || '未设置昵称'}
                 </h2>
                 <p className="mt-1 font-mono text-sm text-neutral-500">
-                  {detail.phone}
+                  {detail.email} · {detail.phone}
                 </p>
               </div>
               <button

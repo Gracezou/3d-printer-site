@@ -201,6 +201,7 @@ async function main(): Promise<void> {
 
     await db.insert(userProfiles).values({
       id: userId,
+      email: `t081-${suffix}@example.test`,
       phone: `130${Date.now().toString().slice(-8)}`,
     });
     const [order] = await db
@@ -237,7 +238,7 @@ async function main(): Promise<void> {
     });
     assert.equal(redemptionResult.total, 1);
     assert.equal(redemptionResult.list[0]?.orderNo, `T081${suffix}`);
-    assert.match(redemptionResult.list[0]?.userPhone ?? '', /^130\*{4}\d{4}$/);
+    assert.equal(redemptionResult.list[0]?.userEmail, 't0***@example.test');
     await assert.rejects(
       () => deleteDiscountCode(active.id, context),
       (error: unknown) => {

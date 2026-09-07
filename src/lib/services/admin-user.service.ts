@@ -15,7 +15,7 @@ import type { AdminIdentity } from '@/lib/auth/admin';
 import { getDb } from '@/lib/db/client';
 import { addresses, orders, userProfiles } from '@/lib/db/schema';
 import { BizError } from '@/lib/errors';
-import { maskPhone } from '@/lib/logger';
+import { maskEmail, maskPhone } from '@/lib/logger';
 import { toFixed2 } from '@/lib/money';
 import { withAdminLog } from '@/lib/services/admin-log.service';
 import type { AdminUserListQuery } from '@/lib/validators/admin-user';
@@ -31,6 +31,7 @@ function userFilters(query: AdminUserListQuery): SQL[] {
     const keyword = `%${query.keyword}%`;
     filters.push(
       or(
+        ilike(userProfiles.email, keyword),
         ilike(userProfiles.phone, keyword),
         ilike(userProfiles.nickname, keyword),
       )!,
@@ -49,6 +50,7 @@ export async function listAdminUsers(query: AdminUserListQuery) {
     db
       .select({
         id: userProfiles.id,
+        email: userProfiles.email,
         phone: userProfiles.phone,
         nickname: userProfiles.nickname,
         avatarUrl: userProfiles.avatarUrl,
@@ -71,7 +73,11 @@ export async function listAdminUsers(query: AdminUserListQuery) {
     db.select({ total: count() }).from(userProfiles).where(where),
   ]);
   return {
-    list: rows.map((row) => ({ ...row, phone: maskPhone(row.phone) })),
+    list: rows.map((row) => ({
+      ...row,
+      email: maskEmail(row.email),
+      phone: maskPhone(row.phone),
+    })),
     total: totals[0]?.total ?? 0,
     page: query.page,
     pageSize: query.pageSize,
@@ -83,6 +89,7 @@ export async function getAdminUserDetail(userId: string) {
   const [profile] = await db
     .select({
       id: userProfiles.id,
+      email: userProfiles.email,
       phone: userProfiles.phone,
       nickname: userProfiles.nickname,
       avatarUrl: userProfiles.avatarUrl,
@@ -142,6 +149,7 @@ export async function getAdminUserDetail(userId: string) {
 
   return {
     ...profile,
+    email: maskEmail(profile.email),
     phone: maskPhone(profile.phone),
     orderCount: orderRows.length,
     totalSpent,
@@ -166,11 +174,16 @@ export async function updateAdminUserStatus(
         .where(eq(userProfiles.id, userId))
         .returning({
           id: userProfiles.id,
+          email: userProfiles.email,
           phone: userProfiles.phone,
           status: userProfiles.status,
         });
       if (!updated) throw new BizError('NOT_FOUND', '用户不存在');
-      return { ...updated, phone: maskPhone(updated.phone) };
+      return {
+        ...updated,
+        email: maskEmail(updated.email),
+        phone: maskPhone(updated.phone),
+      };
     },
     {
       adminId: context.admin.sub,

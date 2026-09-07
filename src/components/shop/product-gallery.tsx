@@ -1,6 +1,7 @@
 'use client';
 
 import { Expand, X } from 'lucide-react';
+import Image from 'next/image';
 import { useState } from 'react';
 
 interface ProductGalleryProps {
@@ -12,17 +13,22 @@ function ProductImage({
   src,
   alt,
   className,
+  priority = false,
 }: {
   src: string;
   alt: string;
   className: string;
+  priority?: boolean;
 }) {
   return (
-    <div
-      role="img"
-      aria-label={alt}
-      className={`bg-cover bg-center ${className}`}
-      style={{ backgroundImage: `url(${JSON.stringify(src)})` }}
+    <Image
+      src={src}
+      alt={alt}
+      fill
+      priority={priority}
+      unoptimized
+      sizes="(min-width: 1024px) 50vw, 100vw"
+      className={`object-cover object-center ${className}`}
     />
   );
 }
@@ -53,6 +59,7 @@ export function ProductGallery({ productName, images }: ProductGalleryProps) {
         <ProductImage
           src={activeImage}
           alt={`${productName} 图片 ${activeIndex + 1}`}
+          priority
           className="absolute inset-0 transition duration-500 group-hover:scale-[1.02]"
         />
         <span className="absolute right-5 bottom-5 grid size-11 place-items-center rounded-full bg-white/90 shadow-lg backdrop-blur">
@@ -95,7 +102,7 @@ export function ProductGallery({ productName, images }: ProductGalleryProps) {
           <ProductImage
             src={activeImage}
             alt={`${productName} 大图`}
-            className="h-[85vh] w-[90vw] bg-contain bg-center bg-no-repeat"
+            className="object-contain"
           />
         </div>
       ) : null}

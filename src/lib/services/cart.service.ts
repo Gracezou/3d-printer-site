@@ -25,6 +25,12 @@ export interface CartItemView {
   unavailableReason: CartUnavailableReason;
 }
 
+export interface CartMutationResult {
+  id: string;
+  quantity: number;
+  cartCount: number;
+}
+
 const scopedItem = (userId: string, itemId: string) => sql`
   ${cartItems.id} = ${itemId}
   AND EXISTS (
@@ -67,6 +73,17 @@ function assertQuantityAvailable(quantity: number, availableQty: number): void {
       { availableQty },
     );
   }
+}
+
+async function getCartCount(userId: string): Promise<number> {
+  const [row] = await getDb()
+    .select({
+      count: sql<number>`COALESCE(SUM(${cartItems.quantity}), 0)::int`,
+    })
+    .from(carts)
+    .leftJoin(cartItems, eq(cartItems.cartId, carts.id))
+    .where(eq(carts.userId, userId));
+  return row?.count ?? 0;
 }
 
 export async function listCartItems(userId: string): Promise<CartItemView[]> {
@@ -126,11 +143,11 @@ export async function listCartItems(userId: string): Promise<CartItemView[]> {
 export async function addCartItem(
   userId: string,
   input: AddCartItemInput,
-): Promise<{ id: string; quantity: number }> {
+): Promise<CartMutationResult> {
   const variant = await getPurchasableVariant(input.variantId);
   assertQuantityAvailable(input.quantity, variant.availableQty);
 
-  return getDb().transaction(async (tx) => {
+  const result = await getDb().transaction(async (tx) => {
     await tx
       .insert(carts)
       .values({ userId })
@@ -180,39 +197,54 @@ export async function addCartItem(
       .returning({ id: cartItems.id, quantity: cartItems.quantity });
     return created!;
   });
+  return { ...result, cartCount: await getCartCount(userId) };
 }
 
 export async function updateCartItem(
   userId: string,
   itemId: string,
   quantity: number,
-): Promise<{ id: string; quantity: number }> {
+): Promise<CartMutationResult> {
   const [ownedItem] = await getDb()
-    .select({ variantId: cartItems.variantId })
+    .select({
+      variantId: cartItems.variantId,
+      variantActive: productVariants.isActive,
+      productStatus: products.status,
+      productDeletedAt: products.deletedAt,
+      availableQty: publicAvailableQty.as('available_qty'),
+    })
     .from(cartItems)
     .innerJoin(carts, eq(carts.id, cartItems.cartId))
+    .innerJoin(productVariants, eq(productVariants.id, cartItems.variantId))
+    .innerJoin(products, eq(products.id, productVariants.productId))
     .where(and(eq(cartItems.id, itemId), eq(carts.userId, userId)))
     .limit(1);
   if (!ownedItem) throw new BizError('NOT_FOUND', '购物车条目不存在');
-
-  const variant = await getPurchasableVariant(ownedItem.variantId);
-  assertQuantityAvailable(quantity, variant.availableQty);
+  if (
+    !ownedItem.variantActive ||
+    ownedItem.productStatus !== 'on_sale' ||
+    ownedItem.productDeletedAt
+  ) {
+    throw new BizError('PRODUCT_UNAVAILABLE', '商品已下架或规格不可购买');
+  }
+  assertQuantityAvailable(quantity, ownedItem.availableQty);
   const [updated] = await getDb()
     .update(cartItems)
     .set({ quantity, updatedAt: new Date() })
     .where(scopedItem(userId, itemId))
     .returning({ id: cartItems.id, quantity: cartItems.quantity });
   if (!updated) throw new BizError('NOT_FOUND', '购物车条目不存在');
-  return updated;
+  return { ...updated, cartCount: await getCartCount(userId) };
 }
 
 export async function removeCartItem(
   userId: string,
   itemId: string,
-): Promise<void> {
+): Promise<{ deleted: true; cartCount: number }> {
   const deleted = await getDb()
     .delete(cartItems)
     .where(scopedItem(userId, itemId))
     .returning({ id: cartItems.id });
   if (deleted.length === 0) throw new BizError('NOT_FOUND', '购物车条目不存在');
+  return { deleted: true, cartCount: await getCartCount(userId) };
 }

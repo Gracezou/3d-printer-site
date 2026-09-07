@@ -451,7 +451,8 @@ export function SettingsManager() {
         <form onSubmit={(event) => void saveRules(event)} className="space-y-5">
           <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
             省份编码为空的规则是全国兜底规则，必须且只能启用一条。数字越小优先级越高；商品小计达到包邮门槛时运费为
-            0。
+            0。运费计算公式为“首重金额 + 向上取整的续重份数 ×
+            每续重金额”；留空包邮门槛表示该规则永不因商品金额包邮。
           </div>
           {rules.map((rule, index) => (
             <section

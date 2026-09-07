@@ -3,6 +3,8 @@
 import { Check, MapPin, Pencil, Plus, Star, Trash2, X } from 'lucide-react';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 
+import { chinaProvinces, parseChineseAddress } from '@/lib/address-parser';
+
 interface Address {
   id: string;
   receiverName: string;
@@ -22,44 +24,13 @@ interface AddressResponse {
   message: string;
 }
 
-type AddressDraft = Omit<Address, 'id'>;
+interface ProfileResponse {
+  code: number;
+  data: { phone: string | null } | null;
+  message: string;
+}
 
-const provinces = [
-  ['北京市', '110000'],
-  ['天津市', '120000'],
-  ['河北省', '130000'],
-  ['山西省', '140000'],
-  ['内蒙古自治区', '150000'],
-  ['辽宁省', '210000'],
-  ['吉林省', '220000'],
-  ['黑龙江省', '230000'],
-  ['上海市', '310000'],
-  ['江苏省', '320000'],
-  ['浙江省', '330000'],
-  ['安徽省', '340000'],
-  ['福建省', '350000'],
-  ['江西省', '360000'],
-  ['山东省', '370000'],
-  ['河南省', '410000'],
-  ['湖北省', '420000'],
-  ['湖南省', '430000'],
-  ['广东省', '440000'],
-  ['广西壮族自治区', '450000'],
-  ['海南省', '460000'],
-  ['重庆市', '500000'],
-  ['四川省', '510000'],
-  ['贵州省', '520000'],
-  ['云南省', '530000'],
-  ['西藏自治区', '540000'],
-  ['陕西省', '610000'],
-  ['甘肃省', '620000'],
-  ['青海省', '630000'],
-  ['宁夏回族自治区', '640000'],
-  ['新疆维吾尔自治区', '650000'],
-  ['台湾省', '710000'],
-  ['香港特别行政区', '810000'],
-  ['澳门特别行政区', '820000'],
-] as const;
+type AddressDraft = Omit<Address, 'id'>;
 
 const emptyDraft: AddressDraft = {
   receiverName: '',
@@ -78,14 +49,20 @@ export function AddressManager() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<AddressDraft>(emptyDraft);
   const [formOpen, setFormOpen] = useState(false);
+  const [profilePhone, setProfilePhone] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [quickInput, setQuickInput] = useState('');
+  const [parseMessage, setParseMessage] = useState<string | null>(null);
 
   const loadAddresses = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/addresses', { cache: 'no-store' });
+      const [response, profileResponse] = await Promise.all([
+        fetch('/api/addresses', { cache: 'no-store' }),
+        fetch('/api/auth/me', { cache: 'no-store' }),
+      ]);
       if (response.status === 401) {
         window.location.assign('/auth/login?next=%2Faccount%2Faddresses');
         return;
@@ -94,6 +71,10 @@ export function AddressManager() {
       if (!response.ok || !body.data || !('addresses' in body.data))
         throw new Error(body.message);
       setAddresses(body.data.addresses);
+      if (profileResponse.ok) {
+        const profileBody = (await profileResponse.json()) as ProfileResponse;
+        setProfilePhone(profileBody.data?.phone ?? '');
+      }
       setMessage(null);
     } catch (error: unknown) {
       setMessage(error instanceof Error ? error.message : '地址加载失败');
@@ -106,8 +87,14 @@ export function AddressManager() {
 
   function openCreate(): void {
     setEditingId(null);
-    setDraft({ ...emptyDraft, isDefault: addresses.length === 0 });
+    setDraft({
+      ...emptyDraft,
+      receiverPhone: profilePhone,
+      isDefault: addresses.length === 0,
+    });
     setMessage(null);
+    setQuickInput('');
+    setParseMessage(null);
     setFormOpen(true);
   }
 
@@ -125,7 +112,29 @@ export function AddressManager() {
       isDefault: address.isDefault,
     });
     setMessage(null);
+    setQuickInput('');
+    setParseMessage(null);
     setFormOpen(true);
+  }
+
+  function recognizeAddress(): void {
+    const parsed = parseChineseAddress(quickInput);
+    setDraft((current) => ({
+      ...current,
+      receiverName: parsed.receiverName ?? current.receiverName,
+      receiverPhone: parsed.receiverPhone ?? current.receiverPhone,
+      province: parsed.province ?? current.province,
+      provinceCode: parsed.provinceCode ?? current.provinceCode,
+      city: parsed.city ?? current.city,
+      district: parsed.district ?? current.district,
+      detail: parsed.detail ?? current.detail,
+      postalCode: parsed.postalCode ?? current.postalCode,
+    }));
+    setParseMessage(
+      parsed.warnings.length
+        ? `已填入可识别内容；${parsed.warnings.join('、')}，请核对。`
+        : '识别完成，请核对后保存。',
+    );
   }
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -285,6 +294,33 @@ export function AddressManager() {
                 <X className="size-5" />
               </button>
             </div>
+            <div className="mt-6 rounded-2xl border border-[#59705f]/20 bg-[#e8ecdf]/60 p-4">
+              <label className="block text-sm font-semibold text-stone-700">
+                快捷识别
+                <textarea
+                  rows={2}
+                  value={quickInput}
+                  onChange={(event) => setQuickInput(event.target.value)}
+                  placeholder="粘贴姓名、手机号和完整地址，例如：张三 13800138000 广东省深圳市南山区……"
+                  className="address-input mt-2 min-h-20 bg-white py-3 font-normal"
+                />
+              </label>
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  disabled={!quickInput.trim()}
+                  onClick={recognizeAddress}
+                  className="h-9 rounded-full bg-[#17251c] px-4 text-xs font-semibold text-white disabled:opacity-40"
+                >
+                  识别并填入
+                </button>
+                {parseMessage ? (
+                  <p className="flex-1 text-xs leading-5 text-stone-500">
+                    {parseMessage}
+                  </p>
+                ) : null}
+              </div>
+            </div>
             <div className="mt-7 grid gap-5 sm:grid-cols-2">
               <Field label="收货人姓名">
                 <input
@@ -316,7 +352,7 @@ export function AddressManager() {
                   required
                   value={draft.provinceCode}
                   onChange={(e) => {
-                    const province = provinces.find(
+                    const province = chinaProvinces.find(
                       (item) => item[1] === e.target.value,
                     );
                     setDraft({
@@ -328,7 +364,7 @@ export function AddressManager() {
                   className="address-input"
                 >
                   <option value="">请选择省份</option>
-                  {provinces.map(([name, code]) => (
+                  {chinaProvinces.map(([name, code]) => (
                     <option key={code} value={code}>
                       {name}
                     </option>

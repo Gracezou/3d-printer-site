@@ -23,6 +23,7 @@ import {
   userProfiles,
 } from '@/lib/db/schema';
 import { BizError } from '@/lib/errors';
+import { maskEmail } from '@/lib/logger';
 import { toFixed2 } from '@/lib/money';
 import { withAdminLog } from '@/lib/services/admin-log.service';
 import { releaseDiscount } from '@/lib/services/promotion.service';
@@ -71,7 +72,7 @@ export async function listAdminOrders(query: AdminOrderListQuery) {
         id: orders.id,
         orderNo: orders.orderNo,
         status: orders.status,
-        userPhone: userProfiles.phone,
+        userEmail: userProfiles.email,
         receiverName: orders.receiverName,
         receiverPhone: orders.receiverPhone,
         payableAmount: orders.payableAmount,
@@ -93,7 +94,10 @@ export async function listAdminOrders(query: AdminOrderListQuery) {
     db.select({ total: count() }).from(orders).where(where),
   ]);
   return {
-    list,
+    list: list.map((order) => ({
+      ...order,
+      userEmail: maskEmail(order.userEmail),
+    })),
     total: totals[0]?.total ?? 0,
     page: query.page,
     pageSize: query.pageSize,
@@ -107,7 +111,7 @@ export async function getAdminOrderDetail(orderId: string) {
       id: orders.id,
       orderNo: orders.orderNo,
       userId: orders.userId,
-      userPhone: userProfiles.phone,
+      userEmail: userProfiles.email,
       userNickname: userProfiles.nickname,
       status: orders.status,
       itemsAmount: orders.itemsAmount,
@@ -186,6 +190,7 @@ export async function getAdminOrderDetail(orderId: string) {
   ]);
   return {
     ...order,
+    userEmail: maskEmail(order.userEmail),
     refundableAmount: toFixed2(
       Decimal.max(
         new Decimal(order.paidAmount).minus(order.refundedAmount),
@@ -344,7 +349,7 @@ export async function exportAdminOrders(
   const header = [
     '订单号',
     '状态',
-    '用户手机号',
+    '用户邮箱',
     '收货人',
     '收货手机号',
     '商品数量',
@@ -357,7 +362,7 @@ export async function exportAdminOrders(
   const rows = allOrders.map((order) => [
     order.orderNo,
     order.status,
-    order.userPhone,
+    order.userEmail,
     order.receiverName,
     order.receiverPhone,
     order.itemCount,

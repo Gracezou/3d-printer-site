@@ -11,6 +11,7 @@ import {
   sql,
 } from 'drizzle-orm';
 import { cache } from 'react';
+import { unstable_cache } from 'next/cache';
 
 import { getDb } from '@/lib/db/client';
 import {
@@ -132,12 +133,13 @@ async function loadHomePageData() {
     isNull(products.deletedAt),
   );
 
-  const [settingRows, categoryRows, featuredProducts, newestProducts] =
+  const [bannerRows, siteInfo, categoryRows, featuredProducts, newestProducts] =
     await Promise.all([
       db
         .select({ key: settings.key, value: settings.value })
         .from(settings)
-        .where(sql`${settings.key} IN ('site_banners', 'site_info')`),
+        .where(eq(settings.key, 'site_banners')),
+      getStorefrontSiteInfo(),
       db
         .select({
           id: categories.id,
@@ -162,14 +164,11 @@ async function loadHomePageData() {
         .limit(8),
     ]);
 
-  const settingValues = new Map(
-    settingRows.map((setting) => [setting.key, setting.value]),
-  );
-  const banners = parseBanners(settingValues.get('site_banners'));
+  const banners = parseBanners(bannerRows[0]?.value);
 
   return {
     banners: banners.length > 0 ? banners : [defaultBanner],
-    siteInfo: parseSiteInfo(settingValues.get('site_info')),
+    siteInfo,
     categories: categoryRows,
     featuredProducts,
     newestProducts,
@@ -177,6 +176,21 @@ async function loadHomePageData() {
 }
 
 export const getHomePageData = cache(loadHomePageData);
+
+async function loadStorefrontSiteInfo(): Promise<StorefrontSiteInfo> {
+  const [row] = await getDb()
+    .select({ value: settings.value })
+    .from(settings)
+    .where(eq(settings.key, 'site_info'))
+    .limit(1);
+  return parseSiteInfo(row?.value);
+}
+
+export const getStorefrontSiteInfo = unstable_cache(
+  loadStorefrontSiteInfo,
+  ['storefront-site-info'],
+  { revalidate: 60, tags: ['storefront-site-info'] },
+);
 
 async function loadStorefrontCategories(): Promise<StorefrontCategory[]> {
   return getDb()
@@ -292,7 +306,7 @@ export async function listStorefrontProducts(
 
 async function loadStorefrontProductBySlug(slug: string) {
   const db = getDb();
-  const [product] = await db
+  const rows = await db
     .select({
       id: products.id,
       name: products.name,
@@ -306,9 +320,23 @@ async function loadStorefrontProductBySlug(slug: string) {
       categoryId: products.categoryId,
       categoryName: categories.name,
       categorySlug: categories.slug,
+      variantId: productVariants.id,
+      variantSkuCode: productVariants.skuCode,
+      variantName: productVariants.name,
+      variantAttributes: productVariants.attributes,
+      variantPrice: productVariants.price,
+      variantComparePrice: productVariants.comparePrice,
+      variantImageUrl: productVariants.imageUrl,
     })
     .from(products)
     .leftJoin(categories, eq(categories.id, products.categoryId))
+    .leftJoin(
+      productVariants,
+      and(
+        eq(productVariants.productId, products.id),
+        eq(productVariants.isActive, true),
+      ),
+    )
     .where(
       and(
         eq(products.slug, slug),
@@ -316,32 +344,43 @@ async function loadStorefrontProductBySlug(slug: string) {
         isNull(products.deletedAt),
       ),
     )
-    .limit(1);
+    .orderBy(asc(productVariants.sortOrder), asc(productVariants.createdAt));
 
-  if (!product) {
+  const first = rows[0];
+  if (!first) {
     throw new BizError('PRODUCT_UNAVAILABLE', '商品不存在或已下架');
   }
 
-  const variants = await db
-    .select({
-      id: productVariants.id,
-      skuCode: productVariants.skuCode,
-      name: productVariants.name,
-      attributes: productVariants.attributes,
-      price: productVariants.price,
-      comparePrice: productVariants.comparePrice,
-      imageUrl: productVariants.imageUrl,
-    })
-    .from(productVariants)
-    .where(
-      and(
-        eq(productVariants.productId, product.id),
-        eq(productVariants.isActive, true),
-      ),
-    )
-    .orderBy(asc(productVariants.sortOrder), asc(productVariants.createdAt));
-
-  return { ...product, variants };
+  const variants = rows.flatMap((row) =>
+    row.variantId && row.variantSkuCode && row.variantName && row.variantPrice
+      ? [
+          {
+            id: row.variantId,
+            skuCode: row.variantSkuCode,
+            name: row.variantName,
+            attributes: row.variantAttributes ?? {},
+            price: row.variantPrice,
+            comparePrice: row.variantComparePrice,
+            imageUrl: row.variantImageUrl,
+          },
+        ]
+      : [],
+  );
+  return {
+    id: first.id,
+    name: first.name,
+    slug: first.slug,
+    subtitle: first.subtitle,
+    description: first.description,
+    mainImageUrl: first.mainImageUrl,
+    gallery: first.gallery,
+    modelPreviewUrl: first.modelPreviewUrl,
+    specs: first.specs,
+    categoryId: first.categoryId,
+    categoryName: first.categoryName,
+    categorySlug: first.categorySlug,
+    variants,
+  };
 }
 
 export const getStorefrontProductBySlug = cache(loadStorefrontProductBySlug);

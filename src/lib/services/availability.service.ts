@@ -1,7 +1,7 @@
-import { asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 
 import { getDb } from '@/lib/db/client';
-import { productVariants } from '@/lib/db/schema';
+import { products, productVariants } from '@/lib/db/schema';
 
 export interface VariantAvailability {
   variantId: string;
@@ -56,5 +56,26 @@ export async function getByProductId(
     })
     .from(productVariants)
     .where(eq(productVariants.productId, productId))
+    .orderBy(asc(productVariants.sortOrder), asc(productVariants.createdAt));
+}
+
+export async function getPublicByProductSlug(
+  slug: string,
+): Promise<VariantAvailability[]> {
+  return getDb()
+    .select({
+      variantId: productVariants.id,
+      availableQty: publicAvailableQty.as('available_qty'),
+    })
+    .from(productVariants)
+    .innerJoin(products, eq(products.id, productVariants.productId))
+    .where(
+      and(
+        eq(products.slug, slug),
+        eq(products.status, 'on_sale'),
+        isNull(products.deletedAt),
+        eq(productVariants.isActive, true),
+      ),
+    )
     .orderBy(asc(productVariants.sortOrder), asc(productVariants.createdAt));
 }

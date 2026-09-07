@@ -173,7 +173,7 @@ export function OrderDetail({ orderNo }: { orderNo: string }) {
       <div className="mt-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <p className="text-xs font-bold tracking-[0.2em] text-[#59705f]">
-            ORDER DETAIL
+            订单详情
           </p>
           <h1 className="mt-3 text-3xl font-semibold tracking-tight">
             {order.orderNo}

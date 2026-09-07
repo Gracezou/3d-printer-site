@@ -699,18 +699,21 @@ async function seedDemoData(passwordHash: string): Promise<void> {
     await tx.insert(userProfiles).values([
       {
         id: ids.userOne,
+        email: 'demo.customer.a@example.test',
         phone: '19900000001',
         nickname: '演示用户甲',
         lastLoginAt: new Date(),
       },
       {
         id: ids.userTwo,
+        email: 'demo.customer.b@example.test',
         phone: '19900000002',
         nickname: '演示用户乙',
         lastLoginAt: new Date(Date.now() - 86_400_000),
       },
       {
         id: ids.userDisabled,
+        email: 'demo.customer.disabled@example.test',
         phone: '19900000003',
         nickname: '已停用演示用户',
         status: 'disabled',
@@ -782,7 +785,7 @@ async function verifyDemoData(): Promise<void> {
         .from(products)
         .where(inArray(products.id, demoProductIds)),
       db
-        .select({ id: userProfiles.id })
+        .select({ id: userProfiles.id, email: userProfiles.email })
         .from(userProfiles)
         .where(inArray(userProfiles.id, demoUserIds)),
       db
@@ -797,6 +800,10 @@ async function verifyDemoData(): Promise<void> {
   assert.equal(materialRows.length, 4, '演示耗材数量不正确');
   assert.equal(productRows.length, 3, '演示商品数量不正确');
   assert.equal(userRows.length, 3, '演示用户数量不正确');
+  assert(
+    userRows.every((user) => user.email?.endsWith('@example.test')),
+    '演示用户邮箱未完整创建',
+  );
   assert.equal(orderRows.length, 9, '演示订单数量不正确');
   assert.equal(paymentRows.length, 9, '演示支付记录数量不正确');
   assert.deepEqual(
@@ -834,14 +841,14 @@ async function main(): Promise<void> {
     if (mode === 'reset') {
       await getDb().transaction(resetDemoData);
       process.stdout.write(
-        'v0.1 demo data removed; previous site settings restored.\n',
+        'v0.2.0 demo data removed; previous site settings restored.\n',
       );
       return;
     }
     if (mode === 'check') {
       await verifyDemoData();
       process.stdout.write(
-        'v0.1 demo data check passed: relations, status coverage, inventory, reservations, payments, and discount usage are consistent.\n',
+        'v0.2.0 demo data check passed: user emails, relations, status coverage, inventory, reservations, payments, and discount usage are consistent.\n',
       );
       return;
     }
@@ -854,11 +861,11 @@ async function main(): Promise<void> {
     await verifyDemoData();
     process.stdout.write(
       [
-        'v0.1 demo data is ready.',
+        'v0.2.0 demo data is ready.',
         'Admin URL: http://localhost:5003/admin/login',
         'Username: demo_operator',
         `Password: ${password}`,
-        'All customer profiles, phones, addresses, payment IDs, and tracking numbers are fictional.',
+        'All customer emails, phones, addresses, payment IDs, and tracking numbers are fictional.',
       ].join('\n') + '\n',
     );
   } finally {

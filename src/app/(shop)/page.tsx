@@ -86,7 +86,7 @@ export default async function HomePage() {
         className="mx-auto max-w-7xl px-5 py-20 sm:px-8 sm:py-28"
       >
         <SectionHeading
-          eyebrow="EXPLORE BY CATEGORY"
+          eyebrow="按分类探索"
           title="从喜欢的方向开始"
           href="/products"
         />
@@ -144,7 +144,7 @@ export default async function HomePage() {
       <section className="bg-white/55">
         <div className="mx-auto max-w-7xl px-5 py-20 sm:px-8 sm:py-28">
           <SectionHeading
-            eyebrow="CURATED FOR YOU"
+            eyebrow="为你精选"
             title="本期推荐"
             href="/products"
           />
@@ -157,7 +157,7 @@ export default async function HomePage() {
           ) : (
             <div className="rounded-[2rem] bg-[#17251c] px-7 py-14 text-white sm:px-12">
               <p className="text-xs font-bold tracking-[0.2em] text-[#d9ff68]">
-                COMING SOON
+                即将上新
               </p>
               <h3 className="mt-4 text-2xl font-semibold">
                 精选作品正在准备中
@@ -172,7 +172,7 @@ export default async function HomePage() {
 
       <section className="mx-auto max-w-7xl px-5 py-20 sm:px-8 sm:py-28">
         <SectionHeading
-          eyebrow="JUST LANDED"
+          eyebrow="最新上架"
           title="最新上架"
           href="/products?sort=newest"
         />
@@ -197,7 +197,7 @@ export default async function HomePage() {
       <section className="mx-auto max-w-7xl px-5 pb-20 sm:px-8 sm:pb-28">
         <div className="overflow-hidden rounded-[2rem] bg-[#d9ff68] px-7 py-12 sm:px-12 sm:py-16">
           <p className="text-xs font-bold tracking-[0.22em] text-[#52632b]">
-            MADE TO ORDER
+            按单生产
           </p>
           <div className="mt-5 flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
             <h2 className="max-w-3xl text-3xl leading-tight font-semibold tracking-[-0.04em] text-[#17251c] sm:text-5xl">

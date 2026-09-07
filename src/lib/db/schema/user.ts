@@ -19,7 +19,9 @@ export const userProfiles = pgTable(
   'user_profiles',
   {
     id: uuid('id').primaryKey(),
-    phone: varchar('phone', { length: 20 }).notNull().unique(),
+    email: varchar('email', { length: 320 }).unique(),
+    phone: varchar('phone', { length: 20 }),
+    phoneVerifiedAt: timestamp('phone_verified_at', { withTimezone: true }),
     nickname: varchar('nickname', { length: 50 }),
     avatarUrl: text('avatar_url'),
     status: varchar('status', { length: 20 }).notNull().default('active'),
@@ -37,6 +39,7 @@ export const userProfiles = pgTable(
       sql`${table.status} IN ('active','disabled')`,
     ),
     index('idx_user_profiles_phone').on(table.phone),
+    index('idx_user_profiles_email').on(table.email),
   ],
 );
 

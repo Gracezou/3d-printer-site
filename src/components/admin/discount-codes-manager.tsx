@@ -55,7 +55,7 @@ interface ListResult {
 interface Redemption {
   id: string;
   orderNo: string;
-  userPhone: string;
+  userEmail: string;
   discountAmount: string;
   status: string;
   createdAt: string;
@@ -787,7 +787,7 @@ export function DiscountCodesManager({ canEdit }: { canEdit: boolean }) {
                       </span>
                     </div>
                     <p className="mt-2 text-xs text-neutral-500">
-                      {redemption.userPhone} · {redemption.status} ·{' '}
+                      {redemption.userEmail} · {redemption.status} ·{' '}
                       {formatDate(redemption.createdAt)}
                     </p>
                   </div>

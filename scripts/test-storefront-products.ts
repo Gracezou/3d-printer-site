@@ -185,6 +185,7 @@ async function main(): Promise<void> {
 
     const sortedResult = await listStorefrontProducts({
       ...defaults,
+      keyword: 'T042',
       sort: 'price_desc',
       pageSize: 2,
     });
@@ -197,6 +198,7 @@ async function main(): Promise<void> {
 
     const secondPage = await listStorefrontProducts({
       ...defaults,
+      keyword: 'T042',
       sort: 'price_desc',
       page: 2,
       pageSize: 2,

@@ -70,7 +70,7 @@ interface Refund {
 interface OrderDetail {
   id: string;
   orderNo: string;
-  userPhone: string;
+  userEmail: string;
   userNickname: string | null;
   status: string;
   itemsAmount: string;
@@ -329,7 +329,7 @@ export function OrderDetailManager({
           </h1>
           <p className="mt-2 text-sm text-neutral-500">
             {formatDate(order.createdAt)} · {order.userNickname || '客户'}（
-            {order.userPhone}）
+            {order.userEmail}）
           </p>
         </div>
         <span className="w-fit rounded-full bg-[#151816] px-4 py-2 text-sm font-semibold text-white">

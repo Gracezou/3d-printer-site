@@ -10,7 +10,7 @@ import {
   userProfiles,
 } from '@/lib/db/schema';
 import { BizError } from '@/lib/errors';
-import { maskPhone } from '@/lib/logger';
+import { maskEmail } from '@/lib/logger';
 import { withAdminLog } from '@/lib/services/admin-log.service';
 import {
   createDiscountCodeSchema,
@@ -282,7 +282,7 @@ export async function listDiscountRedemptions(
       .select({
         id: discountRedemptions.id,
         orderNo: orders.orderNo,
-        userPhone: userProfiles.phone,
+        userEmail: userProfiles.email,
         discountAmount: discountRedemptions.discountAmount,
         status: discountRedemptions.status,
         createdAt: discountRedemptions.createdAt,
@@ -301,7 +301,10 @@ export async function listDiscountRedemptions(
       .where(eq(discountRedemptions.codeId, codeId)),
   ]);
   return {
-    list: rows.map((row) => ({ ...row, userPhone: maskPhone(row.userPhone) })),
+    list: rows.map((row) => ({
+      ...row,
+      userEmail: maskEmail(row.userEmail),
+    })),
     total: totals[0]?.total ?? 0,
     page: query.page,
     pageSize: query.pageSize,
