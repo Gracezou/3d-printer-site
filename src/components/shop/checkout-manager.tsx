@@ -43,6 +43,11 @@ interface Preview {
   shippingAmount: string;
   payableAmount: string;
   discount: { code: string; name: string; type: string } | null;
+  shipping: {
+    ruleName: string;
+    freeThreshold: string | null;
+    reason: 'charged' | 'threshold' | 'discount_code';
+  } | null;
   unavailableItems: Array<{
     variantId: string;
     requestedQty: number;
@@ -502,6 +507,15 @@ export function CheckoutManager() {
                 : '选择地址后计算'}
             </dd>
           </div>
+          {addressId && preview?.shipping ? (
+            <p className="text-right text-xs leading-5 text-white/45">
+              {preview.shipping.reason === 'threshold'
+                ? `商品满 ¥${preview.shipping.freeThreshold}，已包邮`
+                : preview.shipping.reason === 'discount_code'
+                  ? '优惠码已免除运费'
+                  : `按“${preview.shipping.ruleName}”计算`}
+            </p>
+          ) : null}
         </dl>
         <div className="flex items-end justify-between py-6">
           <span className="text-sm text-white/60">应付合计</span>

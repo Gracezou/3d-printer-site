@@ -1,5 +1,6 @@
 import { ok, withErrorHandler } from '@/lib/api-response';
 import { getStorefrontProductBySlug } from '@/lib/services/storefront.service';
+import { finishServerTiming } from '@/lib/server-timing';
 
 interface RouteContext {
   params: Promise<{ slug: string }>;
@@ -7,6 +8,7 @@ interface RouteContext {
 
 export const GET = withErrorHandler(
   async (_request: Request, context: RouteContext) => {
+    const startedAt = performance.now();
     const { slug } = await context.params;
     const product = await getStorefrontProductBySlug(slug);
     const response = ok({
@@ -25,6 +27,6 @@ export const GET = withErrorHandler(
       'Cache-Control',
       'public, s-maxage=60, stale-while-revalidate=300',
     );
-    return response;
+    return finishServerTiming(response, 'product_detail', startedAt);
   },
 );

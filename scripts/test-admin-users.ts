@@ -24,6 +24,7 @@ async function main(): Promise<void> {
   const db = getDb();
   const suffix = crypto.randomUUID().replaceAll('-', '').slice(0, 10);
   const userId = crypto.randomUUID();
+  const email = `t091-${suffix}@example.test`;
   const phone = `137${Date.now().toString().slice(-8)}`;
 
   try {
@@ -56,6 +57,7 @@ async function main(): Promise<void> {
 
     await db.insert(userProfiles).values({
       id: userId,
+      email,
       phone,
       nickname: `T091 用户 ${suffix}`,
       lastLoginAt: new Date(),
@@ -110,6 +112,7 @@ async function main(): Promise<void> {
       pageSize: 20,
     });
     assert.equal(listed.total, 1);
+    assert.equal(listed.list[0]?.email, `t0***@example.test`);
     assert.equal(
       listed.list[0]?.phone,
       `${phone.slice(0, 3)}****${phone.slice(-4)}`,
@@ -119,12 +122,14 @@ async function main(): Promise<void> {
     assert(!JSON.stringify(listed).includes(phone));
 
     const detail = await getAdminUserDetail(userId);
+    assert.equal(detail.email, `t0***@example.test`);
     assert.equal(detail.phone, `${phone.slice(0, 3)}****${phone.slice(-4)}`);
     assert.equal(detail.addresses[0]?.receiverPhone, '136****6000');
     assert.equal(detail.orderCount, 2);
     assert.equal(detail.totalSpent, '80.00');
     const serialized = JSON.stringify(detail);
     assert(!serialized.includes(phone));
+    assert(!serialized.includes(email));
     assert(!serialized.includes('13600136000'));
     assert(!serialized.toLowerCase().includes('password'));
 

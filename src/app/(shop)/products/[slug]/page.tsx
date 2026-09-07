@@ -8,6 +8,7 @@ import remarkGfm from 'remark-gfm';
 import { ProductGallery } from '@/components/shop/product-gallery';
 import { ProductPurchasePanel } from '@/components/shop/product-purchase-panel';
 import { BizError } from '@/lib/errors';
+import { getProductSpecLabel } from '@/lib/display-labels';
 import { getStorefrontProductBySlug } from '@/lib/services/storefront.service';
 
 export const revalidate = 60;
@@ -104,7 +105,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
         </div>
         <div className="lg:pt-6">
           <p className="text-xs font-bold tracking-[0.2em] text-[#59705f]">
-            MADE TO ORDER
+            按单生产
           </p>
           <h1 className="mt-4 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
             {product.name}
@@ -128,7 +129,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
         <div className="mx-auto grid max-w-7xl gap-12 px-5 py-16 sm:px-8 sm:py-24 lg:grid-cols-[1.35fr_0.65fr] lg:gap-20">
           <div>
             <p className="text-xs font-bold tracking-[0.2em] text-[#59705f]">
-              PRODUCT STORY
+              作品故事
             </p>
             <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em]">
               作品详情
@@ -150,7 +151,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
           </div>
           <div>
             <p className="text-xs font-bold tracking-[0.2em] text-[#59705f]">
-              SPECIFICATIONS
+              规格参数
             </p>
             <h2 className="mt-3 text-2xl font-semibold">作品参数</h2>
             <dl className="mt-7 divide-y divide-stone-900/8 border-y border-stone-900/8 text-sm">
@@ -159,7 +160,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
                   key={name}
                   className="grid grid-cols-[7rem_1fr] gap-4 py-4"
                 >
-                  <dt className="text-stone-400">{name}</dt>
+                  <dt className="text-stone-400">
+                    {getProductSpecLabel(name)}
+                  </dt>
                   <dd className="text-right font-medium text-stone-700">
                     {value}
                   </dd>

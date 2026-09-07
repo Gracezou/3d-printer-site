@@ -2,11 +2,11 @@ import { createHash } from 'node:crypto';
 
 import { BizError } from '@/lib/errors';
 
-const PHONE_WINDOW_MS = 60_000;
+const IDENTIFIER_WINDOW_MS = 60_000;
 const IP_WINDOW_MS = 60 * 60_000;
 const IP_MAX_REQUESTS = 10;
 
-const phoneAttempts = new Map<string, number>();
+const identifierAttempts = new Map<string, number>();
 const ipAttempts = new Map<string, number[]>();
 
 function hash(value: string): string {
@@ -14,15 +14,15 @@ function hash(value: string): string {
 }
 
 export function consumeOtpRateLimit(
-  phone: string,
+  identifier: string,
   ip: string,
   now = Date.now(),
 ): void {
-  const phoneKey = hash(phone);
-  const previousPhoneAttempt = phoneAttempts.get(phoneKey);
+  const identifierKey = hash(identifier.trim().toLowerCase());
+  const previousIdentifierAttempt = identifierAttempts.get(identifierKey);
   if (
-    previousPhoneAttempt !== undefined &&
-    now - previousPhoneAttempt < PHONE_WINDOW_MS
+    previousIdentifierAttempt !== undefined &&
+    now - previousIdentifierAttempt < IDENTIFIER_WINDOW_MS
   ) {
     throw new BizError('OTP_RATE_LIMIT', '验证码发送过于频繁，请稍后再试');
   }
@@ -36,11 +36,11 @@ export function consumeOtpRateLimit(
     throw new BizError('OTP_RATE_LIMIT', '验证码发送过于频繁，请稍后再试');
   }
 
-  phoneAttempts.set(phoneKey, now);
+  identifierAttempts.set(identifierKey, now);
   ipAttempts.set(ipKey, [...recentIpAttempts, now]);
 }
 
 export function resetOtpRateLimitsForTests(): void {
-  phoneAttempts.clear();
+  identifierAttempts.clear();
   ipAttempts.clear();
 }

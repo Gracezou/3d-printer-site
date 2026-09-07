@@ -1,4 +1,4 @@
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
 
 import { requirePermission } from '@/lib/auth/admin';
 import { getClientIp } from '@/lib/auth/request';
@@ -21,6 +21,7 @@ export const PUT = withErrorHandler(async (request: Request) => {
     admin,
     ip: getClientIp(request),
   });
+  revalidateTag('storefront-site-info');
   revalidatePath('/', 'layout');
   return ok(result);
 });

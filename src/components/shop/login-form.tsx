@@ -12,7 +12,7 @@ interface ApiResult {
 }
 
 export function LoginForm({ returnTo }: LoginFormProps) {
-  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [codeSent, setCodeSent] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -26,7 +26,7 @@ export function LoginForm({ returnTo }: LoginFormProps) {
       const response = await fetch('/api/auth/send-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone }),
+        body: JSON.stringify({ email }),
       });
       const result = (await response.json()) as ApiResult;
       if (!response.ok) {
@@ -50,7 +50,7 @@ export function LoginForm({ returnTo }: LoginFormProps) {
       const response = await fetch('/api/auth/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, code }),
+        body: JSON.stringify({ email, code }),
       });
       const result = (await response.json()) as ApiResult;
       if (!response.ok) {
@@ -67,23 +67,25 @@ export function LoginForm({ returnTo }: LoginFormProps) {
 
   return (
     <div className="w-full max-w-sm rounded-2xl border border-neutral-200 bg-white p-7 shadow-sm">
-      <h1 className="text-2xl font-semibold">手机号登录</h1>
+      <h1 className="text-2xl font-semibold">邮箱登录</h1>
       <p className="mt-2 text-sm text-neutral-500">
         登录后可管理购物车、地址和订单。
       </p>
 
       {!codeSent ? (
         <form className="mt-7 space-y-4" onSubmit={sendCode}>
-          <label className="block text-sm font-medium" htmlFor="phone">
-            手机号
+          <label className="block text-sm font-medium" htmlFor="email">
+            邮箱地址
           </label>
           <input
-            id="phone"
-            inputMode="tel"
-            autoComplete="tel"
-            value={phone}
-            onChange={(event) => setPhone(event.target.value)}
-            placeholder="请输入 11 位手机号"
+            id="email"
+            type="email"
+            required
+            maxLength={320}
+            autoComplete="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="name@example.com"
             className="h-11 w-full rounded-lg border border-neutral-300 px-3 outline-none focus:border-neutral-800"
           />
           <button
@@ -96,15 +98,18 @@ export function LoginForm({ returnTo }: LoginFormProps) {
       ) : (
         <form className="mt-7 space-y-4" onSubmit={verifyCode}>
           <label className="block text-sm font-medium" htmlFor="code">
-            短信验证码
+            邮箱验证码
           </label>
           <input
             id="code"
             inputMode="numeric"
             autoComplete="one-time-code"
+            required
+            pattern="[0-9]{6,10}"
+            maxLength={10}
             value={code}
             onChange={(event) => setCode(event.target.value)}
-            placeholder="请输入 6 位验证码"
+            placeholder="请输入邮件中的验证码"
             className="h-11 w-full rounded-lg border border-neutral-300 px-3 tracking-[0.3em] outline-none focus:border-neutral-800"
           />
           <button
@@ -122,7 +127,7 @@ export function LoginForm({ returnTo }: LoginFormProps) {
             }}
             className="w-full text-sm text-neutral-500"
           >
-            修改手机号
+            修改邮箱
           </button>
         </form>
       )}

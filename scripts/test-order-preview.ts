@@ -224,6 +224,11 @@ async function main(): Promise<void> {
         name: 'T053 满百减二十',
         type: 'fixed_amount',
       },
+      shipping: {
+        ruleName: 'T053 广东运费',
+        freeThreshold: null,
+        reason: 'charged',
+      },
       unavailableItems: [],
     });
     const [validCodeAfterPreview] = await db

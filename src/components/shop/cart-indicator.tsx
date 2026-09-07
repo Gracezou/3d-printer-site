@@ -11,6 +11,12 @@ interface CartResponse {
 
 export const CART_UPDATED_EVENT = 'cart-updated';
 
+export function dispatchCartUpdated(count?: number): void {
+  window.dispatchEvent(
+    new CustomEvent(CART_UPDATED_EVENT, { detail: { count } }),
+  );
+}
+
 export function CartIndicator() {
   const [count, setCount] = useState(0);
   const refresh = useCallback(async () => {
@@ -28,8 +34,13 @@ export function CartIndicator() {
 
   useEffect(() => {
     void refresh();
-    window.addEventListener(CART_UPDATED_EVENT, refresh);
-    return () => window.removeEventListener(CART_UPDATED_EVENT, refresh);
+    const handleUpdate = (event: Event) => {
+      const count = (event as CustomEvent<{ count?: number }>).detail?.count;
+      if (typeof count === 'number') setCount(count);
+      else void refresh();
+    };
+    window.addEventListener(CART_UPDATED_EVENT, handleUpdate);
+    return () => window.removeEventListener(CART_UPDATED_EVENT, handleUpdate);
   }, [refresh]);
 
   return (

@@ -31,6 +31,11 @@ export interface OrderPreview {
     name: string;
     type: string;
   } | null;
+  shipping: {
+    ruleName: string;
+    freeThreshold: string | null;
+    reason: 'charged' | 'threshold' | 'discount_code';
+  } | null;
   unavailableItems: UnavailableOrderItem[];
 }
 
@@ -87,6 +92,7 @@ export async function previewOrder(
   }
 
   let shippingAmount = new Decimal(0);
+  let shippingInfo: OrderPreview['shipping'] = null;
   if (input.addressId) {
     const [address] = await getDb()
       .select({ provinceCode: addresses.provinceCode })
@@ -108,17 +114,26 @@ export async function previewOrder(
       itemsAmount,
     );
     shippingAmount = new Decimal(shipping.amount);
+    shippingInfo = {
+      ruleName: shipping.ruleName,
+      freeThreshold: shipping.freeThreshold,
+      reason: shipping.freeReason ?? 'charged',
+    };
   }
 
   const discount = input.discountCode
     ? await previewDiscountCode(input.discountCode, userId, itemsAmount)
     : undefined;
   const amounts = calculateOrderAmounts(itemsAmount, shippingAmount, discount);
+  if (shippingInfo && discount?.freeShipping) {
+    shippingInfo = { ...shippingInfo, reason: 'discount_code' };
+  }
   return {
     ...amounts,
     discount: discount
       ? { code: discount.code, name: discount.name, type: discount.type }
       : null,
+    shipping: shippingInfo,
     unavailableItems,
   };
 }

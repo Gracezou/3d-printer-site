@@ -19,6 +19,8 @@ export const storefrontMaterialTypes = [
   'OTHER',
 ] as const;
 
+export type StorefrontMaterialType = (typeof storefrontMaterialTypes)[number];
+
 const optionalText = (max: number) =>
   z.preprocess(
     (value) => (typeof value === 'string' && value.trim() ? value : undefined),
@@ -34,13 +36,18 @@ const optionalPrice = z.preprocess(
     .optional(),
 );
 
+const optionalMaterialType = z.preprocess(
+  (value) => (value === '' ? undefined : value),
+  z.enum(storefrontMaterialTypes).optional(),
+);
+
 export const storefrontProductListQuerySchema = z
   .object({
     keyword: optionalText(150),
     categoryId: optionalText(36).pipe(z.string().uuid().optional()),
     minPrice: optionalPrice,
     maxPrice: optionalPrice,
-    materialType: z.enum(storefrontMaterialTypes).optional(),
+    materialType: optionalMaterialType,
     sort: z.enum(storefrontSorts).default('default'),
     page: z.coerce.number().int().min(1).default(1),
     pageSize: z.coerce.number().int().min(1).max(100).default(24),

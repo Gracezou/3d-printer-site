@@ -8,8 +8,8 @@
   },
   "scripts": {
     "dev": "dotenv -e .env.dev -- next dev --turbopack --port 5003",
-    "build": "next build",
-    "start": "next start --port 5003",
+    "build": "dotenv -e .env.dev -- next build",
+    "start": "dotenv -e .env.dev -- next start --port 5003",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
@@ -37,6 +37,7 @@
     "test:product-detail": "dotenv -e .env.dev -- tsx scripts/test-product-detail.ts",
     "test:cart": "dotenv -e .env.dev -- tsx scripts/test-cart-service.ts",
     "test:addresses": "dotenv -e .env.dev -- tsx scripts/test-address-service.ts",
+    "test:customer-profile": "dotenv -e .env.dev -- tsx scripts/test-customer-profile.ts",
     "test:pricing": "dotenv -e .env.dev -- tsx scripts/test-pricing-services.ts",
     "test:order-preview": "dotenv -e .env.dev -- tsx scripts/test-order-preview.ts",
     "test:order-create": "dotenv -e .env.dev -- tsx scripts/test-order-creation.ts",

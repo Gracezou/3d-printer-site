@@ -32,7 +32,7 @@ export default async function ProductsPage({
 
   return (
     <ProductListing
-      eyebrow="ALL CREATIONS"
+      eyebrow="全部作品"
       title="全部作品"
       description="从桌面摆件到实用家居，每一件作品都按需打印、逐件检查后发出。"
       query={query}

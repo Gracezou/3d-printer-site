@@ -17,7 +17,7 @@ interface OrderListItem {
   id: string;
   orderNo: string;
   status: string;
-  userPhone: string;
+  userEmail: string;
   receiverName: string;
   receiverPhone: string;
   payableAmount: string;
@@ -260,7 +260,7 @@ export function OrdersManager({ canExport }: { canExport: boolean }) {
                         {order.receiverName} · {order.receiverPhone}
                       </p>
                       <p className="mt-1 text-xs text-neutral-400">
-                        账号 {order.userPhone}
+                        账号 {order.userEmail}
                       </p>
                     </td>
                     <td className="px-5 py-4">

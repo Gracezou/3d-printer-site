@@ -15,6 +15,13 @@
       "when": 1787837961913,
       "tag": "0001_p1_database_objects",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788769793110,
+      "tag": "0002_wise_george_stacy",
+      "breakpoints": true
     }
   ]
 }

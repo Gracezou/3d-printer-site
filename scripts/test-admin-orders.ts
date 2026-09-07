@@ -58,6 +58,7 @@ async function main(): Promise<void> {
 
     await db.insert(userProfiles).values({
       id: userId,
+      email: `t070-${suffix}@example.test`,
       phone: `132${suffix.slice(0, 8)}`,
       nickname: 'T070 测试用户',
     });
