@@ -48,6 +48,16 @@ curl --fail http://127.0.0.1:5003/api/health
 
 健康检查应返回 `status=ok`，版本应包含 `v0.2.1` 与构建提交 SHA。随后从外网检查首页、商品详情、邮箱 OTP 登录、购物车、结算页和后台登录。
 
+应用健康后安装定时任务：
+
+```bash
+cd /tmp/3d-printer-site-deploy/deploy/cron
+./install.sh
+/opt/3d-printer-site/run-cron.sh release-expired
+```
+
+安装脚本默认从 `/opt/3d-printer-site/.env` 安全提取站点地址和 `CRON_SECRET`；密钥不会写入 crontab 命令行。
+
 ## 支付与退款验收
 
 1. 使用新的 Beta 用户创建一笔低金额订单，确认订单初始状态为“待支付”，库存进入预占。

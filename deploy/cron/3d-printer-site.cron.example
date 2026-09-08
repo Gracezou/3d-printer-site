@@ -1,6 +1,6 @@
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-* * * * * root /opt/app/deploy/cron/run-cron.sh release-expired >> /var/log/cron-app.log 2>&1
-0 3 * * * root /opt/app/deploy/cron/run-cron.sh auto-complete >> /var/log/cron-app.log 2>&1
-0 9 * * * root /opt/app/deploy/cron/run-cron.sh low-stock-alert >> /var/log/cron-app.log 2>&1
+* * * * * root @DEPLOY_DIR@/run-cron.sh release-expired >> /var/log/cron-app.log 2>&1
+0 3 * * * root @DEPLOY_DIR@/run-cron.sh auto-complete >> /var/log/cron-app.log 2>&1
+0 9 * * * root @DEPLOY_DIR@/run-cron.sh low-stock-alert >> /var/log/cron-app.log 2>&1
