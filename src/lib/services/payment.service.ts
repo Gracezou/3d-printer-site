@@ -6,7 +6,24 @@ import { BizError } from '@/lib/errors';
 import { logger } from '@/lib/logger';
 import { getPaymentProvider } from '@/lib/services/payment/provider.factory';
 import type { PaymentProviderCode } from '@/lib/services/payment/provider.interface';
-import { processPaymentNotify } from '@/lib/services/payment-notify.service';
+import {
+  processPaymentNotify,
+  reconcilePaymentQuery,
+} from '@/lib/services/payment-notify.service';
+
+const PAYMENT_QUERY_INTERVAL_MS = 10_000;
+const paymentQueryAttempts = new Map<string, number>();
+
+function shouldQueryPayment(outTradeNo: string): boolean {
+  const now = Date.now();
+  const previous = paymentQueryAttempts.get(outTradeNo) ?? 0;
+  if (now - previous < PAYMENT_QUERY_INTERVAL_MS) return false;
+  paymentQueryAttempts.set(outTradeNo, now);
+  if (paymentQueryAttempts.size > 1_000) {
+    paymentQueryAttempts.delete(paymentQueryAttempts.keys().next().value!);
+  }
+  return true;
+}
 
 function configuredProviderCode(): PaymentProviderCode {
   return process.env.ENABLE_MOCK_PAYMENT === 'true' ? 'mock' : 'alipay_page';
@@ -165,6 +182,7 @@ export async function getPaymentStatus(userId: string, outTradeNo: string) {
   const [payment] = await getDb()
     .select({
       status: payments.status,
+      provider: payments.provider,
       orderStatus: orders.status,
       orderNo: orders.orderNo,
       reservedUntil: orders.reservedUntil,
@@ -175,13 +193,39 @@ export async function getPaymentStatus(userId: string, outTradeNo: string) {
     .orderBy(desc(payments.createdAt))
     .limit(1);
   if (!payment) throw new BizError('NOT_FOUND', '支付记录不存在');
+  if (
+    payment.status === 'created' &&
+    payment.provider === 'alipay_page' &&
+    shouldQueryPayment(outTradeNo)
+  ) {
+    try {
+      const reconciled = await reconcilePaymentQuery(
+        getPaymentProvider('alipay_page'),
+        outTradeNo,
+      );
+      if (reconciled === 'success') {
+        paymentQueryAttempts.delete(outTradeNo);
+        return getPaymentStatus(userId, outTradeNo);
+      }
+    } catch (error: unknown) {
+      logger.warn(
+        { err: error, outTradeNo },
+        'Payment status reconciliation failed',
+      );
+    }
+  }
   const status =
     payment.status === 'success'
       ? ('success' as const)
       : ['closed', 'failed', 'refunded'].includes(payment.status)
         ? ('closed' as const)
         : ('pending' as const);
-  return { ...payment, status };
+  return {
+    status,
+    orderStatus: payment.orderStatus,
+    orderNo: payment.orderNo,
+    reservedUntil: payment.reservedUntil,
+  };
 }
 
 export async function confirmMockPayment(userId: string, outTradeNo: string) {
