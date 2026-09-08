@@ -1,6 +1,6 @@
 {
   "name": "3d-printer-site",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "private": true,
   "packageManager": "pnpm@11.22.0",
   "engines": {
@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "dotenv -e .env.dev -- next dev --turbopack --port 5003",
     "build": "dotenv -e .env.dev -- next build",
+    "build:production": "next build",
     "start": "dotenv -e .env.dev -- next start --port 5003",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
@@ -25,6 +26,8 @@
     "demo:seed": "dotenv -e .env.dev -- tsx scripts/demo-data.ts seed",
     "demo:reset": "dotenv -e .env.dev -- tsx scripts/demo-data.ts reset",
     "demo:check": "dotenv -e .env.dev -- tsx scripts/demo-data.ts check",
+    "preprod:data:check": "dotenv -e .env.production -- tsx scripts/preprod-data.ts check",
+    "preprod:data:reset": "dotenv -e .env.production -- tsx scripts/preprod-data.ts reset",
     "test:inventory": "dotenv -e .env.dev -- tsx scripts/test-inventory-sql.ts",
     "test:admin-auth": "dotenv -e .env.dev -- tsx scripts/test-admin-auth.ts",
     "test:super-admin": "dotenv -e .env.dev -- tsx scripts/test-super-admin-role.ts",

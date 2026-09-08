@@ -1,16 +1,15 @@
 services:
   web:
     image: ${APP_IMAGE:?APP_IMAGE must be an immutable GHCR image tag}
-    container_name: 3d-printer-site
     restart: unless-stopped
     env_file:
       - .env
     environment:
       NODE_ENV: production
-      NODE_OPTIONS: --max-old-space-size=512
+      NODE_OPTIONS: --max-old-space-size=1024
     ports:
-      - '0.0.0.0:5003:3000'
-    mem_limit: 768m
+      - '${APP_BIND_HOST:-127.0.0.1}:${APP_BIND_PORT:-3000}:3000'
+    mem_limit: 1536m
     healthcheck:
       test:
         [

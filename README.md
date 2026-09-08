@@ -1,9 +1,9 @@
-# 3D 打印成品独立站
+# 层光造物
 
 Next.js 15 + PostgreSQL/Supabase 实现的 3D 打印成品商城，包含商品、多耗材 BOM、实时可售库存、购物车、订单、优惠、支付、生产、物流、退款和权限化管理后台。
 
 > [!WARNING]
-> 当前版本仅用于境外验证环境，禁止接入真实用户或保存真实邮箱、手机号、收货地址等个人信息。支付仅使用支付宝沙箱，不产生真实资金流转。真实用户接入须等数据库迁回境内并完成个人信息与备案合规工作。
+> v0.2.1 当前用于境外预生产 Beta 验证，只允许受邀测试者和支付宝沙箱交易。测试者应使用专用邮箱与虚构手机号、收货地址；真实用户与真实资金接入须等数据库迁回境内并完成个人信息与备案合规工作。
 
 ## 本地启动
 
@@ -41,6 +41,7 @@ pnpm exec dotenv -e .env.dev -- tsx scripts/seed.ts --credential-file=.local/adm
 
 | 变量 | 用途 |
 |---|---|
+| `APP_ENV` / `APP_VERSION` / `LOG_LEVEL` | 环境标识、健康检查版本与服务端日志级别 |
 | `DATABASE_URL` | 服务端 PostgreSQL 连接串；新加坡部署使用 Supavisor `6543` 端口的 transaction 模式 |
 | `DATABASE_POOL_MAX` | 单实例数据库连接上限，默认 5 |
 | `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | 仅服务端 Storage 管理，Service Role 禁止使用 `NEXT_PUBLIC_` 前缀 |
@@ -54,6 +55,9 @@ pnpm exec dotenv -e .env.dev -- tsx scripts/seed.ts --credential-file=.local/adm
 | `ENABLE_MOCK_PAYMENT` | 本地自动测试设为 `true`；沙箱和生产必须为 `false` |
 | `DEMO_ADMIN_PASSWORD` | 可选，固定演示运营员密码；不设则播种时随机生成 |
 | `ALLOW_DEMO_DATA` | 仅隔离验证环境可设 `true`，用于明确允许生产模式写入演示数据 |
+| `CONFIRM_PREPROD_RESET` | 预生产数据重置的一次性确认值，日常留空 |
+
+服务器配置使用脱敏的 [`deploy/.env.production.example`](./deploy/.env.production.example) 作为模板；复制成 `/opt/3d-printer-site/.env` 后必须设置权限为 `0600`，真实密钥不得提交。
 
 ## 演示数据与验收
 
@@ -84,9 +88,23 @@ pnpm security:audit  # 需要先有最新生产构建产物
 
 `deploy/cron/` 提供 system crontab 模板、环境变量模板和包装脚本，覆盖每分钟释放过期订单、每日 03:00 自动完成订单和每日 09:00 低库存汇总。`CRON_SECRET` 只放在权限受限的环境文件中，禁止写入 crontab 命令行。
 
+## v0.2.1 预生产数据
+
+预生产环境使用独立的精简数据集：分类、耗材、库存流水、商品、SKU、BOM、优惠、地址、购物车、订单、支付、生产、物流、退款、运费规则和后台日志各保留一条连贯实例。用户模块优先复用已有 Supabase Auth 用户，没有可用用户时才创建一条虚构参考资料；不会删除真实 Auth 身份。历史 `demo:*` 命令仍只用于 v0.1 回归验收。
+
+```bash
+cp deploy/.env.production.example .env.production
+# 填写预生产数据库配置后，先只读检查
+pnpm preprod:data:check
+# 确认目标库无误后才允许重置；确认值只对本次命令生效
+CONFIRM_PREPROD_RESET=RESET_PREPROD_DATA pnpm preprod:data:reset
+```
+
+重置命令仅接受 `APP_ENV=staging` 或 `preproduction`，并在执行前输出已脱敏的数据库主机、端口和库名。它保留系统角色、管理员账号及非演示用户资料，清理业务数据并写入 v0.2.1 基准实例。
+
 ## 验证环境部署约束
 
-v0.2 部署目标是华为云新加坡主机 + Nginx + Next.js，Supabase 必须选择新加坡 `ap-southeast-1` 区域，数据库连接使用 Supavisor `6543` transaction 模式。实际服务器初始化、流水线和沙箱公网回调分别在 T104、T105、T106 执行，当前 Tag 不代表已部署为可用生产站。
+v0.2.1 预生产目标是华为云新加坡主机 + Nginx + Next.js，Supabase 使用新加坡 `ap-southeast-1` 区域，数据库连接使用 Supavisor `6543` transaction 模式。应用暂时监听公网 `5003` 端口；支付宝异步通知的完整验收仍应使用 HTTPS 域名。
 
 ## 已知限制与迁移
 
@@ -105,9 +123,12 @@ v0.2 部署目标是华为云新加坡主机 + Nginx + Next.js，Supabase 必须
 - [v0.1.0 数据模型](./docs/v0.1.0/DATA_MODEL.md)
 - [v0.1.0 API 规范](./docs/v0.1.0/API_SPEC.md)
 - [v0.1.0 任务清单](./docs/v0.1.0/TASKS.md)
-- [v0.2.0 增量变更](./docs/CHANGES-v0.2.0.md)
-- [v0.2.0 部署计划](./docs/DEPLOYMENT-PLAN-v0.2.0.md)
-- [v0.2.0 Release Notes](./docs/RELEASE_NOTES-v0.2.0.md)
+- [v0.2.0 增量变更](./docs/v0.2.0/CHANGES-v0.2.0.md)
+- [v0.2.0 部署计划](./docs/v0.2.0/DEPLOYMENT-PLAN-v0.2.0.md)
+- [v0.2.0 Release Notes](./docs/v0.2.0/RELEASE_NOTES-v0.2.0.md)
+- [v0.2.1 预生产部署与验收](./docs/v0.2.1/PREPRODUCTION.md)
+- [v0.2.1 生产服务器选型与转生产检查清单](./docs/v0.2.1/PRODUCTION-SERVER.md)
+- [v0.2.1 Release Notes](./docs/v0.2.1/RELEASE_NOTES.md)
 
 ## License
 
