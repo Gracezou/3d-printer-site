@@ -99,7 +99,7 @@ export async function refundOrder(
           '订单没有可退款的成功支付记录',
         );
       }
-      const isFullRefund = amount.equals(order.payableAmount);
+      const isFullRefund = amount.equals(remaining);
       const nonce = crypto.randomUUID().replaceAll('-', '').slice(0, 8);
       const outRefundNo = `R${order.orderNo}-${nonce}`;
       const [record] = await tx
@@ -193,7 +193,9 @@ export async function refundOrder(
         await tx
           .update(orders)
           .set({
-            status: 'refunded',
+            status: pending.isFullRefund
+              ? 'refunded'
+              : pending.previousStatus,
             refundedAmount: sql`${orders.refundedAmount} + ${pending.amount}`,
             updatedAt: new Date(),
           })
