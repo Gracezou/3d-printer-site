@@ -1,4 +1,4 @@
-import { asc, count, eq, sql } from 'drizzle-orm';
+import { and, asc, count, eq, isNull } from 'drizzle-orm';
 
 import type { AdminIdentity } from '@/lib/auth/admin';
 import { getDb } from '@/lib/db/client';
@@ -122,15 +122,20 @@ export async function listCategories(options?: { visibleOnly?: boolean }) {
       imageUrl: categories.imageUrl,
       sortOrder: categories.sortOrder,
       isVisible: categories.isVisible,
-      productCount:
-        sql<number>`(SELECT count(*)::int FROM ${products} p WHERE p.category_id = ${categories.id} AND p.deleted_at IS NULL)`.as(
-          'product_count',
-        ),
+      productCount: count(products.id),
       createdAt: categories.createdAt,
       updatedAt: categories.updatedAt,
     })
     .from(categories)
+    .leftJoin(
+      products,
+      and(
+        eq(products.categoryId, categories.id),
+        isNull(products.deletedAt),
+      ),
+    )
     .where(visibleOnly ? eq(categories.isVisible, true) : undefined)
+    .groupBy(categories.id)
     .orderBy(asc(categories.sortOrder), asc(categories.createdAt));
 
   return { list: toTree(rows), total: rows.length };
