@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - dev-0.2
+      - release-v0.2.1
 
 permissions:
   contents: read
@@ -33,7 +34,9 @@ jobs:
 
       - name: Verify source
         env:
-          NEXT_PUBLIC_SITE_URL: http://188.239.16.167:5003
+          NEXT_PUBLIC_SITE_URL: ${{ vars.PREPROD_SITE_URL || 'http://188.239.16.176:5003' }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.PREPROD_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.PREPROD_SUPABASE_ANON_KEY }}
         run: |
           pnpm typecheck
           pnpm lint
@@ -63,7 +66,10 @@ jobs:
           push: true
           tags: ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
           build-args: |
-            APP_VERSION=${{ github.sha }}
-            NEXT_PUBLIC_SITE_URL=http://188.239.16.167:5003
+            APP_VERSION=v0.2.1+sha-${{ github.sha }}
+            NEXT_PUBLIC_SITE_URL=${{ vars.PREPROD_SITE_URL || 'http://188.239.16.176:5003' }}
+            NEXT_PUBLIC_ICP_LICENSE=${{ vars.PREPROD_ICP_LICENSE }}
+            NEXT_PUBLIC_SUPABASE_URL=${{ vars.PREPROD_SUPABASE_URL }}
+            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ vars.PREPROD_SUPABASE_ANON_KEY }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
