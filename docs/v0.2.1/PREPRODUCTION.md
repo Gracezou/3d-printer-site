@@ -14,6 +14,7 @@
 1. 从 `deploy/.env.production.example` 生成服务器 `/opt/3d-printer-site/.env`，填写 Supabase、后台 JWT、Cron 和支付宝沙箱参数。
 2. 执行 `chmod 600 /opt/3d-printer-site/.env`，确认文件未进入 Git、镜像层或日志。
 3. `NEXT_PUBLIC_SITE_URL`、`ALIPAY_NOTIFY_URL`、`ALIPAY_RETURN_URL` 必须指向同一预生产站点。完整支付回调验收使用 HTTPS 域名；只有 IP + HTTP 时不把异步通知验收标记为通过。
+   IP + HTTP 验收期间设置 `SESSION_COOKIE_SECURE=false`，否则浏览器会丢弃后台登录 Cookie；切换 HTTPS 域名时必须同步改为 `true`。
 4. 配置 GitHub 仓库变量 `PREPROD_SITE_URL`、`PREPROD_SUPABASE_URL` 和 `PREPROD_SUPABASE_ANON_KEY`；它们会写入浏览器构建产物，其中 Supabase Anon Key 本身是公开客户端凭据，绝不能误填 Service Role。域名未就绪时 `PREPROD_SITE_URL` 可先使用 `http://188.239.16.176:5003`。
 5. `PREPROD_ICP_LICENSE` 为可选仓库变量；新加坡预生产环境保持为空。
 
