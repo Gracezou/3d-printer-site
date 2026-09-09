@@ -9,6 +9,7 @@ import {
   verifyAdminToken,
 } from '@/lib/auth/admin-token';
 import { assertPermission, type Permission } from '@/lib/auth/permissions';
+import { shouldUseSecureSessionCookie } from '@/lib/auth/session-cookie';
 import { getDb } from '@/lib/db/client';
 import { adminRoles, adminUsers } from '@/lib/db/schema';
 import { BizError } from '@/lib/errors';
@@ -22,7 +23,7 @@ export async function setAdminSession(claims: AdminTokenClaims): Promise<void> {
   const cookieStore = await cookies();
   cookieStore.set(ADMIN_COOKIE_NAME, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: shouldUseSecureSessionCookie(),
     sameSite: 'strict',
     path: '/',
     maxAge: ADMIN_SESSION_SECONDS,

@@ -48,6 +48,7 @@ pnpm exec dotenv -e .env.dev -- tsx scripts/seed.ts --credential-file=.local/adm
 | `SUPABASE_STORAGE_BUCKET` | 商品图片与模型 bucket，默认 `products` |
 | `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 客户端 Supabase 邮箱 OTP Auth |
 | `ADMIN_JWT_SECRET` | 后台 JWT HS256 密钥，至少 32 个随机字符 |
+| `SESSION_COOKIE_SECURE` | HTTPS 环境设为 `true`；仅 IP + HTTP 预生产验收期间可临时设为 `false` |
 | `ALIPAY_*` | 支付宝应用、RSA2 密钥、网关、异步通知和同步返回地址 |
 | `NEXT_PUBLIC_SITE_URL` | 站点根地址；本地为 `http://localhost:5003` |
 | `NEXT_PUBLIC_ICP_LICENSE` | 页脚备案号，验证环境留空 |
@@ -131,6 +132,7 @@ v0.2.1 预生产目标是华为云新加坡主机 + Nginx + Next.js，Supabase �
 - [v0.2.1 预生产部署与验收](./docs/v0.2.1/PREPRODUCTION.md)
 - [v0.2.1 生产服务器选型与转生产检查清单](./docs/v0.2.1/PRODUCTION-SERVER.md)
 - [v0.2.1 Release Notes](./docs/v0.2.1/RELEASE_NOTES.md)
+- [v0.3.0 增量变更（初稿）](./docs/v0.3.0/CHANGES-v0.3.0.md)
 
 ## License
 
