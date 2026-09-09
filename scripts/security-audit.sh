@@ -9,7 +9,7 @@ fail() {
 }
 
 echo "[1/5] Checking tracked environment and key files"
-tracked_sensitive="$({ git ls-files | rg '(^|/)(\.env($|\.)|.*\.(pem|key|p12|pfx)$)' || true; } | rg -v '(^|/)\.env\.example$' || true)"
+tracked_sensitive="$({ git ls-files | rg '(^|/)(\.env($|\.)|.*\.(pem|key|p12|pfx)$)' || true; } | rg -v '(^|/)\.env(\.[^/]*)?\.example$' || true)"
 if [[ -n "$tracked_sensitive" ]]; then
   echo "$tracked_sensitive" >&2
   fail "sensitive environment or key file is tracked"
