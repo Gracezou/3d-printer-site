@@ -1,6 +1,6 @@
 # v0.2.1 生产服务器选型、主机规范与转生产检查清单
 
-- 状态：**阶段一、阶段二已实施，待预生产发布**
+- 状态：**阶段一、阶段二及预生产发布已完成，域名与 HTTPS 为当前 P0 阻断任务**
 - 决策日期：2026-09-08
 - 适用对象：新购华为云 Flexus L 新加坡实例（先做预生产，验收通过后原地转生产）
 - 当前主机 IP：`188.239.16.176`
@@ -16,7 +16,7 @@
 | 操作系统 | **Ubuntu 24.04 LTS** | 22.04 标准支持 2027-05-31 到期；应用运行时锁在容器内，host 版本对应用无影响 |
 | 宝塔面板 | **不安装** | 只需 Nginx + 证书，certbot 做得更彻底；同时消除 888/8888 公网入口这一安全例外 |
 | Nginx | apt 官方源安装，vhost 手写 | 配置内容沿用 `DEPLOYMENT-PLAN-v0.2.0.md` D06 |
-| 证书 | certbot / acme.sh，HTTP-01 webroot，systemd timer 自动续期 | 单域名，不需要 DNS-01 的复杂度 |
+| 证书 | Cloudflare Origin Certificate，Cloudflare 橙云代理 | 预生产域名已接入 Cloudflare；源站证书配合 `Full (strict)` 使用 |
 | 旧机器（现有 2C2G） | **降级为 staging/预生产，不退订** | 否则生产环境将没有对应的验证环境 |
 
 ---
@@ -77,7 +77,7 @@
 2. **Python 3.12 / PEP 668**：`pip install` 会报 `externally-managed-environment`。任何一键脚本或监控 agent 安装失败优先排查此项，使用 venv 或 `--break-system-packages`。
 3. **AppArmor 非特权 user namespace 限制**（24.04 新增）：标准 Docker 不受影响；若使用 rootless Docker 或沙箱类工具需设置 `kernel.apparmor_restrict_unprivileged_userns=0`。
 4. **Nginx**：apt 官方源安装，vhost 独立文件，反向代理到 `127.0.0.1:3000`，配置项按 D06 执行（WebSocket/HTTP 头、超时、上传上限、静态缓存、安全响应头）。
-5. **证书**：certbot 或 acme.sh，HTTP-01 webroot 模式；webroot 目录位于宿主机，不涉及容器。续期 hook 执行 `nginx -s reload`，由 systemd timer 驱动。验收执行 `certbot renew --dry-run`。
+5. **证书**：`printer.daxiaoxiang.com` 使用 Cloudflare Origin Certificate；私钥仅保存在源站 Root 可读目录，不进入 Git、聊天、镜像或日志。Cloudflare SSL/TLS 模式使用 `Full (strict)`，并在证书到期前安排轮换。
 6. **防火墙**：仅开放 22 / 80 / 443。**不再存在 888/8888 例外**。域名与 HTTPS 就绪后撤销临时的公网 5003，容器改绑 `127.0.0.1:3000`。
 7. **SSH**：先配置公钥，验证可登录后禁用 Root 密码登录。
 8. **cron**：沿用 `deploy/cron/`，`CRON_SECRET` 只放在 Root 可读的环境文件，禁止出现在 crontab 命令行、进程参数或日志中。
@@ -144,7 +144,7 @@
 - [ ] 防火墙与云安全组仅保留 22 / 80 / 443
 - [ ] `grep -r "SERVICE_ROLE" .next/static` 无结果（生产构建产物）
 - [ ] `pnpm security:audit` 在最新生产构建后通过
-- [ ] HTTP 自动跳转 HTTPS，证书链正确，`certbot renew --dry-run` 通过
+- [ ] HTTP 自动跳转 HTTPS，Cloudflare 使用 `Full (strict)`，源站证书与私钥匹配且有效期正确
 
 ### 6.5 可用性与回滚
 
@@ -177,8 +177,8 @@
 - 系统安全更新和内核升级已完成，当前内核为 `6.8.0-139-generic`。
 - 已卸载 snapd，安装并启用 Docker CE、Compose、Nginx、Certbot、fail2ban、UFW 和 unattended-upgrades。
 - 已验证 Root SSH 公钥登录，关闭密码认证、交互式认证、X11、Agent/TCP 转发；原 Root 密码已轮换。
-- UFW 当前开放 22、80、443 与预生产临时端口 5003；域名和 HTTPS 生效后移除 5003。
+- UFW 当前开放 22、80、443 与预生产临时端口 5003；域名和 HTTPS 全链路验收通过后移除 5003。
 - 已应用内核、journald、Docker 日志轮转、fail2ban 和自动更新配置；不需要的桌面/硬件服务已停用。
-- `/opt/3d-printer-site` 已建立，运行时 `.env` 当前为空且权限为 `0600`，等待阶段三填入预生产配置。
-- Nginx 已监听 80 和临时 5003；应用未部署前返回 502 属于预期。
+- `/opt/3d-printer-site` 已部署 v0.2.1，运行时 `.env` 已配置且权限为 `0600`；真实值不进入文档、Git 或日志。
+- Nginx 已监听 80 和临时 5003，当前应用已通过蓝绿槽位完成预生产发布。
 - 本地部署资产已调整为 1536 MiB 容器限制、1024 MiB Node.js Heap，并使用蓝绿槽位健康检查后切换 Nginx upstream。
