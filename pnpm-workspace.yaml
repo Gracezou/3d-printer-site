@@ -3,5 +3,6 @@ allowBuilds:
 
 overrides:
   esbuild: '>=0.24.3'
+  js-yaml: 4.3.2
   postcss: '>=8.5.18'
   urllib: '>=4.9.1'
