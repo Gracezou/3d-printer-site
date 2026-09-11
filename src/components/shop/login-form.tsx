@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 interface LoginFormProps {
   returnTo: string;
@@ -12,6 +13,7 @@ interface ApiResult {
 }
 
 export function LoginForm({ returnTo }: LoginFormProps) {
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [codeSent, setCodeSent] = useState(false);
@@ -57,7 +59,8 @@ export function LoginForm({ returnTo }: LoginFormProps) {
         setMessage(result.message);
         return;
       }
-      window.location.assign(returnTo);
+      router.replace(returnTo);
+      router.refresh();
     } catch {
       setMessage('网络异常，请稍后再试');
     } finally {

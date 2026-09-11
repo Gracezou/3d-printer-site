@@ -1,6 +1,7 @@
 'use client';
 
 import { Check, MapPin, Pencil, Plus, Star, Trash2, X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 
 import { chinaProvinces, parseChineseAddress } from '@/lib/address-parser';
@@ -45,6 +46,7 @@ const emptyDraft: AddressDraft = {
 };
 
 export function AddressManager() {
+  const router = useRouter();
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<AddressDraft>(emptyDraft);
@@ -64,7 +66,7 @@ export function AddressManager() {
         fetch('/api/auth/me', { cache: 'no-store' }),
       ]);
       if (response.status === 401) {
-        window.location.assign('/auth/login?next=%2Faccount%2Faddresses');
+        router.replace('/auth/login?next=%2Faccount%2Faddresses');
         return;
       }
       const body = (await response.json()) as AddressResponse;
@@ -81,7 +83,7 @@ export function AddressManager() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => void loadAddresses(), [loadAddresses]);
 
@@ -180,7 +182,7 @@ export function AddressManager() {
         <button
           type="button"
           onClick={openCreate}
-          className="inline-flex h-11 items-center gap-2 rounded-full bg-[#17251c] px-5 text-sm font-bold text-white"
+          className="bg-store-ink inline-flex h-11 items-center gap-2 rounded-full px-5 text-sm font-bold text-white"
         >
           <Plus className="size-4" /> 新增地址
         </button>
@@ -210,7 +212,7 @@ export function AddressManager() {
         {addresses.map((address) => (
           <article
             key={address.id}
-            className={`rounded-3xl border p-6 ${address.isDefault ? 'border-[#59705f] bg-[#e8ecdf]/60' : 'border-stone-900/8 bg-white/70'}`}
+            className={`rounded-3xl border p-6 ${address.isDefault ? 'border-store-muted bg-store-mist/60' : 'border-stone-900/8 bg-white/70'}`}
           >
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -220,7 +222,7 @@ export function AddressManager() {
                     {address.receiverPhone}
                   </span>
                   {address.isDefault ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-[#17251c] px-2.5 py-1 text-[10px] font-bold text-white">
+                    <span className="bg-store-ink inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold text-white">
                       <Check className="size-3" />
                       默认地址
                     </span>
@@ -233,7 +235,7 @@ export function AddressManager() {
                   {address.postalCode ? `（${address.postalCode}）` : ''}
                 </p>
               </div>
-              <MapPin className="size-5 shrink-0 text-[#59705f]" />
+              <MapPin className="text-store-muted size-5 shrink-0" />
             </div>
             <div className="mt-5 flex flex-wrap gap-2 border-t border-stone-900/8 pt-4">
               {!address.isDefault ? (
@@ -279,7 +281,7 @@ export function AddressManager() {
         <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-stone-950/45 p-4 backdrop-blur-sm">
           <form
             onSubmit={submit}
-            className="my-6 w-full max-w-2xl rounded-3xl bg-[#f7f5ef] p-6 shadow-2xl sm:p-8"
+            className="bg-store-canvas my-6 w-full max-w-2xl rounded-3xl p-6 shadow-2xl sm:p-8"
           >
             <div className="flex items-center justify-between">
               <h2 className="text-2xl font-semibold">
@@ -294,7 +296,7 @@ export function AddressManager() {
                 <X className="size-5" />
               </button>
             </div>
-            <div className="mt-6 rounded-2xl border border-[#59705f]/20 bg-[#e8ecdf]/60 p-4">
+            <div className="border-store-muted/20 bg-store-mist/60 mt-6 rounded-2xl border p-4">
               <label className="block text-sm font-semibold text-stone-700">
                 快捷识别
                 <textarea
@@ -310,7 +312,7 @@ export function AddressManager() {
                   type="button"
                   disabled={!quickInput.trim()}
                   onClick={recognizeAddress}
-                  className="h-9 rounded-full bg-[#17251c] px-4 text-xs font-semibold text-white disabled:opacity-40"
+                  className="bg-store-ink h-9 rounded-full px-4 text-xs font-semibold text-white disabled:opacity-40"
                 >
                   识别并填入
                 </button>
@@ -432,7 +434,7 @@ export function AddressManager() {
                 onChange={(e) =>
                   setDraft({ ...draft, isDefault: e.target.checked })
                 }
-                className="size-4 accent-[#17251c]"
+                className="accent-store-ink size-4"
               />
               设为默认收货地址
             </label>
@@ -446,7 +448,7 @@ export function AddressManager() {
               </button>
               <button
                 disabled={saving}
-                className="h-11 rounded-full bg-[#17251c] px-7 text-sm font-bold text-white disabled:opacity-50"
+                className="bg-store-ink h-11 rounded-full px-7 text-sm font-bold text-white disabled:opacity-50"
               >
                 {saving ? '保存中…' : '保存地址'}
               </button>

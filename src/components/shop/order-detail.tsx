@@ -12,6 +12,7 @@ import {
   Truck,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 interface OrderItem {
@@ -84,13 +85,15 @@ function formatDate(value: string | null): string {
   }).format(new Date(value));
 }
 
-async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
+async function apiRequest<T>(
+  url: string,
+  init: RequestInit | undefined,
+  onUnauthorized: () => void,
+): Promise<T> {
   const response = await fetch(url, { ...init, cache: 'no-store' });
   const body = (await response.json()) as ApiEnvelope<T>;
   if (response.status === 401) {
-    window.location.assign(
-      `/auth/login?redirect=${encodeURIComponent(location.pathname)}`,
-    );
+    onUnauthorized();
     throw new Error('请先登录');
   }
   if (!response.ok || body.data === null)
@@ -99,6 +102,7 @@ async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export function OrderDetail({ orderNo }: { orderNo: string }) {
+  const router = useRouter();
   const [order, setOrder] = useState<OrderDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -108,13 +112,22 @@ export function OrderDetail({ orderNo }: { orderNo: string }) {
     setLoading(true);
     setError('');
     try {
-      setOrder(await apiRequest<OrderDetailData>(`/api/orders/${orderNo}`));
+      setOrder(
+        await apiRequest<OrderDetailData>(
+          `/api/orders/${orderNo}`,
+          undefined,
+          () =>
+            router.replace(
+              `/auth/login?next=${encodeURIComponent(`/account/orders/${orderNo}`)}`,
+            ),
+        ),
+      );
     } catch (caught: unknown) {
       setError(caught instanceof Error ? caught.message : '订单加载失败');
     } finally {
       setLoading(false);
     }
-  }, [orderNo]);
+  }, [orderNo, router]);
 
   useEffect(() => void load(), [load]);
   const stage = useMemo(
@@ -134,7 +147,14 @@ export function OrderDetail({ orderNo }: { orderNo: string }) {
     setBusy(true);
     setError('');
     try {
-      await apiRequest(`/api/orders/${orderNo}/${action}`, { method: 'POST' });
+      await apiRequest(
+        `/api/orders/${orderNo}/${action}`,
+        { method: 'POST' },
+        () =>
+          router.replace(
+            `/auth/login?next=${encodeURIComponent(`/account/orders/${orderNo}`)}`,
+          ),
+      );
       await load();
     } catch (caught: unknown) {
       setError(caught instanceof Error ? caught.message : '操作失败');
@@ -172,7 +192,7 @@ export function OrderDetail({ orderNo }: { orderNo: string }) {
       </Link>
       <div className="mt-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
-          <p className="text-xs font-bold tracking-[0.2em] text-[#59705f]">
+          <p className="text-store-muted text-xs font-bold tracking-[0.2em]">
             订单详情
           </p>
           <h1 className="mt-3 text-3xl font-semibold tracking-tight">
@@ -182,7 +202,7 @@ export function OrderDetail({ orderNo }: { orderNo: string }) {
             {formatDate(order.createdAt)}
           </p>
         </div>
-        <span className="w-fit rounded-full bg-[#17251c] px-4 py-2 text-sm font-semibold text-white">
+        <span className="bg-store-ink w-fit rounded-full px-4 py-2 text-sm font-semibold text-white">
           {order.statusText}
         </span>
       </div>
@@ -210,11 +230,11 @@ export function OrderDetail({ orderNo }: { orderNo: string }) {
                 <div key={item.label} className="relative text-center">
                   {index > 0 ? (
                     <span
-                      className={`absolute top-5 right-1/2 h-0.5 w-full ${index <= stage ? 'bg-[#6a8c65]' : 'bg-stone-200'}`}
+                      className={`absolute top-5 right-1/2 h-0.5 w-full ${index <= stage ? 'bg-store-success-mid' : 'bg-stone-200'}`}
                     />
                   ) : null}
                   <span
-                    className={`relative mx-auto grid size-10 place-items-center rounded-full ${active ? 'bg-[#17251c] text-white' : 'bg-stone-100 text-stone-400'}`}
+                    className={`relative mx-auto grid size-10 place-items-center rounded-full ${active ? 'bg-store-ink text-white' : 'bg-stone-100 text-stone-400'}`}
                   >
                     <Icon className="size-4" />
                   </span>
@@ -269,7 +289,7 @@ export function OrderDetail({ orderNo }: { orderNo: string }) {
                       </p>
                     </div>
                     {item.printStatusText ? (
-                      <div className="mt-3 rounded-xl bg-[#eef5e8] px-3 py-2 text-xs font-medium text-[#426047]">
+                      <div className="bg-store-success-pale text-store-leaf mt-3 rounded-xl px-3 py-2 text-xs font-medium">
                         生产状态：{item.printStatusText}
                         {item.printerName ? ` · ${item.printerName}` : ''}
                       </div>
@@ -356,7 +376,7 @@ export function OrderDetail({ orderNo }: { orderNo: string }) {
               </button>
               <Link
                 href={`/checkout/pay/${order.orderNo}`}
-                className="inline-flex h-11 items-center justify-center rounded-full bg-[#17251c] text-sm font-semibold text-white"
+                className="bg-store-ink inline-flex h-11 items-center justify-center rounded-full text-sm font-semibold text-white"
               >
                 去支付
               </Link>
@@ -366,7 +386,7 @@ export function OrderDetail({ orderNo }: { orderNo: string }) {
             <button
               disabled={busy}
               onClick={() => void operate('confirm')}
-              className="h-11 w-full rounded-full bg-[#17251c] text-sm font-semibold text-white disabled:opacity-40"
+              className="bg-store-ink h-11 w-full rounded-full text-sm font-semibold text-white disabled:opacity-40"
             >
               确认收货
             </button>

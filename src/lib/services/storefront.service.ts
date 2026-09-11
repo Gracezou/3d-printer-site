@@ -22,6 +22,7 @@ import {
 } from '@/lib/db/schema';
 import { BizError } from '@/lib/errors';
 import type { StorefrontProductListQuery } from '@/lib/validators/storefront';
+import { storefrontCacheTags } from '@/lib/storefront-cache';
 
 export interface StorefrontBanner {
   title: string;
@@ -126,56 +127,109 @@ const productSelection = {
   )`.as('is_sold_out'),
 };
 
-async function loadHomePageData() {
-  const db = getDb();
-  const onSaleFilter = and(
-    eq(products.status, 'on_sale'),
-    isNull(products.deletedAt),
+async function loadHomeBanners(): Promise<StorefrontBanner[]> {
+  const bannerRows = await getDb()
+    .select({ key: settings.key, value: settings.value })
+    .from(settings)
+    .where(eq(settings.key, 'site_banners'));
+  const banners = parseBanners(bannerRows[0]?.value);
+  return banners.length > 0 ? banners : [defaultBanner];
+}
+
+const getHomeBanners = unstable_cache(
+  loadHomeBanners,
+  ['storefront-home-banners'],
+  { revalidate: 60, tags: [storefrontCacheTags.banners] },
+);
+
+async function loadHomeCategories() {
+  return getDb()
+    .select({
+      id: categories.id,
+      name: categories.name,
+      slug: categories.slug,
+      imageUrl: categories.imageUrl,
+    })
+    .from(categories)
+    .where(and(eq(categories.isVisible, true), isNull(categories.parentId)))
+    .orderBy(asc(categories.sortOrder), asc(categories.createdAt));
+}
+
+const getHomeCategories = unstable_cache(
+  loadHomeCategories,
+  ['storefront-home-categories'],
+  { revalidate: 60, tags: [storefrontCacheTags.categories] },
+);
+
+function homeOnSaleFilter() {
+  return and(eq(products.status, 'on_sale'), isNull(products.deletedAt));
+}
+
+async function loadFeaturedProducts() {
+  return getDb()
+    .select(productSelection)
+    .from(products)
+    .where(and(homeOnSaleFilter(), eq(products.isFeatured, true)))
+    .orderBy(desc(products.sortOrder), desc(products.createdAt))
+    .limit(12);
+}
+
+const getFeaturedProducts = unstable_cache(
+  loadFeaturedProducts,
+  ['storefront-home-featured-products'],
+  { revalidate: 60, tags: [storefrontCacheTags.products] },
+);
+
+async function loadNewestProducts() {
+  return getDb()
+    .select(productSelection)
+    .from(products)
+    .where(homeOnSaleFilter())
+    .orderBy(desc(products.createdAt))
+    .limit(20);
+}
+
+const getNewestProducts = unstable_cache(
+  loadNewestProducts,
+  ['storefront-home-newest-products'],
+  { revalidate: 60, tags: [storefrontCacheTags.products] },
+);
+
+export function excludeFeaturedProducts(
+  featuredProducts: StorefrontProduct[],
+  newestCandidates: StorefrontProduct[],
+  limit = 8,
+): StorefrontProduct[] {
+  const featuredIds = new Set(featuredProducts.map((product) => product.id));
+  return newestCandidates
+    .filter((product) => !featuredIds.has(product.id))
+    .slice(0, limit);
+}
+
+export async function getHomePageData() {
+  // Keep the individual datasets independently invalidatable. The extra newest
+  // rows allow featured products to be removed without under-filling the section.
+  const [banners, siteInfo, categoryRows, featuredProducts, newestCandidates] =
+    await Promise.all([
+      getHomeBanners(),
+      getStorefrontSiteInfo(),
+      getHomeCategories(),
+      getFeaturedProducts(),
+      getNewestProducts(),
+    ]);
+  const newestProducts = excludeFeaturedProducts(
+    featuredProducts,
+    newestCandidates,
   );
 
-  const [bannerRows, siteInfo, categoryRows, featuredProducts, newestProducts] =
-    await Promise.all([
-      db
-        .select({ key: settings.key, value: settings.value })
-        .from(settings)
-        .where(eq(settings.key, 'site_banners')),
-      getStorefrontSiteInfo(),
-      db
-        .select({
-          id: categories.id,
-          name: categories.name,
-          slug: categories.slug,
-          imageUrl: categories.imageUrl,
-        })
-        .from(categories)
-        .where(and(eq(categories.isVisible, true), isNull(categories.parentId)))
-        .orderBy(asc(categories.sortOrder), asc(categories.createdAt)),
-      db
-        .select(productSelection)
-        .from(products)
-        .where(and(onSaleFilter, eq(products.isFeatured, true)))
-        .orderBy(desc(products.sortOrder), desc(products.createdAt))
-        .limit(12),
-      db
-        .select(productSelection)
-        .from(products)
-        .where(onSaleFilter)
-        .orderBy(desc(products.createdAt))
-        .limit(8),
-    ]);
-
-  const banners = parseBanners(bannerRows[0]?.value);
-
   return {
-    banners: banners.length > 0 ? banners : [defaultBanner],
+    banners,
     siteInfo,
     categories: categoryRows,
     featuredProducts,
     newestProducts,
   };
 }
-
-export const getHomePageData = cache(loadHomePageData);
 
 async function loadStorefrontSiteInfo(): Promise<StorefrontSiteInfo> {
   const [row] = await getDb()
@@ -189,7 +243,7 @@ async function loadStorefrontSiteInfo(): Promise<StorefrontSiteInfo> {
 export const getStorefrontSiteInfo = unstable_cache(
   loadStorefrontSiteInfo,
   ['storefront-site-info'],
-  { revalidate: 60, tags: ['storefront-site-info'] },
+  { revalidate: 60, tags: [storefrontCacheTags.siteInfo] },
 );
 
 async function loadStorefrontCategories(): Promise<StorefrontCategory[]> {
@@ -206,7 +260,11 @@ async function loadStorefrontCategories(): Promise<StorefrontCategory[]> {
     .orderBy(asc(categories.sortOrder), asc(categories.createdAt));
 }
 
-export const getStorefrontCategories = cache(loadStorefrontCategories);
+export const getStorefrontCategories = unstable_cache(
+  loadStorefrontCategories,
+  ['storefront-categories'],
+  { revalidate: 60, tags: [storefrontCacheTags.categories] },
+);
 
 export const getStorefrontCategoryBySlug = cache(async (slug: string) => {
   const [category] = await getDb()

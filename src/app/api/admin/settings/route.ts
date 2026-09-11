@@ -7,6 +7,7 @@ import {
   getAdminSiteSettings,
   updateAdminSiteSettings,
 } from '@/lib/services/admin-settings.service';
+import { storefrontCacheTags } from '@/lib/storefront-cache';
 import { updateSiteSettingsSchema } from '@/lib/validators/admin-settings';
 
 export const GET = withErrorHandler(async () => {
@@ -21,7 +22,8 @@ export const PUT = withErrorHandler(async (request: Request) => {
     admin,
     ip: getClientIp(request),
   });
-  revalidateTag('storefront-site-info');
+  revalidateTag(storefrontCacheTags.siteInfo);
+  revalidateTag(storefrontCacheTags.banners);
   revalidatePath('/', 'layout');
   return ok(result);
 });

@@ -132,6 +132,10 @@ v0.2.1 预生产目标是华为云新加坡主机 + Nginx + Next.js，Supabase �
 - [v0.2.1 预生产部署与验收](./docs/v0.2.1/PREPRODUCTION.md)
 - [v0.2.1 生产服务器选型与转生产检查清单](./docs/v0.2.1/PRODUCTION-SERVER.md)
 - [v0.2.1 Release Notes](./docs/v0.2.1/RELEASE_NOTES.md)
+- [未决事项与决策留痕](./docs/OPEN-DECISIONS.md)
+- [v0.2.2 增量变更](./docs/v0.2.2/CHANGES-v0.2.2.md)
+- [v0.2.2 品牌文案定稿清单](./docs/v0.2.2/BRAND-COPY.md)
+- [Playwright 快速上手](./docs/guides/PLAYWRIGHT-GETTING-STARTED.md)
 - [v0.3.0 增量变更（初稿）](./docs/v0.3.0/CHANGES-v0.3.0.md)
 
 ## License

@@ -1,3 +1,5 @@
+import { revalidateTag } from 'next/cache';
+
 import { requirePermission } from '@/lib/auth/admin';
 import { getClientIp } from '@/lib/auth/request';
 import {
@@ -7,6 +9,7 @@ import {
   withErrorHandler,
 } from '@/lib/api-response';
 import { createProduct, listProducts } from '@/lib/services/product.service';
+import { storefrontCacheTags } from '@/lib/storefront-cache';
 import {
   createProductSchema,
   productListQuerySchema,
@@ -21,7 +24,10 @@ export const GET = withErrorHandler(async (request: Request) => {
 export const POST = withErrorHandler(async (request: Request) => {
   const admin = await requirePermission('product:edit');
   const input = await parseJsonBody(request, createProductSchema);
-  return ok(await createProduct(input, { admin, ip: getClientIp(request) }), {
-    status: 201,
+  const product = await createProduct(input, {
+    admin,
+    ip: getClientIp(request),
   });
+  revalidateTag(storefrontCacheTags.products);
+  return ok(product, { status: 201 });
 });

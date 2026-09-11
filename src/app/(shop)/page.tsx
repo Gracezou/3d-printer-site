@@ -1,5 +1,6 @@
 import { ArrowRight } from 'lucide-react';
 import type { Metadata } from 'next';
+import Image from 'next/image';
 import Link from 'next/link';
 
 import { HeroCarousel } from '@/components/shop/hero-carousel';
@@ -28,7 +29,7 @@ function SectionHeading({
   return (
     <div className="mb-8 flex items-end justify-between gap-5 sm:mb-10">
       <div>
-        <p className="text-xs font-bold tracking-[0.22em] text-[#59705f]">
+        <p className="text-store-muted text-xs font-bold tracking-[0.22em]">
           {eyebrow}
         </p>
         <h2 className="mt-3 text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">
@@ -99,25 +100,24 @@ export default async function HomePage() {
               <Link
                 key={category.id}
                 href={`/category/${category.slug}`}
-                className="group relative aspect-[4/3] overflow-hidden rounded-[1.5rem] bg-[#e7e3d8] p-5 sm:p-7"
+                className="group bg-store-warm relative aspect-[4/3] overflow-hidden rounded-[1.5rem] p-5 sm:p-7"
               >
                 {category.imageUrl ? (
-                  <div
-                    role="img"
-                    aria-label={category.name}
-                    className="absolute inset-0 bg-cover bg-center transition duration-500 group-hover:scale-105"
-                    style={{
-                      backgroundImage: `url(${JSON.stringify(category.imageUrl)})`,
-                    }}
+                  <Image
+                    src={category.imageUrl}
+                    alt={category.name}
+                    fill
+                    sizes="(min-width: 1024px) 25vw, (min-width: 768px) 33vw, 50vw"
+                    className="object-cover object-center transition duration-500 group-hover:scale-105"
                   />
                 ) : (
                   <div
                     className={`absolute inset-0 ${
                       index % 3 === 0
-                        ? 'bg-[#d9ff68]'
+                        ? 'bg-store-accent'
                         : index % 3 === 1
-                          ? 'bg-[#d9e3dd]'
-                          : 'bg-[#eadccd]'
+                          ? 'bg-store-sage'
+                          : 'bg-store-sand'
                     }`}
                   />
                 )}
@@ -155,8 +155,8 @@ export default async function HomePage() {
               ))}
             </div>
           ) : (
-            <div className="rounded-[2rem] bg-[#17251c] px-7 py-14 text-white sm:px-12">
-              <p className="text-xs font-bold tracking-[0.2em] text-[#d9ff68]">
+            <div className="bg-store-ink rounded-[2rem] px-7 py-14 text-white sm:px-12">
+              <p className="text-store-accent text-xs font-bold tracking-[0.2em]">
                 即将上新
               </p>
               <h3 className="mt-4 text-2xl font-semibold">
@@ -187,7 +187,7 @@ export default async function HomePage() {
             {[0, 1].map((item) => (
               <div
                 key={item}
-                className="aspect-[16/8] rounded-[2rem] bg-[#e9e5da]"
+                className="bg-store-placeholder aspect-[16/8] rounded-[2rem]"
               />
             ))}
           </div>
@@ -195,17 +195,17 @@ export default async function HomePage() {
       </section>
 
       <section className="mx-auto max-w-7xl px-5 pb-20 sm:px-8 sm:pb-28">
-        <div className="overflow-hidden rounded-[2rem] bg-[#d9ff68] px-7 py-12 sm:px-12 sm:py-16">
-          <p className="text-xs font-bold tracking-[0.22em] text-[#52632b]">
+        <div className="bg-store-accent overflow-hidden rounded-[2rem] px-7 py-12 sm:px-12 sm:py-16">
+          <p className="text-store-accent-ink text-xs font-bold tracking-[0.22em]">
             按单生产
           </p>
           <div className="mt-5 flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
-            <h2 className="max-w-3xl text-3xl leading-tight font-semibold tracking-[-0.04em] text-[#17251c] sm:text-5xl">
+            <h2 className="text-store-ink max-w-3xl text-3xl leading-tight font-semibold tracking-[-0.04em] sm:text-5xl">
               不囤积过量成品，让每一次打印都有明确去处。
             </h2>
             <Link
               href="/products"
-              className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-full bg-[#17251c] px-6 text-sm font-bold text-white"
+              className="bg-store-ink inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-full px-6 text-sm font-bold text-white"
             >
               开始探索 <ArrowRight className="size-4" />
             </Link>

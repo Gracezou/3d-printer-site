@@ -176,7 +176,7 @@ export function ProductFilterForm({
           <button
             type="submit"
             disabled={isPending}
-            className="inline-flex h-10 items-center justify-center rounded-full bg-[#17251c] px-6 text-sm font-semibold text-white transition hover:bg-[#294131] disabled:opacity-60"
+            className="bg-store-ink hover:bg-store-ink-hover inline-flex h-10 items-center justify-center rounded-full px-6 text-sm font-semibold text-white transition disabled:opacity-60"
           >
             {isPending ? '更新中…' : '应用筛选'}
           </button>

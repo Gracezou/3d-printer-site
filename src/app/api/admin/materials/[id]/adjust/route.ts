@@ -6,6 +6,7 @@ import {
   adjustMaterialSchema,
   materialIdSchema,
 } from '@/lib/validators/material';
+import { storefrontCacheTags } from '@/lib/storefront-cache';
 
 interface MaterialRouteContext {
   params: Promise<{ id: string }>;
@@ -16,11 +17,12 @@ export const POST = withErrorHandler(
     const admin = await requirePermission('material:adjust');
     const materialId = materialIdSchema.parse((await params).id);
     const input = await parseJsonBody(request, adjustMaterialSchema);
-    return ok(
-      await adjustMaterialStock(materialId, input, {
-        admin,
-        ip: getClientIp(request),
-      }),
-    );
+    const material = await adjustMaterialStock(materialId, input, {
+      admin,
+      ip: getClientIp(request),
+    });
+    revalidateTag(storefrontCacheTags.products);
+    return ok(material);
   },
 );
+import { revalidateTag } from 'next/cache';

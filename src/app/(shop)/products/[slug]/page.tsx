@@ -104,7 +104,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
           ) : null}
         </div>
         <div className="lg:pt-6">
-          <p className="text-xs font-bold tracking-[0.2em] text-[#59705f]">
+          <p className="text-store-muted text-xs font-bold tracking-[0.2em]">
             按单生产
           </p>
           <h1 className="mt-4 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
@@ -128,7 +128,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
       <section className="border-y border-stone-900/8 bg-white/55">
         <div className="mx-auto grid max-w-7xl gap-12 px-5 py-16 sm:px-8 sm:py-24 lg:grid-cols-[1.35fr_0.65fr] lg:gap-20">
           <div>
-            <p className="text-xs font-bold tracking-[0.2em] text-[#59705f]">
+            <p className="text-store-muted text-xs font-bold tracking-[0.2em]">
               作品故事
             </p>
             <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em]">
@@ -150,7 +150,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
             )}
           </div>
           <div>
-            <p className="text-xs font-bold tracking-[0.2em] text-[#59705f]">
+            <p className="text-store-muted text-xs font-bold tracking-[0.2em]">
               规格参数
             </p>
             <h2 className="mt-3 text-2xl font-semibold">作品参数</h2>
@@ -181,7 +181,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                 </dd>
               </div>
             </dl>
-            <div className="mt-8 rounded-2xl bg-[#e8ecdf] p-5 text-sm leading-7 text-stone-600">
+            <div className="bg-store-mist mt-8 rounded-2xl p-5 text-sm leading-7 text-stone-600">
               <h3 className="font-semibold text-stone-900">配送与售后</h3>
               <p className="mt-2">
                 3D

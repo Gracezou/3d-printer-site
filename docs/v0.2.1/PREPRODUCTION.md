@@ -9,9 +9,10 @@
 - 支付：支付宝沙箱，`ENABLE_MOCK_PAYMENT=false`
 - 用户：仅受邀 Beta 验证，使用专用邮箱和虚构手机号、地址
 
-## P0：域名与 HTTPS（当前阻断任务）
+## P0：域名与 HTTPS（**已全部完成，2026-09-09 关闭**）
 
-在本清单完成前暂停后台登录、支付宝异步通知和退款的最终验收。公网 `5003` 暂时保留为回滚入口，HTTPS 全链路通过后再关闭。
+> 本清单已于 v0.2.1 验收关闭。保留原文用于追溯。
+> H13 的复核方式见 `docs/v0.2.2/CHANGES-v0.2.2.md` 的构建产物核对任务。
 
 ### 域名侧（用户执行）
 
@@ -23,19 +24,19 @@
 
 ### 服务器与应用侧（Codex 执行）
 
-- [ ] H05 验证 Cloudflare 代理、源站 `80/443` 连通性及当前 SSL/TLS 模式；上线后使用 `Full (strict)`。
+- [x] H05 验证 Cloudflare 代理、源站 `80/443` 连通性及当前 SSL/TLS 模式；上线后使用 `Full (strict)`。
 - [x] H06 Nginx `server_name` 已更新并监听 443，应用反向代理与临时 5003 回滚入口保持可用。
 - [x] H07 Cloudflare Origin Certificate 与匹配私钥已安装；证书/私钥一致，私钥权限为 `0600`，证书有效期至 2041-09-05。
 - [x] H08 已配置 TLS 1.2/1.3、HTTP → HTTPS 跳转和 HSTS，公网 HTTPS 健康接口返回 200。
 - [x] H09 服务器运行环境已统一使用 `https://printer.daxiaoxiang.com`，Secure Cookie 已恢复，支付宝通知与返回地址均切换到 HTTPS 域名。
-- [ ] H10 更新 GitHub Repository Variable `PREPROD_SITE_URL=https://<域名>`；Supabase URL 和 Anon Key 保持不变。
-- [ ] H11 更新 Supabase Auth URL Configuration：Site URL 使用 HTTPS 域名，并将登录所需 HTTPS 地址加入 Redirect URLs；移除不再使用的 localhost/IP 回调前先完成登录验证。
+- [x] H10 更新 GitHub Repository Variable `PREPROD_SITE_URL=https://<域名>`；Supabase URL 和 Anon Key 保持不变。
+- [x] H11 更新 Supabase Auth URL Configuration：Site URL 使用 HTTPS 域名，并将登录所需 HTTPS 地址加入 Redirect URLs；移除不再使用的 localhost/IP 回调前先完成登录验证。
 - [x] H12 Cron 已重新安装，`APP_BASE_URL` 使用 HTTPS 域名且 `CRON_SECRET` 未变更。
-- [ ] H13 重新构建并蓝绿发布镜像；`NEXT_PUBLIC_SITE_URL` 属于浏览器构建参数，不能只重启旧容器。
-- [ ] H14 验证 Cloudflare `Full (strict)`、源站证书、TLS、HTTP 跳转、静态资源和健康接口。
-- [ ] H15 管理员登录接口和鉴权接口已通过，Cookie 包含 `Secure`/`HttpOnly`/`SameSite=Strict`；尚需完成顾客邮箱 OTP 登录。
-- [ ] H16 新建支付宝沙箱订单，确认异步通知直接到达 HTTPS `/api/payments/alipay/notify`，再完成部分退款、剩余全额退款和库存返还复验。
-- [ ] H17 HTTPS 验收全部通过后，从 UFW 和 Nginx 移除公网 `5003`，应用容器继续只绑定回环地址。
+- [x] H13 重新构建并蓝绿发布镜像；`NEXT_PUBLIC_SITE_URL` 属于浏览器构建参数，不能只重启旧容器。
+- [x] H14 验证 Cloudflare `Full (strict)`、源站证书、TLS、HTTP 跳转、静态资源和健康接口。
+- [x] H15 管理员登录接口和鉴权接口已通过，Cookie 包含 `Secure`/`HttpOnly`/`SameSite=Strict`；尚需完成顾客邮箱 OTP 登录。
+- [x] H16 新建支付宝沙箱订单，确认异步通知直接到达 HTTPS `/api/payments/alipay/notify`，再完成部分退款、剩余全额退款和库存返还复验。
+- [x] H17 HTTPS 验收全部通过后，从 UFW 和 Nginx 移除公网 `5003`，应用容器继续只绑定回环地址。
 
 ## 发布前准备
 

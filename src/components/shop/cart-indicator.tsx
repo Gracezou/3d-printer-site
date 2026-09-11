@@ -50,7 +50,7 @@ export function CartIndicator() {
       className="relative grid size-10 place-items-center rounded-full transition hover:bg-stone-900/5"
     >
       <ShoppingBag className="size-5" />
-      <span className="absolute top-0 right-0 grid min-w-4 place-items-center rounded-full bg-[#d9ff68] px-1 text-[10px] font-bold text-[#17251c] ring-2 ring-[#f7f5ef]">
+      <span className="bg-store-accent text-store-ink ring-store-canvas absolute top-0 right-0 grid min-w-4 place-items-center rounded-full px-1 text-[10px] font-bold ring-2">
         {count > 99 ? '99+' : count}
       </span>
     </Link>

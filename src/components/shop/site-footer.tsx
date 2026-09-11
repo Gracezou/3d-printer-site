@@ -10,10 +10,10 @@ export function SiteFooter({ siteInfo }: SiteFooterProps) {
   const icpLicense = process.env.NEXT_PUBLIC_ICP_LICENSE?.trim();
 
   return (
-    <footer className="bg-[#17251c] text-white">
+    <footer className="bg-store-ink text-white">
       <div className="mx-auto grid max-w-7xl gap-10 px-5 py-14 sm:px-8 md:grid-cols-[1.5fr_1fr_1fr]">
         <div>
-          <p className="text-xs font-bold tracking-[0.24em] text-[#d9ff68]">
+          <p className="text-store-accent text-xs font-bold tracking-[0.24em]">
             3D PRINT STUDIO
           </p>
           <h2 className="mt-4 text-2xl font-semibold">{siteInfo.name}</h2>

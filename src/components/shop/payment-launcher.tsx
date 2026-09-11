@@ -2,6 +2,7 @@
 
 import { AlertTriangle, LoaderCircle, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
 interface ApiResponse<T> {
@@ -18,6 +19,7 @@ interface CreatedPayment {
 }
 
 export function PaymentLauncher({ orderNo }: { orderNo: string }) {
+  const router = useRouter();
   const started = useRef(false);
   const [error, setError] = useState('');
 
@@ -33,7 +35,7 @@ export function PaymentLauncher({ orderNo }: { orderNo: string }) {
         });
         const result = (await response.json()) as ApiResponse<CreatedPayment>;
         if (response.status === 401) {
-          window.location.assign(
+          router.replace(
             `/auth/login?next=${encodeURIComponent(`/checkout/pay/${orderNo}`)}`,
           );
           return;
@@ -52,7 +54,7 @@ export function PaymentLauncher({ orderNo }: { orderNo: string }) {
         setError(caught instanceof Error ? caught.message : '支付创建失败');
       }
     })();
-  }, [orderNo]);
+  }, [orderNo, router]);
 
   if (error) {
     return (
@@ -64,7 +66,7 @@ export function PaymentLauncher({ orderNo }: { orderNo: string }) {
         <p className="mt-2 text-sm text-rose-700">{error}</p>
         <Link
           href="/checkout"
-          className="mt-6 inline-flex h-10 items-center rounded-full bg-[#17251c] px-5 text-sm font-bold text-white"
+          className="bg-store-ink mt-6 inline-flex h-10 items-center rounded-full px-5 text-sm font-bold text-white"
         >
           返回结算页
         </Link>
@@ -74,7 +76,7 @@ export function PaymentLauncher({ orderNo }: { orderNo: string }) {
 
   return (
     <div className="rounded-3xl border border-stone-900/8 bg-white p-10 text-center shadow-sm">
-      <LoaderCircle className="mx-auto size-10 animate-spin text-[#3d6247]" />
+      <LoaderCircle className="text-store-success mx-auto size-10 animate-spin" />
       <h2 className="mt-5 text-2xl font-semibold">正在创建安全支付</h2>
       <p className="mt-2 text-sm text-stone-500">订单号：{orderNo}</p>
       <p className="mt-6 inline-flex items-center gap-2 text-xs text-stone-400">

@@ -1,6 +1,7 @@
 'use client';
 
 import { ArrowLeft, ArrowRight, MoveUpRight } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
@@ -34,27 +35,28 @@ export function HeroCarousel({ banners }: HeroCarouselProps) {
     <section
       aria-roledescription="轮播图"
       aria-label="首页推荐"
-      className="relative isolate min-h-[540px] overflow-hidden bg-[#17251c] text-white sm:min-h-[620px]"
+      className="bg-store-ink relative isolate min-h-[540px] overflow-hidden text-white sm:min-h-[620px]"
     >
       {activeBanner.imageUrl ? (
-        <div
-          role="img"
-          aria-label={activeBanner.title}
-          className="absolute inset-0 -z-20 bg-cover bg-center"
-          style={{
-            backgroundImage: `url(${JSON.stringify(activeBanner.imageUrl)})`,
-          }}
+        <Image
+          key={activeBanner.imageUrl}
+          src={activeBanner.imageUrl}
+          alt=""
+          fill
+          priority={activeIndex === 0}
+          sizes="100vw"
+          className="-z-20 object-cover object-center"
         />
       ) : (
-        <div className="absolute inset-0 -z-20 bg-[radial-gradient(circle_at_72%_35%,#506b3d_0,transparent_26%),radial-gradient(circle_at_78%_68%,#263d2d_0,transparent_36%),linear-gradient(135deg,#17251c_25%,#2c4935_100%)]" />
+        <div className="store-hero-gradient absolute inset-0 -z-20" />
       )}
       <div className="absolute inset-0 -z-10 bg-gradient-to-r from-black/55 via-black/15 to-transparent" />
-      <div className="absolute top-16 right-[8%] -z-10 size-64 rounded-full border border-[#d9ff68]/15 sm:size-96" />
-      <div className="absolute top-36 right-[14%] -z-10 size-36 rounded-full border border-[#d9ff68]/20 sm:size-52" />
+      <div className="border-store-accent/15 absolute top-16 right-[8%] -z-10 size-64 rounded-full border sm:size-96" />
+      <div className="border-store-accent/20 absolute top-36 right-[14%] -z-10 size-36 rounded-full border sm:size-52" />
 
       <div className="mx-auto flex min-h-[540px] max-w-7xl items-end px-5 py-16 sm:min-h-[620px] sm:items-center sm:px-8 sm:py-24">
         <div className="max-w-3xl" aria-live="polite">
-          <p className="mb-5 flex items-center gap-3 text-xs font-bold tracking-[0.25em] text-[#d9ff68]">
+          <p className="text-store-accent mb-5 flex items-center gap-3 text-xs font-bold tracking-[0.25em]">
             <span className="h-px w-8 bg-current" /> 按单生产 · 精细打印
           </p>
           <h1 className="text-4xl leading-[1.08] font-semibold tracking-[-0.04em] text-balance sm:text-6xl lg:text-7xl">
@@ -65,7 +67,7 @@ export function HeroCarousel({ banners }: HeroCarouselProps) {
           </p>
           <Link
             href={activeBanner.linkUrl}
-            className="mt-9 inline-flex h-12 items-center gap-3 rounded-full bg-[#d9ff68] px-6 text-sm font-bold text-[#17251c] transition hover:scale-[1.02] hover:bg-white"
+            className="bg-store-accent text-store-ink mt-9 inline-flex h-12 items-center gap-3 rounded-full px-6 text-sm font-bold transition hover:scale-[1.02] hover:bg-white"
           >
             {activeBanner.buttonText}
             <MoveUpRight className="size-4" />
@@ -79,7 +81,7 @@ export function HeroCarousel({ banners }: HeroCarouselProps) {
             type="button"
             aria-label="上一张 Banner"
             onClick={() => move(-1)}
-            className="grid size-11 place-items-center rounded-full border border-white/25 bg-black/10 backdrop-blur transition hover:bg-white hover:text-[#17251c]"
+            className="hover:text-store-ink grid size-11 place-items-center rounded-full border border-white/25 bg-black/10 backdrop-blur transition hover:bg-white"
           >
             <ArrowLeft className="size-4" />
           </button>
@@ -91,7 +93,7 @@ export function HeroCarousel({ banners }: HeroCarouselProps) {
             type="button"
             aria-label="下一张 Banner"
             onClick={() => move(1)}
-            className="grid size-11 place-items-center rounded-full border border-white/25 bg-black/10 backdrop-blur transition hover:bg-white hover:text-[#17251c]"
+            className="hover:text-store-ink grid size-11 place-items-center rounded-full border border-white/25 bg-black/10 backdrop-blur transition hover:bg-white"
           >
             <ArrowRight className="size-4" />
           </button>
