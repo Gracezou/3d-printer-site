@@ -26,6 +26,8 @@
     "demo:seed": "dotenv -e .env.dev -- tsx scripts/demo-data.ts seed",
     "demo:reset": "dotenv -e .env.dev -- tsx scripts/demo-data.ts reset",
     "demo:check": "dotenv -e .env.dev -- tsx scripts/demo-data.ts check",
+    "devices:seed:preview": "tsx scripts/device-catalog.ts preview",
+    "devices:seed": "dotenv -e .env.dev -- tsx scripts/device-catalog.ts apply",
     "preprod:data:check": "dotenv -e .env.production -- tsx scripts/preprod-data.ts check",
     "preprod:data:reset": "dotenv -e .env.production -- tsx scripts/preprod-data.ts reset",
     "test:inventory": "dotenv -e .env.dev -- tsx scripts/test-inventory-sql.ts",
