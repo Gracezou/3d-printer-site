@@ -3,6 +3,7 @@
 import {
   BadgePercent,
   Boxes,
+  Cpu,
   ChevronRight,
   FolderTree,
   LayoutDashboard,
@@ -18,7 +19,7 @@ import {
   X,
 } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
 
 interface AdminShellProps {
@@ -43,6 +44,12 @@ const navigation = [
     href: '/admin/products',
     label: '商品管理',
     icon: ShoppingBag,
+    enabled: true,
+  },
+  {
+    href: '/admin/devices',
+    label: '机型管理',
+    icon: Cpu,
     enabled: true,
   },
   {
@@ -90,6 +97,7 @@ function initials(name: string): string {
 
 export function AdminShell({ admin, children }: AdminShellProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
 
@@ -98,7 +106,8 @@ export function AdminShell({ admin, children }: AdminShellProps) {
     try {
       await fetch('/api/admin/auth/logout', { method: 'POST' });
     } finally {
-      window.location.assign('/admin/login');
+      router.replace('/admin/login');
+      router.refresh();
     }
   }
 

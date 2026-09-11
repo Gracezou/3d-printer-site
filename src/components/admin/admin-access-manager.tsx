@@ -66,6 +66,7 @@ const permissionGroups = [
   ['生产', ['production:view', 'production:update']],
   ['商品', ['product:view', 'product:edit', 'product:publish']],
   ['分类', ['category:view', 'category:edit']],
+  ['机型', ['device:manage']],
   [
     '耗材',
     ['material:view', 'material:edit', 'material:stock_in', 'material:adjust'],
@@ -91,6 +92,7 @@ const permissionLabels: Record<string, string> = {
   'product:publish': '上下架',
   'category:view': '查看分类',
   'category:edit': '编辑分类',
+  'device:manage': '管理设备与机型',
   'material:view': '查看耗材',
   'material:edit': '编辑耗材',
   'material:stock_in': '耗材入库',
