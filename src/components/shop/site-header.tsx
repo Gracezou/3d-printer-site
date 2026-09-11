@@ -21,7 +21,7 @@ export function SiteHeader({ siteName }: SiteHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-stone-900/8 bg-[#f7f5ef]/90 backdrop-blur-xl">
+    <header className="bg-store-canvas/90 sticky top-0 z-40 border-b border-stone-900/8 backdrop-blur-xl">
       <div className="mx-auto flex h-[72px] max-w-7xl items-center gap-5 px-5 sm:px-8">
         <button
           type="button"
@@ -34,10 +34,10 @@ export function SiteHeader({ siteName }: SiteHeaderProps) {
         </button>
 
         <Link href="/" className="flex shrink-0 items-center gap-2.5">
-          <span className="grid size-9 place-items-center rounded-full bg-[#17251c] text-[11px] font-black tracking-tight text-[#d9ff68]">
+          <span className="bg-store-ink text-store-accent grid size-9 place-items-center rounded-full text-[11px] font-black tracking-tight">
             3D
           </span>
-          <span className="text-sm font-black tracking-[0.15em] text-[#17251c] sm:text-base">
+          <span className="text-store-ink text-sm font-black tracking-[0.15em] sm:text-base">
             {siteName}
           </span>
         </Link>

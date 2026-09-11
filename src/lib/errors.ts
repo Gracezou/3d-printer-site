@@ -22,6 +22,8 @@ export const ERROR_DEFINITIONS = {
   CART_EMPTY: { code: 40910, httpStatus: 400 },
   VARIANT_NO_BOM: { code: 40911, httpStatus: 409 },
   MATERIAL_IN_USE: { code: 40912, httpStatus: 409 },
+  MODEL_REQUEST_EXISTS: { code: 40913, httpStatus: 409 },
+  MODEL_REQUEST_RATE_LIMITED: { code: 40914, httpStatus: 429 },
   INTERNAL_ERROR: { code: 50000, httpStatus: 500 },
   PAYMENT_PROVIDER_ERROR: { code: 50001, httpStatus: 502 },
 } as const;

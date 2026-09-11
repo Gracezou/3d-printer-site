@@ -12,7 +12,7 @@ export default async function ShopLayout({
   const siteInfo = await getStorefrontSiteInfo();
 
   return (
-    <div className="min-h-screen bg-[#f7f5ef] text-stone-950">
+    <div className="bg-store-canvas min-h-screen text-stone-950">
       <SiteHeader siteName={siteInfo.name} />
       {children}
       <SiteFooter siteInfo={siteInfo} />

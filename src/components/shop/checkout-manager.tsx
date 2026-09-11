@@ -8,6 +8,7 @@ import {
   TicketPercent,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
@@ -94,6 +95,7 @@ function readSelection(): CheckoutSelection | null {
 }
 
 export function CheckoutManager() {
+  const router = useRouter();
   const [selection, setSelection] = useState<CheckoutSelection | null>(null);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [addresses, setAddresses] = useState<Address[]>([]);
@@ -115,7 +117,7 @@ export function CheckoutManager() {
           cache: 'no-store',
         });
         if (authResponse.status === 401) {
-          window.location.assign('/auth/login?next=%2Fcheckout');
+          router.replace('/auth/login?next=%2Fcheckout');
           return;
         }
         if (!authResponse.ok) throw new Error('登录状态校验失败');
@@ -153,7 +155,7 @@ export function CheckoutManager() {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [router]);
 
   const requestPreview = useCallback(
     async (
@@ -172,13 +174,13 @@ export function CheckoutManager() {
       });
       const body = (await response.json()) as ApiResponse<Preview>;
       if (response.status === 401) {
-        window.location.assign('/auth/login?next=%2Fcheckout');
+        router.replace('/auth/login?next=%2Fcheckout');
         throw new Error('请先登录');
       }
       if (!response.ok || !body.data) throw new Error(body.message);
       return body.data;
     },
-    [selection],
+    [router, selection],
   );
 
   useEffect(() => {
@@ -277,7 +279,7 @@ export function CheckoutManager() {
   if (createdOrder) {
     return (
       <div className="mx-auto max-w-xl rounded-[2rem] bg-white p-8 text-center shadow-sm sm:p-12">
-        <CheckCircle2 className="mx-auto size-14 text-[#3d6247]" />
+        <CheckCircle2 className="text-store-success mx-auto size-14" />
         <h2 className="mt-5 text-3xl font-semibold">订单创建成功</h2>
         <p className="mt-3 text-sm text-stone-500">
           订单号：{createdOrder.orderNo}
@@ -292,7 +294,7 @@ export function CheckoutManager() {
         </div>
         <Link
           href={`/checkout/pay/${createdOrder.orderNo}`}
-          className="mt-8 inline-flex h-11 items-center rounded-full bg-[#17251c] px-6 text-sm font-bold text-white"
+          className="bg-store-ink mt-8 inline-flex h-11 items-center rounded-full px-6 text-sm font-bold text-white"
         >
           去支付宝支付
         </Link>
@@ -315,7 +317,7 @@ export function CheckoutManager() {
         <p className="mt-4 font-semibold">{message ?? '没有可结算的商品'}</p>
         <Link
           href="/cart"
-          className="mt-6 inline-flex h-11 items-center rounded-full bg-[#17251c] px-6 text-sm font-bold text-white"
+          className="bg-store-ink mt-6 inline-flex h-11 items-center rounded-full px-6 text-sm font-bold text-white"
         >
           返回购物车
         </Link>
@@ -340,7 +342,7 @@ export function CheckoutManager() {
             </h2>
             <Link
               href="/account/addresses"
-              className="text-xs font-semibold text-[#3d6247] hover:underline"
+              className="text-store-success text-xs font-semibold hover:underline"
             >
               新增或管理地址
             </Link>
@@ -354,7 +356,7 @@ export function CheckoutManager() {
               {addresses.map((address) => (
                 <label
                   key={address.id}
-                  className={`cursor-pointer rounded-2xl border p-4 text-sm ${addressId === address.id ? 'border-[#3d6247] bg-[#e8ecdf]/70' : 'border-stone-900/8'}`}
+                  className={`cursor-pointer rounded-2xl border p-4 text-sm ${addressId === address.id ? 'border-store-success bg-store-mist/70' : 'border-stone-900/8'}`}
                 >
                   <span className="flex items-center gap-2 font-semibold">
                     <input
@@ -363,7 +365,7 @@ export function CheckoutManager() {
                       value={address.id}
                       checked={addressId === address.id}
                       onChange={() => setAddressId(address.id)}
-                      className="accent-[#17251c]"
+                      className="accent-store-ink"
                     />
                     {address.receiverName} · {address.receiverPhone}
                   </span>
@@ -447,7 +449,7 @@ export function CheckoutManager() {
             />
             <button
               disabled={previewing || Boolean(appliedCode)}
-              className="h-11 rounded-full border border-[#17251c] px-5 text-sm font-bold disabled:opacity-40"
+              className="border-store-ink h-11 rounded-full border px-5 text-sm font-bold disabled:opacity-40"
             >
               使用
             </button>
@@ -465,7 +467,7 @@ export function CheckoutManager() {
             ) : null}
           </form>
           {preview?.discount ? (
-            <p className="mt-3 text-sm font-semibold text-[#3d6247]">
+            <p className="text-store-success mt-3 text-sm font-semibold">
               已使用：{preview.discount.name}（{preview.discount.code}）
             </p>
           ) : null}
@@ -486,7 +488,7 @@ export function CheckoutManager() {
         </section>
       </div>
 
-      <aside className="h-fit rounded-3xl bg-[#17251c] p-6 text-white lg:sticky lg:top-24">
+      <aside className="bg-store-ink h-fit rounded-3xl p-6 text-white lg:sticky lg:top-24">
         <h2 className="text-xl font-semibold">金额明细</h2>
         <dl className="mt-6 space-y-4 border-b border-white/10 pb-6 text-sm">
           <div className="flex justify-between">
@@ -495,7 +497,7 @@ export function CheckoutManager() {
           </div>
           <div className="flex justify-between">
             <dt className="text-white/60">优惠</dt>
-            <dd className="text-[#d9ff68]">
+            <dd className="text-store-accent">
               -¥{preview?.discountAmount ?? '0.00'}
             </dd>
           </div>
@@ -533,7 +535,7 @@ export function CheckoutManager() {
             submitting
           }
           onClick={() => void submitOrder()}
-          className="h-12 w-full rounded-full bg-[#d9ff68] text-sm font-bold text-[#17251c] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/30"
+          className="bg-store-accent text-store-ink h-12 w-full rounded-full text-sm font-bold disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/30"
         >
           {submitting ? '提交中…' : '提交订单'}
         </button>

@@ -13,19 +13,18 @@ export function ProductCard({ product }: ProductCardProps) {
     <article className="group min-w-0">
       <Link
         href={`/products/${product.slug}`}
-        className="relative block aspect-[4/5] overflow-hidden rounded-[1.75rem] bg-[#e8e5dc]"
+        className="bg-store-image relative block aspect-[4/5] overflow-hidden rounded-[1.75rem]"
       >
         {product.mainImageUrl ? (
           <Image
             src={product.mainImageUrl}
             alt={product.name}
             fill
-            unoptimized
             sizes="(min-width: 1024px) 25vw, (min-width: 768px) 33vw, 50vw"
             className="object-cover object-center transition duration-500 group-hover:scale-[1.03]"
           />
         ) : (
-          <div className="absolute inset-0 grid place-items-center bg-[radial-gradient(circle_at_70%_25%,#d9ff68_0,transparent_24%),linear-gradient(145deg,#f1eee5,#d7d4ca)]">
+          <div className="store-product-placeholder absolute inset-0 grid place-items-center">
             <span className="text-5xl font-black tracking-[-0.08em] text-stone-900/10">
               3D
             </span>

@@ -15,6 +15,7 @@ export const PERMISSIONS = [
   'product:publish',
   'category:view',
   'category:edit',
+  'device:manage',
   'material:view',
   'material:edit',
   'material:stock_in',

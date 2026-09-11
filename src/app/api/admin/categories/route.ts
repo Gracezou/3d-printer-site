@@ -6,6 +6,7 @@ import {
   listCategories,
 } from '@/lib/services/category.service';
 import { createCategorySchema } from '@/lib/validators/category';
+import { storefrontCacheTags } from '@/lib/storefront-cache';
 
 export const GET = withErrorHandler(async () => {
   await requirePermission('category:view');
@@ -15,7 +16,11 @@ export const GET = withErrorHandler(async () => {
 export const POST = withErrorHandler(async (request: Request) => {
   const admin = await requirePermission('category:edit');
   const input = await parseJsonBody(request, createCategorySchema);
-  return ok(await createCategory(input, { admin, ip: getClientIp(request) }), {
-    status: 201,
+  const category = await createCategory(input, {
+    admin,
+    ip: getClientIp(request),
   });
+  revalidateTag(storefrontCacheTags.categories);
+  return ok(category, { status: 201 });
 });
+import { revalidateTag } from 'next/cache';

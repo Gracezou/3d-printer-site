@@ -3,6 +3,7 @@
 import Decimal from 'decimal.js';
 import { Minus, Plus, RefreshCcw, ShoppingBag, Trash2 } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 
@@ -44,6 +45,7 @@ const reasonLabels = {
 } as const;
 
 export function CartManager() {
+  const router = useRouter();
   const [items, setItems] = useState<CartItem[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -57,7 +59,7 @@ export function CartManager() {
     try {
       const response = await fetch('/api/cart', { cache: 'no-store' });
       if (response.status === 401) {
-        window.location.assign('/auth/login?next=%2Fcart');
+        router.replace('/auth/login?next=%2Fcart');
         return;
       }
       const body = (await response.json()) as CartResponse;
@@ -81,7 +83,7 @@ export function CartManager() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => void loadCart(), [loadCart]);
 
@@ -217,7 +219,7 @@ export function CartManager() {
       CHECKOUT_STORAGE_KEY,
       JSON.stringify({ items: selectedItems, fromCart: true }),
     );
-    window.location.assign('/checkout');
+    router.push('/checkout');
   }
 
   if (loading && items.length === 0) {
@@ -238,7 +240,7 @@ export function CartManager() {
         </p>
         <Link
           href="/products"
-          className="mt-7 inline-flex h-11 items-center rounded-full bg-[#17251c] px-6 text-sm font-bold text-white"
+          className="bg-store-ink mt-7 inline-flex h-11 items-center rounded-full px-6 text-sm font-bold text-white"
         >
           浏览全部作品
         </Link>
@@ -280,7 +282,7 @@ export function CartManager() {
                   return next;
                 })
               }
-              className="size-4 accent-[#17251c]"
+              className="accent-store-ink size-4"
             />
             <Link
               href={`/products/${item.productSlug}`}
@@ -370,7 +372,7 @@ export function CartManager() {
         ))}
       </section>
 
-      <aside className="h-fit rounded-3xl bg-[#17251c] p-6 text-white lg:sticky lg:top-24">
+      <aside className="bg-store-ink h-fit rounded-3xl p-6 text-white lg:sticky lg:top-24">
         <h2 className="text-xl font-semibold">订单小计</h2>
         <label className="mt-6 flex items-center gap-3 border-b border-white/10 pb-5 text-sm">
           <input
@@ -384,7 +386,7 @@ export function CartManager() {
                   : new Set(availableItems.map((item) => item.id)),
               )
             }
-            className="size-4 accent-[#d9ff68]"
+            className="accent-store-accent size-4"
           />
           全选可用商品（{availableItems.length}）
         </label>
@@ -396,7 +398,7 @@ export function CartManager() {
           type="button"
           disabled={selectedIds.size === 0}
           onClick={proceedToCheckout}
-          className="h-12 w-full rounded-full bg-[#d9ff68] text-sm font-bold text-[#17251c] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/30"
+          className="bg-store-accent text-store-ink h-12 w-full rounded-full text-sm font-bold disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/30"
         >
           去结算
         </button>

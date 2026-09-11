@@ -9,6 +9,7 @@ import {
   ShoppingBag,
   Truck,
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { CHECKOUT_STORAGE_KEY } from '@/lib/checkout-storage';
@@ -55,6 +56,7 @@ export function ProductPurchasePanel({
   slug,
   variants,
 }: ProductPurchasePanelProps) {
+  const router = useRouter();
   const [availability, setAvailability] = useState<Map<string, number> | null>(
     null,
   );
@@ -190,7 +192,7 @@ export function ProductPurchasePanel({
               mode: 'cart',
             }),
           );
-          window.location.assign(
+          router.replace(
             `/auth/login?next=${encodeURIComponent(`/products/${slug}?resumePurchase=1`)}`,
           );
           return;
@@ -209,7 +211,7 @@ export function ProductPurchasePanel({
         setIsAdding(false);
       }
     },
-    [loadAvailability, slug],
+    [loadAvailability, router, slug],
   );
 
   const startCheckout = useCallback(
@@ -228,7 +230,7 @@ export function ProductPurchasePanel({
               mode: 'checkout',
             }),
           );
-          window.location.assign(
+          router.replace(
             `/auth/login?next=${encodeURIComponent(`/products/${slug}?resumePurchase=1`)}`,
           );
           return;
@@ -252,7 +254,7 @@ export function ProductPurchasePanel({
               })),
           }),
         );
-        window.location.assign('/checkout');
+        router.push('/checkout');
       } catch (error: unknown) {
         setNotice(
           error instanceof Error ? error.message : '暂时无法结算，请重试',
@@ -261,7 +263,7 @@ export function ProductPurchasePanel({
         setIsAdding(false);
       }
     },
-    [productName, slug, variants],
+    [productName, router, slug, variants],
   );
 
   useEffect(() => {
@@ -346,7 +348,7 @@ export function ProductPurchasePanel({
                         onClick={() => chooseOption(dimension, value)}
                         className={`relative min-w-20 rounded-xl border px-4 py-2.5 text-sm transition ${
                           selected
-                            ? 'border-[#17251c] bg-[#17251c] text-white'
+                            ? 'border-store-ink bg-store-ink text-white'
                             : available
                               ? 'border-stone-900/12 bg-white hover:border-stone-900/35'
                               : 'cursor-not-allowed border-stone-900/6 bg-stone-100 text-stone-300 line-through'
@@ -381,7 +383,7 @@ export function ProductPurchasePanel({
         </button>
       ) : selectedVariant ? (
         <p
-          className={`mt-5 text-sm font-medium ${selectedAvailableQty > 0 ? 'text-[#3d6247]' : 'text-red-600'}`}
+          className={`mt-5 text-sm font-medium ${selectedAvailableQty > 0 ? 'text-store-success' : 'text-red-600'}`}
         >
           {selectedAvailableQty === 0
             ? '暂时缺货'
@@ -423,7 +425,7 @@ export function ProductPurchasePanel({
           onClick={() =>
             selectedVariant && void submitCartItem(selectedVariant.id, quantity)
           }
-          className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-full border border-[#17251c] px-6 text-sm font-bold text-[#17251c] disabled:cursor-not-allowed disabled:border-stone-200 disabled:text-stone-300"
+          className="border-store-ink text-store-ink inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-full border px-6 text-sm font-bold disabled:cursor-not-allowed disabled:border-stone-200 disabled:text-stone-300"
         >
           <ShoppingBag className="size-4" />
           {isAdding ? '处理中…' : '加入购物车'}
@@ -434,7 +436,7 @@ export function ProductPurchasePanel({
           onClick={() =>
             selectedVariant && void startCheckout(selectedVariant.id, quantity)
           }
-          className="h-12 flex-1 rounded-full bg-[#17251c] px-6 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-stone-200 disabled:text-stone-400"
+          className="bg-store-ink h-12 flex-1 rounded-full px-6 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-stone-200 disabled:text-stone-400"
         >
           立即购买
         </button>
@@ -445,10 +447,10 @@ export function ProductPurchasePanel({
 
       <div className="mt-8 grid grid-cols-2 gap-3 border-t border-stone-900/8 pt-7 text-xs text-stone-500">
         <p className="flex items-center gap-2">
-          <Truck className="size-4 text-[#59705f]" /> 按单生产后发货
+          <Truck className="text-store-muted size-4" /> 按单生产后发货
         </p>
         <p className="flex items-center gap-2">
-          <ShieldCheck className="size-4 text-[#59705f]" /> 出库前逐件检查
+          <ShieldCheck className="text-store-muted size-4" /> 出库前逐件检查
         </p>
       </div>
     </div>

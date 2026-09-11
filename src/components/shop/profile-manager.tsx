@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 interface Profile {
   userId: string;
@@ -17,6 +18,7 @@ interface ApiEnvelope {
 }
 
 export function ProfileManager() {
+  const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [nickname, setNickname] = useState('');
   const [phone, setPhone] = useState('');
@@ -29,7 +31,7 @@ export function ProfileManager() {
       try {
         const response = await fetch('/api/auth/me', { cache: 'no-store' });
         if (response.status === 401) {
-          window.location.assign('/auth/login?next=%2Faccount%2Fprofile');
+          router.replace('/auth/login?next=%2Faccount%2Fprofile');
           return;
         }
         const body = (await response.json()) as ApiEnvelope;
@@ -43,7 +45,7 @@ export function ProfileManager() {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [router]);
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -110,7 +112,7 @@ export function ProfileManager() {
       </label>
       <button
         disabled={saving}
-        className="h-11 rounded-full bg-[#17251c] px-6 text-sm font-bold text-white disabled:opacity-50"
+        className="bg-store-ink h-11 rounded-full px-6 text-sm font-bold text-white disabled:opacity-50"
       >
         {saving ? '保存中…' : '保存资料'}
       </button>

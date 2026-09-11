@@ -1,8 +1,9 @@
-import { ChevronLeft, ChevronRight, PackageSearch } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 
 import { ProductCard } from '@/components/shop/product-card';
 import { ProductFilterForm } from '@/components/shop/product-filter-form';
+import { StorefrontEmptyState } from '@/components/shop/storefront-states';
 import {
   getStorefrontCategories,
   listStorefrontProducts,
@@ -48,9 +49,9 @@ export async function ProductListing({
 
   return (
     <main>
-      <section className="border-b border-stone-900/8 bg-[#e8ecdf]">
+      <section className="bg-store-mist border-b border-stone-900/8">
         <div className="mx-auto max-w-7xl px-5 py-14 sm:px-8 sm:py-20">
-          <p className="text-xs font-bold tracking-[0.22em] text-[#59705f]">
+          <p className="text-store-muted text-xs font-bold tracking-[0.22em]">
             {eyebrow}
           </p>
           <h1 className="mt-4 text-4xl font-semibold tracking-[-0.04em] sm:text-6xl">
@@ -85,23 +86,19 @@ export async function ProductListing({
             ))}
           </div>
         ) : (
-          <div className="mt-6 flex min-h-80 flex-col items-center justify-center rounded-[2rem] border border-dashed border-stone-900/15 bg-white/40 px-6 text-center">
-            <span className="grid size-14 place-items-center rounded-full bg-stone-900/5">
-              <PackageSearch className="size-6 text-stone-400" />
-            </span>
-            <h2 className="mt-5 text-xl font-semibold">
-              没有找到符合条件的作品
-            </h2>
-            <p className="mt-2 text-sm text-stone-500">
-              试试放宽价格范围或更换分类与材质。
-            </p>
-            <Link
-              href="/products"
-              className="mt-6 text-sm font-semibold underline underline-offset-4"
-            >
-              查看全部作品
-            </Link>
-          </div>
+          <StorefrontEmptyState
+            className="mt-6 min-h-80"
+            title="没有找到符合条件的作品"
+            description="试试放宽价格范围或更换分类与材质。"
+            action={
+              <Link
+                href="/products"
+                className="text-sm font-semibold underline underline-offset-4"
+              >
+                查看全部作品
+              </Link>
+            }
+          />
         )}
 
         {result.pageCount > 1 ? (
@@ -123,7 +120,7 @@ export async function ProductListing({
                 key={page}
                 href={pageHref(query, page)}
                 aria-current={page === result.page ? 'page' : undefined}
-                className={`grid size-10 place-items-center rounded-full text-sm font-semibold ${page === result.page ? 'bg-[#17251c] text-white' : 'border border-stone-900/10 bg-white'}`}
+                className={`grid size-10 place-items-center rounded-full text-sm font-semibold ${page === result.page ? 'bg-store-ink text-white' : 'border border-stone-900/10 bg-white'}`}
               >
                 {page}
               </Link>

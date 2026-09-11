@@ -6,6 +6,7 @@ import {
   productIdSchema,
   replaceVariantsSchema,
 } from '@/lib/validators/product';
+import { storefrontCacheTags } from '@/lib/storefront-cache';
 
 interface ProductRouteContext {
   params: Promise<{ id: string }>;
@@ -16,11 +17,12 @@ export const PUT = withErrorHandler(
     const admin = await requirePermission('product:edit');
     const productId = productIdSchema.parse((await params).id);
     const input = await parseJsonBody(request, replaceVariantsSchema);
-    return ok(
-      await replaceProductVariants(productId, input, {
-        admin,
-        ip: getClientIp(request),
-      }),
-    );
+    const variants = await replaceProductVariants(productId, input, {
+      admin,
+      ip: getClientIp(request),
+    });
+    revalidateTag(storefrontCacheTags.products);
+    return ok(variants);
   },
 );
+import { revalidateTag } from 'next/cache';

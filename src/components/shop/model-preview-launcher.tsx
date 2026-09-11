@@ -48,9 +48,9 @@ export function ModelPreviewLauncher({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="absolute top-4 left-4 z-10 inline-flex h-11 items-center gap-2 rounded-full bg-[#17251c] px-4 text-xs font-bold text-white shadow-lg transition hover:bg-[#294131] sm:top-5 sm:left-5"
+        className="bg-store-ink hover:bg-store-ink-hover absolute top-4 left-4 z-10 inline-flex h-11 items-center gap-2 rounded-full px-4 text-xs font-bold text-white shadow-lg transition sm:top-5 sm:left-5"
       >
-        <Box className="size-4 text-[#d9ff68]" /> 3D 预览
+        <Box className="text-store-accent size-4" /> 3D 预览
       </button>
 
       {open ? (
@@ -58,9 +58,9 @@ export function ModelPreviewLauncher({
           role="dialog"
           aria-modal="true"
           aria-label={`${productName} 3D 预览`}
-          className="fixed inset-0 z-50 bg-[#111914]"
+          className="bg-store-night fixed inset-0 z-50"
         >
-          <div className="absolute top-0 right-0 left-0 z-10 flex h-16 items-center justify-between border-b border-white/10 bg-[#111914]/80 px-4 text-white backdrop-blur sm:px-6">
+          <div className="bg-store-night/80 absolute top-0 right-0 left-0 z-10 flex h-16 items-center justify-between border-b border-white/10 px-4 text-white backdrop-blur sm:px-6">
             <div>
               <p className="text-sm font-semibold">{productName}</p>
               <p className="mt-0.5 text-[11px] text-white/45">
@@ -71,7 +71,7 @@ export function ModelPreviewLauncher({
               type="button"
               aria-label="关闭 3D 预览"
               onClick={() => setOpen(false)}
-              className="grid size-10 place-items-center rounded-full border border-white/15 transition hover:bg-white hover:text-[#17251c]"
+              className="hover:text-store-ink grid size-10 place-items-center rounded-full border border-white/15 transition hover:bg-white"
             >
               <X className="size-5" />
             </button>

@@ -26,7 +26,6 @@ function ProductImage({
       alt={alt}
       fill
       priority={priority}
-      unoptimized
       sizes="(min-width: 1024px) 50vw, 100vw"
       className={`object-cover object-center ${className}`}
     />
@@ -40,7 +39,7 @@ export function ProductGallery({ productName, images }: ProductGalleryProps) {
 
   if (!activeImage) {
     return (
-      <div className="grid aspect-square place-items-center rounded-[2rem] bg-[radial-gradient(circle_at_70%_25%,#d9ff68_0,transparent_24%),linear-gradient(145deg,#f1eee5,#d7d4ca)]">
+      <div className="store-product-placeholder grid aspect-square place-items-center rounded-[2rem]">
         <span className="text-7xl font-black tracking-[-0.08em] text-stone-900/10">
           3D
         </span>
@@ -54,7 +53,7 @@ export function ProductGallery({ productName, images }: ProductGalleryProps) {
         type="button"
         aria-label="放大查看商品图片"
         onClick={() => setZoomed(true)}
-        className="group relative block aspect-square w-full overflow-hidden rounded-[2rem] bg-[#e8e5dc]"
+        className="group bg-store-image relative block aspect-square w-full overflow-hidden rounded-[2rem]"
       >
         <ProductImage
           src={activeImage}
@@ -76,7 +75,7 @@ export function ProductGallery({ productName, images }: ProductGalleryProps) {
               aria-label={`查看第 ${index + 1} 张商品图片`}
               aria-current={index === activeIndex}
               onClick={() => setActiveIndex(index)}
-              className={`relative aspect-square overflow-hidden rounded-xl border-2 bg-[#e8e5dc] ${index === activeIndex ? 'border-[#17251c]' : 'border-transparent'}`}
+              className={`bg-store-image relative aspect-square overflow-hidden rounded-xl border-2 ${index === activeIndex ? 'border-store-ink' : 'border-transparent'}`}
             >
               <ProductImage src={image} alt="" className="absolute inset-0" />
             </button>

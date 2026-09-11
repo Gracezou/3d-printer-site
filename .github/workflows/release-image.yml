@@ -6,6 +6,7 @@ on:
     branches:
       - dev-0.2
       - release-v0.2.1
+      - release-v0.2.2
 
 permissions:
   contents: read
@@ -66,7 +67,7 @@ jobs:
           push: true
           tags: ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
           build-args: |
-            APP_VERSION=v0.2.1+sha-${{ github.sha }}
+            APP_VERSION=v0.2.2+sha-${{ github.sha }}
             NEXT_PUBLIC_SITE_URL=${{ vars.PREPROD_SITE_URL || 'https://printer.daxiaoxiang.com' }}
             NEXT_PUBLIC_ICP_LICENSE=${{ vars.PREPROD_ICP_LICENSE }}
             NEXT_PUBLIC_SUPABASE_URL=${{ vars.PREPROD_SUPABASE_URL }}

@@ -9,6 +9,7 @@ import {
   categoryIdSchema,
   updateCategorySchema,
 } from '@/lib/validators/category';
+import { storefrontCacheTags } from '@/lib/storefront-cache';
 
 interface CategoryRouteContext {
   params: Promise<{ id: string }>;
@@ -19,12 +20,12 @@ export const PATCH = withErrorHandler(
     const admin = await requirePermission('category:edit');
     const categoryId = categoryIdSchema.parse((await params).id);
     const input = await parseJsonBody(request, updateCategorySchema);
-    return ok(
-      await updateCategory(categoryId, input, {
-        admin,
-        ip: getClientIp(request),
-      }),
-    );
+    const category = await updateCategory(categoryId, input, {
+      admin,
+      ip: getClientIp(request),
+    });
+    revalidateTag(storefrontCacheTags.categories);
+    return ok(category);
   },
 );
 
@@ -32,11 +33,12 @@ export const DELETE = withErrorHandler(
   async (request: Request, { params }: CategoryRouteContext) => {
     const admin = await requirePermission('category:edit');
     const categoryId = categoryIdSchema.parse((await params).id);
-    return ok(
-      await deleteCategory(categoryId, {
-        admin,
-        ip: getClientIp(request),
-      }),
-    );
+    const category = await deleteCategory(categoryId, {
+      admin,
+      ip: getClientIp(request),
+    });
+    revalidateTag(storefrontCacheTags.categories);
+    return ok(category);
   },
 );
+import { revalidateTag } from 'next/cache';

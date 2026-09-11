@@ -8,6 +8,7 @@ import {
   PackageOpen,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 
 interface OrderItemSummary {
@@ -58,13 +59,15 @@ function formatDate(value: string): string {
   }).format(new Date(value));
 }
 
-async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
+async function apiRequest<T>(
+  url: string,
+  init: RequestInit | undefined,
+  onUnauthorized: () => void,
+): Promise<T> {
   const response = await fetch(url, { ...init, cache: 'no-store' });
   const body = (await response.json()) as ApiEnvelope<T>;
   if (response.status === 401) {
-    window.location.assign(
-      `/auth/login?redirect=${encodeURIComponent('/account/orders')}`,
-    );
+    onUnauthorized();
     throw new Error('请先登录');
   }
   if (!response.ok || body.data === null)
@@ -73,6 +76,7 @@ async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export function OrdersManager() {
+  const router = useRouter();
   const [result, setResult] = useState<OrderListResult | null>(null);
   const [status, setStatus] = useState('all');
   const [page, setPage] = useState(1);
@@ -90,13 +94,19 @@ export function OrdersManager() {
         page: String(page),
         pageSize: '10',
       });
-      setResult(await apiRequest<OrderListResult>(`/api/orders?${params}`));
+      setResult(
+        await apiRequest<OrderListResult>(
+          `/api/orders?${params}`,
+          undefined,
+          () => router.replace('/auth/login?next=%2Faccount%2Forders'),
+        ),
+      );
     } catch (caught: unknown) {
       setError(caught instanceof Error ? caught.message : '订单加载失败');
     } finally {
       setLoading(false);
     }
-  }, [page, status]);
+  }, [page, router, status]);
 
   useEffect(() => void load(), [load]);
   useEffect(() => {
@@ -115,9 +125,13 @@ export function OrdersManager() {
     setBusy(order.orderNo);
     setError('');
     try {
-      await apiRequest(`/api/orders/${order.orderNo}/${action}`, {
-        method: 'POST',
-      });
+      await apiRequest(
+        `/api/orders/${order.orderNo}/${action}`,
+        {
+          method: 'POST',
+        },
+        () => router.replace('/auth/login?next=%2Faccount%2Forders'),
+      );
       setNotice(action === 'cancel' ? '订单已取消' : '已确认收货');
       await load();
     } catch (caught: unknown) {
@@ -132,7 +146,7 @@ export function OrdersManager() {
   return (
     <div>
       {notice ? (
-        <div className="fixed top-24 right-5 z-[60] rounded-2xl bg-[#17251c] px-5 py-3 text-sm font-medium text-white shadow-xl">
+        <div className="bg-store-ink fixed top-24 right-5 z-[60] rounded-2xl px-5 py-3 text-sm font-medium text-white shadow-xl">
           {notice}
         </div>
       ) : null}
@@ -147,7 +161,7 @@ export function OrdersManager() {
             }}
             className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition ${
               status === tab.value
-                ? 'bg-[#17251c] text-white'
+                ? 'bg-store-ink text-white'
                 : 'bg-white text-stone-600 hover:bg-stone-100'
             }`}
           >
@@ -180,7 +194,7 @@ export function OrdersManager() {
                     {formatDate(order.createdAt)}
                   </p>
                 </div>
-                <span className="rounded-full bg-[#e9f6d3] px-3 py-1.5 text-xs font-semibold text-[#36513c]">
+                <span className="bg-store-success-soft text-store-success-ink rounded-full px-3 py-1.5 text-xs font-semibold">
                   {order.statusText}
                 </span>
               </div>
@@ -245,7 +259,7 @@ export function OrdersManager() {
                       </button>
                       <Link
                         href={`/checkout/pay/${order.orderNo}`}
-                        className="inline-flex h-9 items-center rounded-full bg-[#17251c] px-4 text-xs font-semibold text-white"
+                        className="bg-store-ink inline-flex h-9 items-center rounded-full px-4 text-xs font-semibold text-white"
                       >
                         去支付
                       </Link>
@@ -255,7 +269,7 @@ export function OrdersManager() {
                     <button
                       disabled={busy !== ''}
                       onClick={() => void operate(order, 'confirm')}
-                      className="h-9 rounded-full bg-[#17251c] px-4 text-xs font-semibold text-white disabled:opacity-40"
+                      className="bg-store-ink h-9 rounded-full px-4 text-xs font-semibold text-white disabled:opacity-40"
                     >
                       确认收货
                     </button>

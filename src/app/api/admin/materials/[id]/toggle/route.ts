@@ -6,6 +6,7 @@ import {
   materialIdSchema,
   toggleMaterialSchema,
 } from '@/lib/validators/material';
+import { storefrontCacheTags } from '@/lib/storefront-cache';
 
 interface MaterialRouteContext {
   params: Promise<{ id: string }>;
@@ -16,11 +17,12 @@ export const POST = withErrorHandler(
     const admin = await requirePermission('material:edit');
     const materialId = materialIdSchema.parse((await params).id);
     const input = await parseJsonBody(request, toggleMaterialSchema);
-    return ok(
-      await toggleMaterial(materialId, input.isActive, {
-        admin,
-        ip: getClientIp(request),
-      }),
-    );
+    const material = await toggleMaterial(materialId, input.isActive, {
+      admin,
+      ip: getClientIp(request),
+    });
+    revalidateTag(storefrontCacheTags.products);
+    return ok(material);
   },
 );
+import { revalidateTag } from 'next/cache';

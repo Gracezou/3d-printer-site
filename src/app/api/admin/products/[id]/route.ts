@@ -7,6 +7,7 @@ import {
   updateProduct,
 } from '@/lib/services/product.service';
 import { productIdSchema, updateProductSchema } from '@/lib/validators/product';
+import { storefrontCacheTags } from '@/lib/storefront-cache';
 
 interface ProductRouteContext {
   params: Promise<{ id: string }>;
@@ -25,12 +26,12 @@ export const PATCH = withErrorHandler(
     const admin = await requirePermission('product:edit');
     const productId = productIdSchema.parse((await params).id);
     const input = await parseJsonBody(request, updateProductSchema);
-    return ok(
-      await updateProduct(productId, input, {
-        admin,
-        ip: getClientIp(request),
-      }),
-    );
+    const product = await updateProduct(productId, input, {
+      admin,
+      ip: getClientIp(request),
+    });
+    revalidateTag(storefrontCacheTags.products);
+    return ok(product);
   },
 );
 
@@ -38,11 +39,12 @@ export const DELETE = withErrorHandler(
   async (request: Request, { params }: ProductRouteContext) => {
     const admin = await requirePermission('product:edit');
     const productId = productIdSchema.parse((await params).id);
-    return ok(
-      await deleteProduct(productId, {
-        admin,
-        ip: getClientIp(request),
-      }),
-    );
+    const product = await deleteProduct(productId, {
+      admin,
+      ip: getClientIp(request),
+    });
+    revalidateTag(storefrontCacheTags.products);
+    return ok(product);
   },
 );
+import { revalidateTag } from 'next/cache';

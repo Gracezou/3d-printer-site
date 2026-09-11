@@ -1,6 +1,7 @@
 'use client';
 
 import { CheckCircle2, LoaderCircle } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 interface ApiResponse<T> {
@@ -16,6 +17,7 @@ export function MockPaymentConfirm({
   outTradeNo: string;
   amount: string;
 }) {
+  const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -30,7 +32,7 @@ export function MockPaymentConfirm({
       });
       const result = (await response.json()) as ApiResponse<unknown>;
       if (!response.ok || !result.data) throw new Error(result.message);
-      window.location.assign(
+      router.replace(
         `/checkout/pay/result?outTradeNo=${encodeURIComponent(outTradeNo)}`,
       );
     } catch (caught: unknown) {
@@ -40,9 +42,9 @@ export function MockPaymentConfirm({
   }
 
   return (
-    <div className="rounded-3xl border border-dashed border-[#3d6247]/30 bg-white p-10 text-center shadow-sm">
-      <CheckCircle2 className="mx-auto size-12 text-[#3d6247]" />
-      <p className="mt-3 text-xs font-bold tracking-[0.18em] text-[#59705f]">
+    <div className="border-store-success/30 rounded-3xl border border-dashed bg-white p-10 text-center shadow-sm">
+      <CheckCircle2 className="text-store-success mx-auto size-12" />
+      <p className="text-store-muted mt-3 text-xs font-bold tracking-[0.18em]">
         MOCK PAYMENT
       </p>
       <h2 className="mt-3 text-3xl font-semibold">模拟支付确认</h2>
@@ -51,7 +53,7 @@ export function MockPaymentConfirm({
       <button
         disabled={busy}
         onClick={() => void confirm()}
-        className="mt-8 inline-flex h-12 min-w-48 items-center justify-center rounded-full bg-[#17251c] px-7 text-sm font-bold text-white disabled:opacity-50"
+        className="bg-store-ink mt-8 inline-flex h-12 min-w-48 items-center justify-center rounded-full px-7 text-sm font-bold text-white disabled:opacity-50"
       >
         {busy ? (
           <LoaderCircle className="size-5 animate-spin" />

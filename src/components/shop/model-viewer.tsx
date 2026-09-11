@@ -190,9 +190,9 @@ export function ModelViewer({ modelUrl, productName }: ModelViewerProps) {
         className="block h-full w-full touch-none"
       />
       {status === 'loading' ? (
-        <div className="pointer-events-none absolute inset-0 grid place-items-center bg-[#111914] text-center text-white">
+        <div className="bg-store-night pointer-events-none absolute inset-0 grid place-items-center text-center text-white">
           <div>
-            <span className="mx-auto block size-10 animate-spin rounded-full border-2 border-white/15 border-t-[#d9ff68]" />
+            <span className="border-t-store-accent mx-auto block size-10 animate-spin rounded-full border-2 border-white/15" />
             <p className="mt-4 text-sm text-white/60">
               正在载入模型{progress === null ? '…' : ` ${progress}%`}
             </p>
@@ -200,7 +200,7 @@ export function ModelViewer({ modelUrl, productName }: ModelViewerProps) {
         </div>
       ) : null}
       {status === 'error' ? (
-        <div className="absolute inset-0 grid place-items-center bg-[#111914] px-6 text-center text-white">
+        <div className="bg-store-night absolute inset-0 grid place-items-center px-6 text-center text-white">
           <div>
             <p className="font-semibold">模型加载失败</p>
             <p className="mt-2 text-sm text-white/45">
@@ -216,7 +216,7 @@ export function ModelViewer({ modelUrl, productName }: ModelViewerProps) {
         <button
           type="button"
           onClick={() => resetViewRef.current()}
-          className="absolute right-5 bottom-5 inline-flex h-10 items-center gap-2 rounded-full border border-white/15 bg-black/25 px-4 text-xs font-semibold text-white backdrop-blur transition hover:bg-white hover:text-[#17251c]"
+          className="hover:text-store-ink absolute right-5 bottom-5 inline-flex h-10 items-center gap-2 rounded-full border border-white/15 bg-black/25 px-4 text-xs font-semibold text-white backdrop-blur transition hover:bg-white"
         >
           <RotateCcw className="size-3.5" /> 重置视角
         </button>
