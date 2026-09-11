@@ -34,9 +34,9 @@
 |---|---|---|---|
 | B1 | T119、T140、T141、T143、T120、T121 | `[~]` | `feat: establish v0.2.2 storefront foundation` |
 | B2 | T150、T151 | `[~]` | `feat: add device catalog management` |
-| B3 | T152、T153 | `[ ]` | `feat: seed devices and accept model requests` |
+| B3 | T152、T153 | `[~]` | `feat: seed devices and accept model requests` |
 | B4 | T122–T126 | `[ ]` | `feat: rebuild homepage for reader cases` |
-| B5 | T154、T127–T130 | `[ ]` | `feat: add device landing pages and seo` |
+| B5 | T154、T127–T130 | `[~]` | `feat: add device landing pages and seo` |
 | B6 | T131、T142、T155 | `[~]` | `refactor: finalize storefront copy and navigation` |
 | B7 | 全量验收、发布资料、T144 | `[ ]` | `docs: finalize v0.2.2 release` |
 
@@ -70,7 +70,7 @@
 - [x] 建立可重试错误状态与商城风格 404。
 - [x] 首页、商品列表、分类列表、商品详情接入路由加载状态。
 - [ ] 机型列表/选择器接入加载、错误与空状态。
-- [ ] 机型详情接入加载、错误、空数据与未找到状态。
+- [x] 机型详情接入加载、错误、空数据与未找到状态。
 - [ ] 人工确认骨架屏切换无明显布局跳动。
 
 ### T143 内容图片优化 `[~]`
@@ -158,8 +158,8 @@
 - [x] 新增同 IP 频率限制及测试重置能力。
 - [x] 新增登记服务、人数聚合和唯一冲突处理。
 - [x] 新增 `POST /api/model-requests`。
-- [ ] 在无商品机型页展示邮箱、说明、当前人数和提交状态。
-- [ ] 明确提示本期只登记，开模后通知能力将在 v0.3.1 提供。
+- [x] 在无商品机型页展示邮箱、说明、当前人数和提交状态。
+- [x] 明确提示本期只登记，开模后通知能力将在 v0.3.1 提供。
 - [ ] 验证重复登记、并发登记、IP 限流和人数准确性。
 
 ---
@@ -211,15 +211,15 @@
 
 ## B5 机型落地页与 SEO
 
-### T154 机型落地页 `[ ]`
+### T154 机型落地页 `[~]`
 
-- [ ] 新增 `/devices/[brand]/[model]`。
-- [ ] 页面展示品牌、型号、年份、停产状态、尺寸和接口说明。
-- [ ] 有商品时展示关联保护壳。
-- [ ] 无商品时展示意向登记入口和当前人数。
-- [ ] 展示 compat group 中可共用壳的其他机型。
-- [ ] 无效品牌/型号进入 404 并引导搜索。
-- [ ] 为无商品页面提供足够实质内容，避免 thin content。
+- [x] 新增 `/devices/[brand]/[model]`。
+- [x] 页面展示品牌、型号、年份、停产状态、尺寸和接口说明。
+- [x] 有商品时展示关联保护壳。
+- [x] 无商品时展示意向登记入口和当前人数。
+- [x] 展示 compat group 中可共用壳的其他机型。
+- [~] 无效品牌/型号进入 404；待首页设备选择器完成后补齐搜索引导。
+- [x] 为无商品页面提供足够实质内容，避免 thin content。
 - [ ] 随机抽查 10 个页面通过内容质量判断。
 
 ### T127 sitemap 与 robots `[ ]`
@@ -234,7 +234,7 @@
 - [ ] 根 metadata 更新为「书衣」身份与统一后缀。
 - [ ] 首页 title 含「电子阅读器保护壳」。
 - [ ] 首页 description 含品类词和四个主要品牌。
-- [ ] 机型页使用 `{品牌}{型号} 保护壳｜书衣`。
+- [x] 机型页使用 `{品牌}{型号} 保护壳｜书衣`。
 - [ ] 商品列表和详情补齐 title、description、canonical、OpenGraph。
 - [ ] canonical 中无 localhost、IP 或 HTTP 旧地址。
 
