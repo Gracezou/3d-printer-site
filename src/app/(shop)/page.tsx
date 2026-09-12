@@ -15,6 +15,7 @@ import Link from 'next/link';
 
 import { DeviceSelector } from '@/components/shop/device-selector';
 import { ProductCard } from '@/components/shop/product-card';
+import { absoluteSiteUrl, getSiteOrigin, serializeJsonLd } from '@/lib/seo';
 import { getHomePageData } from '@/lib/services/storefront.service';
 
 export const dynamic = 'force-dynamic';
@@ -27,7 +28,7 @@ export const metadata: Metadata = {
     absolute: '书衣｜电子阅读器保护壳 · 按单打印，冷门机型也有',
   },
   description: HOME_DESCRIPTION,
-  alternates: { canonical: '/' },
+  alternates: { canonical: absoluteSiteUrl('/') },
 };
 
 function SectionHeading({
@@ -35,16 +36,20 @@ function SectionHeading({
   title,
   href,
   linkLabel = '查看全部',
+  inverted = false,
 }: {
   eyebrow: string;
   title: string;
   href?: string;
   linkLabel?: string;
+  inverted?: boolean;
 }) {
   return (
     <div className="mb-8 flex items-end justify-between gap-5 sm:mb-10">
       <div>
-        <p className="text-store-muted text-xs font-bold tracking-[0.22em]">
+        <p
+          className={`${inverted ? 'text-store-accent' : 'text-store-muted'} text-xs font-bold tracking-[0.22em]`}
+        >
           {eyebrow}
         </p>
         <h2 className="mt-3 text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">
@@ -91,8 +96,9 @@ const deliverySteps = [
 
 export default async function HomePage() {
   const data = await getHomePageData();
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:5003';
+  const siteUrl = getSiteOrigin();
   const heroImage = data.banners[0]?.imageUrl;
+  const homepageProducts = [...data.featuredProducts, ...data.newestProducts];
   const structuredData = [
     {
       '@context': 'https://schema.org',
@@ -111,6 +117,19 @@ export default async function HomePage() {
       description: HOME_DESCRIPTION,
       inLanguage: 'zh-CN',
     },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'ItemList',
+      name: '书衣电子阅读器保护壳',
+      numberOfItems: homepageProducts.length,
+      itemListElement: homepageProducts.map((product, index) => ({
+        '@type': 'ListItem',
+        position: index + 1,
+        url: absoluteSiteUrl(`/products/${product.slug}`),
+        name: product.name,
+        image: product.mainImageUrl ?? undefined,
+      })),
+    },
   ];
 
   return (
@@ -118,7 +137,7 @@ export default async function HomePage() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(structuredData).replaceAll('<', '\\u003c'),
+          __html: serializeJsonLd(structuredData),
         }}
       />
 
@@ -225,7 +244,7 @@ export default async function HomePage() {
             ))}
           </div>
         ) : (
-          <p className="rounded-store-xl border border-dashed border-stone-900/15 px-6 py-12 text-center text-sm text-stone-500">
+          <p className="rounded-store-xl border border-dashed border-stone-900/15 px-6 py-12 text-center text-sm text-stone-600">
             新开模款式正在准备中。
           </p>
         )}
@@ -258,6 +277,7 @@ export default async function HomePage() {
           <SectionHeading
             eyebrow="按单生产 · 7 天内发出"
             title="一件壳怎样来到你手里"
+            inverted
           />
           <ol className="grid gap-3 sm:grid-cols-5">
             {deliverySteps.map(({ icon: Icon, label }, index) => (
@@ -267,7 +287,7 @@ export default async function HomePage() {
               >
                 <div className="flex items-center justify-between">
                   <Icon className="text-store-accent size-5" />
-                  <span className="text-xs text-white/30">0{index + 1}</span>
+                  <span className="text-xs text-white/60">0{index + 1}</span>
                 </div>
                 <p className="mt-8 text-sm font-semibold">{label}</p>
               </li>

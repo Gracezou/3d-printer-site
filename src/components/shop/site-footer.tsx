@@ -43,13 +43,13 @@ export function SiteFooter({ siteInfo }: SiteFooterProps) {
           <p className="mt-4 text-sm leading-7 text-white/55">
             {siteInfo.contact}
           </p>
-          <p className="mt-2 text-xs leading-6 text-white/35">
+          <p className="mt-2 text-xs leading-6 text-white/60">
             下单后排产打印、去支撑打磨并装机复核，7 个自然日内发出。
           </p>
         </div>
       </div>
       <div className="border-t border-white/8">
-        <div className="mx-auto flex max-w-7xl flex-col gap-2 px-5 py-5 text-xs text-white/35 sm:flex-row sm:items-center sm:justify-between sm:px-8">
+        <div className="mx-auto flex max-w-7xl flex-col gap-2 px-5 py-5 text-xs text-white/60 sm:flex-row sm:items-center sm:justify-between sm:px-8">
           <p>© {new Date().getFullYear()} 书衣</p>
           {icpLicense ? (
             <a

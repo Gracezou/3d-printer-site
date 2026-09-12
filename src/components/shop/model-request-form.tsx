@@ -95,7 +95,7 @@ export function ModelRequestForm({
             </p>
           </div>
         ) : (
-          <form onSubmit={submit} className="space-y-4">
+          <form onSubmit={submit} aria-busy={submitting} className="space-y-4">
             <label className="block">
               <span className="mb-2 block text-sm font-medium">接收邮箱</span>
               <span className="relative block">
@@ -148,6 +148,9 @@ export function ModelRequestForm({
               ) : null}
               登记这个机型
             </button>
+            <span className="sr-only" aria-live="polite">
+              {submitting ? '正在提交机型登记' : ''}
+            </span>
             <p className="text-xs leading-5 text-white/35">
               邮箱仅用于本次机型需求记录，不会订阅营销邮件。
             </p>

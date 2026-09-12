@@ -218,44 +218,44 @@
 - [x] 有商品时展示关联保护壳。
 - [x] 无商品时展示意向登记入口和当前人数。
 - [x] 展示 compat group 中可共用壳的其他机型。
-- [~] 无效品牌/型号进入 404；待首页设备选择器完成后补齐搜索引导。
+- [x] 无效品牌/型号进入 404，并引导回首页设备选择器搜索。
 - [x] 为无商品页面提供足够实质内容，避免 thin content。
 - [ ] 随机抽查 10 个页面通过内容质量判断。
 
-### T127 sitemap 与 robots `[ ]`
+### T127 sitemap 与 robots `[x]`
 
-- [ ] sitemap 包含可见机型页、上架商品与静态页。
-- [ ] 下架商品和隐藏机型不进入 sitemap。
-- [ ] robots 屏蔽 `/admin`、`/account`、`/checkout`、`/api`。
-- [ ] 所有绝对地址基于 `NEXT_PUBLIC_SITE_URL`。
+- [x] sitemap 包含可见机型页、上架商品与静态页。
+- [x] 下架商品和隐藏机型不进入 sitemap。
+- [x] robots 屏蔽 `/admin`、`/account`、`/checkout`、`/api`。
+- [x] 所有绝对地址基于 `NEXT_PUBLIC_SITE_URL`。
 
-### T128 meta 治理 `[ ]`
+### T128 meta 治理 `[x]`
 
 - [x] 根 metadata 更新为「书衣」身份与统一后缀。
 - [x] 首页 title 含「电子阅读器保护壳」。
 - [x] 首页 description 含品类词和四个主要品牌。
 - [x] 机型页使用 `{品牌}{型号} 保护壳｜书衣`。
-- [ ] 商品列表和详情补齐 title、description、canonical、OpenGraph。
-- [ ] canonical 中无 localhost、IP 或 HTTP 旧地址。
+- [x] 商品列表和详情补齐 title、description、canonical、OpenGraph。
+- [x] canonical 中无 localhost、IP 或 HTTP 旧地址。
 
-### T129 结构化数据 `[ ]`
+### T129 结构化数据 `[~]`
 
-- [ ] 保留并更新 Organization、WebSite。
-- [ ] 首页增加 ItemList。
-- [ ] 商品页增加 Product、Offer、BreadcrumbList。
-- [ ] 机型页增加 BreadcrumbList 和适用的 ItemList。
-- [ ] JSON-LD 注入前把 `<` 转义为 `\\u003c`。
-- [ ] 恶意文本安全测试通过。
+- [x] 保留并更新 Organization、WebSite。
+- [x] 首页增加 ItemList。
+- [x] 商品页增加 Product、Offer、BreadcrumbList。
+- [x] 机型页增加 BreadcrumbList 和适用的 ItemList。
+- [x] JSON-LD 注入前把 `<` 转义为 `\\u003c`。
+- [x] 恶意文本安全测试通过。
 - [ ] Google Rich Results 无阻塞错误。
 
-### T130 可访问性与性能 `[ ]`
+### T130 可访问性与性能 `[x]`
 
-- [ ] 图片 alt 与语义化标题层级完整。
-- [ ] 设备选择器可纯键盘操作。
-- [ ] 表单错误与字段关联，异步状态使用 `aria-live`。
-- [ ] 减少动画偏好生效。
-- [ ] 记录设备、网络、浏览器与构建 SHA。
-- [ ] LCP ≤ 2.5s、INP ≤ 200ms、CLS ≤ 0.1，或记录偏差理由。
+- [x] 图片 alt 与语义化标题层级完整。
+- [x] 设备选择器可纯键盘操作。
+- [x] 表单错误与字段关联，异步状态使用 `aria-live`。
+- [x] 减少动画偏好生效。
+- [x] 在 `PERFORMANCE-BASELINE.md` 记录设备、网络、浏览器与构建 SHA。
+- [x] LCP ≤ 2.5s、CLS ≤ 0.1；Lighthouse 不产出 INP，已记录 TBT 代理指标与预生产补测要求。
 
 ---
 

@@ -118,6 +118,7 @@ export function DeviceSelector({ brands }: DeviceSelectorProps) {
                 type="search"
                 role="combobox"
                 aria-autocomplete="list"
+                aria-haspopup="listbox"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="输入品牌或型号，比如 阅星瞳 X4"
@@ -129,6 +130,8 @@ export function DeviceSelector({ brands }: DeviceSelectorProps) {
             {compactQuery ? (
               <div
                 id="device-search-results"
+                role="listbox"
+                aria-label="匹配的设备型号"
                 className="absolute top-[calc(100%+0.5rem)] right-0 left-0 z-20 overflow-hidden rounded-2xl border border-stone-900/10 bg-white p-2 text-stone-900 shadow-2xl"
               >
                 {matches.length ? (
@@ -136,6 +139,8 @@ export function DeviceSelector({ brands }: DeviceSelectorProps) {
                     <button
                       key={model.id}
                       type="button"
+                      role="option"
+                      aria-selected="false"
                       onClick={() => goToDevice(brand.slug, model.slug)}
                       className="flex w-full items-center justify-between gap-4 rounded-xl px-3 py-3 text-left hover:bg-stone-100 focus:bg-stone-100"
                     >
@@ -163,7 +168,10 @@ export function DeviceSelector({ brands }: DeviceSelectorProps) {
           </div>
         </>
       ) : (
-        <div className="rounded-2xl border border-dashed border-white/20 px-5 py-6 text-sm leading-6 text-white/60">
+        <div
+          role="status"
+          className="rounded-2xl border border-dashed border-white/20 px-5 py-6 text-sm leading-6 text-white/60"
+        >
           机型目录正在准备中。迁移完成后，这里会显示阅星瞳、Kindle、掌阅和文石机型。
         </div>
       )}

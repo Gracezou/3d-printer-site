@@ -274,6 +274,32 @@ export const getStorefrontCategories = unstable_cache(
   { revalidate: 60, tags: [storefrontCacheTags.categories] },
 );
 
+async function loadSitemapStorefrontEntries() {
+  const [productRows, categoryRows] = await Promise.all([
+    getDb()
+      .select({ slug: products.slug, updatedAt: products.updatedAt })
+      .from(products)
+      .where(and(eq(products.status, 'on_sale'), isNull(products.deletedAt)))
+      .orderBy(asc(products.slug)),
+    getDb()
+      .select({ slug: categories.slug, updatedAt: categories.updatedAt })
+      .from(categories)
+      .where(eq(categories.isVisible, true))
+      .orderBy(asc(categories.slug)),
+  ]);
+
+  return { products: productRows, categories: categoryRows };
+}
+
+export const getSitemapStorefrontEntries = unstable_cache(
+  loadSitemapStorefrontEntries,
+  ['storefront-sitemap-entries'],
+  {
+    revalidate: 300,
+    tags: [storefrontCacheTags.products, storefrontCacheTags.categories],
+  },
+);
+
 export const getStorefrontCategoryBySlug = cache(async (slug: string) => {
   const [category] = await getDb()
     .select({

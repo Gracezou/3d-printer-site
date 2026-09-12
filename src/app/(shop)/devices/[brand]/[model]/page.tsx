@@ -14,6 +14,7 @@ import { ModelRequestForm } from '@/components/shop/model-request-form';
 import { ProductCard } from '@/components/shop/product-card';
 import { StorefrontEmptyState } from '@/components/shop/storefront-states';
 import { BizError } from '@/lib/errors';
+import { absoluteSiteUrl, serializeJsonLd } from '@/lib/seo';
 import { getPublicDeviceDetail } from '@/lib/services/device.service';
 
 export const dynamic = 'force-dynamic';
@@ -39,11 +40,12 @@ export async function generateMetadata({
   if (!device) return { title: '机型不存在' };
   const title = `${device.brandName}${device.name} 保护壳｜书衣`;
   const description = `查找适用于 ${device.brandName} ${device.name} 的电子阅读器保护壳；没有现成款式时，可登记开模意向。`;
+  const url = absoluteSiteUrl(`/devices/${device.brandSlug}/${device.slug}`);
   return {
     title: { absolute: title },
     description,
-    alternates: { canonical: `/devices/${device.brandSlug}/${device.slug}` },
-    openGraph: { title, description },
+    alternates: { canonical: url },
+    openGraph: { type: 'website', url, title, description },
   };
 }
 
@@ -65,9 +67,51 @@ export default async function DevicePage({ params }: DevicePageProps) {
   const device = await findDevice(brand, model);
   if (!device) notFound();
   const dimensions = dimensionText(device);
+  const deviceUrl = absoluteSiteUrl(
+    `/devices/${device.brandSlug}/${device.slug}`,
+  );
+  const structuredData = [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { name: '首页', item: absoluteSiteUrl('/') },
+        { name: '设备', item: `${absoluteSiteUrl('/')}#choose-device` },
+        {
+          name: `${device.brandName} ${device.name}`,
+          item: deviceUrl,
+        },
+      ].map((item, index) => ({
+        '@type': 'ListItem',
+        position: index + 1,
+        ...item,
+      })),
+    },
+    ...(device.products.length
+      ? [
+          {
+            '@context': 'https://schema.org',
+            '@type': 'ItemList',
+            name: `适用于 ${device.brandName} ${device.name} 的保护壳`,
+            numberOfItems: device.products.length,
+            itemListElement: device.products.map((product, index) => ({
+              '@type': 'ListItem',
+              position: index + 1,
+              name: product.name,
+              url: absoluteSiteUrl(`/products/${product.slug}`),
+              image: product.mainImageUrl ?? undefined,
+            })),
+          },
+        ]
+      : []),
+  ];
 
   return (
     <main>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(structuredData) }}
+      />
       <section className="bg-store-mist border-b border-stone-900/8">
         <div className="mx-auto max-w-7xl px-5 py-6 sm:px-8">
           <nav

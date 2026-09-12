@@ -368,32 +368,34 @@ export function ProductPurchasePanel({
         </div>
       )}
 
-      {availability === null ? (
-        <div className="mt-5 flex items-center gap-2 text-sm text-stone-400">
-          <span className="size-3 animate-pulse rounded-full bg-stone-300" />{' '}
-          正在获取实时可售状态…
-        </div>
-      ) : availabilityError ? (
-        <button
-          type="button"
-          onClick={() => void loadAvailability()}
-          className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-red-600"
-        >
-          <RefreshCcw className="size-4" /> 获取可售状态失败，点击重试
-        </button>
-      ) : selectedVariant ? (
-        <p
-          className={`mt-5 text-sm font-medium ${selectedAvailableQty > 0 ? 'text-store-success' : 'text-red-600'}`}
-        >
-          {selectedAvailableQty === 0
-            ? '暂时缺货'
-            : selectedAvailableQty < 5
-              ? `仅剩 ${selectedAvailableQty} 件`
-              : '可按单生产'}
-        </p>
-      ) : (
-        <p className="mt-5 text-sm text-stone-500">请选择完整的商品规格</p>
-      )}
+      <div aria-live="polite" aria-atomic="true">
+        {availability === null ? (
+          <div className="mt-5 flex items-center gap-2 text-sm text-stone-400">
+            <span className="size-3 animate-pulse rounded-full bg-stone-300" />{' '}
+            正在获取实时可售状态…
+          </div>
+        ) : availabilityError ? (
+          <button
+            type="button"
+            onClick={() => void loadAvailability()}
+            className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-red-600"
+          >
+            <RefreshCcw className="size-4" /> 获取可售状态失败，点击重试
+          </button>
+        ) : selectedVariant ? (
+          <p
+            className={`mt-5 text-sm font-medium ${selectedAvailableQty > 0 ? 'text-store-success' : 'text-red-600'}`}
+          >
+            {selectedAvailableQty === 0
+              ? '暂时缺货'
+              : selectedAvailableQty < 5
+                ? `仅剩 ${selectedAvailableQty} 件`
+                : '可按单生产'}
+          </p>
+        ) : (
+          <p className="mt-5 text-sm text-stone-500">请选择完整的商品规格</p>
+        )}
+      </div>
 
       <div className="mt-7 flex flex-col gap-3 sm:flex-row">
         <div className="flex h-12 w-36 items-center justify-between rounded-full border border-stone-900/12 bg-white px-2">
@@ -442,7 +444,13 @@ export function ProductPurchasePanel({
         </button>
       </div>
       {notice ? (
-        <p className="mt-3 text-center text-xs text-stone-500">{notice}</p>
+        <p
+          role="status"
+          aria-live="polite"
+          className="mt-3 text-center text-xs text-stone-500"
+        >
+          {notice}
+        </p>
       ) : null}
 
       <div className="mt-8 grid grid-cols-2 gap-3 border-t border-stone-900/8 pt-7 text-xs text-stone-500">
