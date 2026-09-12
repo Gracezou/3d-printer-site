@@ -6,18 +6,14 @@ import { useState } from 'react';
 
 import { CartIndicator } from './cart-indicator';
 
-interface SiteHeaderProps {
-  siteName: string;
-}
-
 const navigation = [
   { href: '/', label: '首页' },
-  { href: '/products', label: '全部作品' },
+  { href: '/products', label: '全部机型' },
   { href: '/account/orders', label: '我的订单' },
   { href: '/account/profile', label: '个人资料' },
 ] as const;
 
-export function SiteHeader({ siteName }: SiteHeaderProps) {
+export function SiteHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
@@ -35,10 +31,10 @@ export function SiteHeader({ siteName }: SiteHeaderProps) {
 
         <Link href="/" className="flex shrink-0 items-center gap-2.5">
           <span className="bg-store-ink text-store-accent grid size-9 place-items-center rounded-full text-[11px] font-black tracking-tight">
-            3D
+            书
           </span>
           <span className="text-store-ink text-sm font-black tracking-[0.15em] sm:text-base">
-            {siteName}
+            书衣
           </span>
         </Link>
 
@@ -62,12 +58,12 @@ export function SiteHeader({ siteName }: SiteHeaderProps) {
           className="ml-auto hidden max-w-xs flex-1 md:block"
         >
           <label className="relative block">
-            <span className="sr-only">搜索商品</span>
+            <span className="sr-only">搜索保护壳</span>
             <Search className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-stone-400" />
             <input
               type="search"
               name="keyword"
-              placeholder="搜索作品"
+              placeholder="搜索保护壳"
               className="h-11 w-full rounded-full border border-stone-900/8 bg-white/70 pr-4 pl-11 text-sm transition outline-none placeholder:text-stone-400 focus:border-stone-900/25 focus:bg-white"
             />
           </label>
@@ -92,12 +88,12 @@ export function SiteHeader({ siteName }: SiteHeaderProps) {
         >
           <form action="/products" className="mb-4 md:hidden">
             <label className="relative block">
-              <span className="sr-only">搜索商品</span>
+              <span className="sr-only">搜索保护壳</span>
               <Search className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-stone-400" />
               <input
                 type="search"
                 name="keyword"
-                placeholder="搜索作品"
+                placeholder="搜索保护壳"
                 className="h-11 w-full rounded-full border border-stone-900/8 bg-white pr-4 pl-11 text-sm outline-none"
               />
             </label>

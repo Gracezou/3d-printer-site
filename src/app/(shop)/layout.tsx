@@ -13,7 +13,7 @@ export default async function ShopLayout({
 
   return (
     <div className="bg-store-canvas min-h-screen text-stone-950">
-      <SiteHeader siteName={siteInfo.name} />
+      <SiteHeader />
       {children}
       <SiteFooter siteInfo={siteInfo} />
     </div>

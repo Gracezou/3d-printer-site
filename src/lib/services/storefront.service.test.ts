@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   excludeFeaturedProducts,
+  hasPostgresErrorCode,
   type StorefrontProduct,
 } from './storefront.service';
 
@@ -45,5 +46,22 @@ describe('excludeFeaturedProducts', () => {
         2,
       ).map((item) => item.id),
     ).toEqual(['1', '2']);
+  });
+});
+
+describe('hasPostgresErrorCode', () => {
+  it('finds a database code on a wrapped query error', () => {
+    expect(
+      hasPostgresErrorCode(
+        { cause: { code: '42P01' } },
+        '42P01',
+      ),
+    ).toBe(true);
+  });
+
+  it('does not hide unrelated database failures', () => {
+    expect(hasPostgresErrorCode({ cause: { code: '23505' } }, '42P01')).toBe(
+      false,
+    );
   });
 });

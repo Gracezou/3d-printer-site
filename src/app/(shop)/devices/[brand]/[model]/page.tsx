@@ -40,7 +40,7 @@ export async function generateMetadata({
   const title = `${device.brandName}${device.name} 保护壳｜书衣`;
   const description = `查找适用于 ${device.brandName} ${device.name} 的电子阅读器保护壳；没有现成款式时，可登记开模意向。`;
   return {
-    title,
+    title: { absolute: title },
     description,
     alternates: { canonical: `/devices/${device.brandSlug}/${device.slug}` },
     openGraph: { title, description },

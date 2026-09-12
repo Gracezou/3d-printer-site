@@ -177,7 +177,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
               <div className="grid grid-cols-[7rem_1fr] gap-4 py-4">
                 <dt className="text-stone-400">预计发货</dt>
                 <dd className="text-right font-medium text-stone-700">
-                  以下单页面提示为准
+                  下单后 7 个自然日内发出
                 </dd>
               </div>
             </dl>
