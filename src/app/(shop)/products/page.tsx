@@ -3,21 +3,19 @@ import type { Metadata } from 'next';
 import { ProductListing } from '@/components/shop/product-listing';
 import { absoluteSiteUrl } from '@/lib/seo';
 import { storefrontProductListQuerySchema } from '@/lib/validators/storefront';
+import { zhCN } from '@/messages/zh-CN';
 
 export const revalidate = 60;
 
-const PRODUCTS_DESCRIPTION =
-  '浏览书衣为 Kindle、文石、掌阅、阅星瞳等电子阅读器制作的 3D 打印保护壳，支持冷门及停产机型按需开模。';
-
 export const metadata: Metadata = {
-  title: '电子阅读器保护壳',
-  description: PRODUCTS_DESCRIPTION,
+  title: zhCN.seo.productListTitle,
+  description: zhCN.seo.productListDescription,
   alternates: { canonical: absoluteSiteUrl('/products') },
   openGraph: {
     type: 'website',
     url: absoluteSiteUrl('/products'),
-    title: '电子阅读器保护壳｜书衣',
-    description: PRODUCTS_DESCRIPTION,
+    title: `${zhCN.seo.productListTitle}｜${zhCN.brand.name}`,
+    description: zhCN.seo.productListDescription,
   },
 };
 
@@ -42,8 +40,8 @@ export default async function ProductsPage({
 
   return (
     <ProductListing
-      eyebrow="全部机型"
-      title="电子阅读器保护壳"
+      eyebrow={zhCN.navigation.allDevices}
+      title={zhCN.seo.productListTitle}
       description="按设备寻找合身的保护壳。每一件都按单打印，并在装机复核后发出。"
       query={query}
     />

@@ -1,17 +1,17 @@
 import type { Metadata } from 'next';
 
 import { getSiteOrigin } from '@/lib/seo';
+import { zhCN } from '@/messages/zh-CN';
 
 import './globals.css';
 
 export const metadata: Metadata = {
   metadataBase: new URL(getSiteOrigin()),
   title: {
-    default: '书衣｜电子阅读器保护壳',
-    template: '%s｜书衣',
+    default: zhCN.seo.rootTitle,
+    template: `%s｜${zhCN.brand.name}`,
   },
-  description:
-    '为每一台阅读器做一件合身的壳。按单打印，冷门机型与停产老款也做。',
+  description: zhCN.seo.rootDescription,
   robots: { index: true, follow: true },
 };
 

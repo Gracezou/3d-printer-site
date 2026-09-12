@@ -15,6 +15,8 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 
+import { notifyAdminUnauthorized } from '@/lib/admin-session-client';
+
 type DiscountType = 'fixed_amount' | 'percentage' | 'free_shipping';
 type PromotionScope = 'all' | 'category' | 'product';
 
@@ -90,7 +92,7 @@ async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
   });
   const result = (await response.json()) as ApiEnvelope<T>;
   if (response.status === 401) {
-    window.location.assign('/admin/login');
+    notifyAdminUnauthorized();
     throw new Error('后台登录已失效');
   }
   if (!response.ok || result.data === null) {

@@ -20,6 +20,8 @@ import {
   type ReactNode,
 } from 'react';
 
+import { zhCN } from '@/messages/zh-CN';
+
 interface ProductOption {
   id: string;
   name: string;
@@ -251,10 +253,8 @@ export function DevicesManager() {
 
   const totalModels = useMemo(
     () =>
-      result?.brands.reduce(
-        (total, brand) => total + brand.models.length,
-        0,
-      ) ?? 0,
+      result?.brands.reduce((total, brand) => total + brand.models.length, 0) ??
+      0,
     [result],
   );
 
@@ -291,7 +291,7 @@ export function DevicesManager() {
       <div className="mx-auto max-w-7xl">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-400">
+            <p className="text-xs font-semibold tracking-[0.2em] text-neutral-400 uppercase">
               Device catalog
             </p>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight text-neutral-950">
@@ -343,9 +343,7 @@ export function DevicesManager() {
         </div>
 
         <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
-          <strong>命名规范：</strong>
-          第三方品牌和型号仅用于兼容性描述；商品名称使用“适用于 品牌
-          型号”，不得使用品牌 Logo，也不得暗示官方出品或授权。
+          <strong>命名规范：</strong> {zhCN.naming.adminHint}
         </div>
 
         {notice ? (
@@ -440,7 +438,9 @@ export function DevicesManager() {
                             <Cpu className="size-5" />
                           </span>
                           <div className="min-w-0">
-                            <p className="truncate font-semibold">{model.name}</p>
+                            <p className="truncate font-semibold">
+                              {model.name}
+                            </p>
                             <p className="mt-0.5 truncate font-mono text-xs text-neutral-400">
                               /{brand.slug}/{model.slug}
                             </p>
@@ -743,9 +743,7 @@ function ModelEditor({
     isMolded: model?.isMolded ?? false,
     widthMm: dimensions.widthMm ? String(dimensions.widthMm) : '',
     heightMm: dimensions.heightMm ? String(dimensions.heightMm) : '',
-    thicknessMm: dimensions.thicknessMm
-      ? String(dimensions.thicknessMm)
-      : '',
+    thicknessMm: dimensions.thicknessMm ? String(dimensions.thicknessMm) : '',
     weightGrams: dimensions.weightGrams ? String(dimensions.weightGrams) : '',
     compatGroup: model?.compatGroup ?? '',
     notes: model?.notes ?? '',
@@ -870,10 +868,7 @@ function ModelEditor({
               placeholder="2024"
             />
           </Field>
-          <Field
-            label="兼容组"
-            hint="外形完全一致、可共用壳的机型使用相同值。"
-          >
+          <Field label="兼容组" hint="外形完全一致、可共用壳的机型使用相同值。">
             <input
               maxLength={50}
               value={form.compatGroup}

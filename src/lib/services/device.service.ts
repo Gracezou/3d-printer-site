@@ -41,12 +41,16 @@ interface WriteContext {
 }
 
 function isDatabaseError(error: unknown, code: string): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    error.code === code
-  );
+  let current = error;
+  const visited = new Set<unknown>();
+  while (typeof current === 'object' && current !== null) {
+    if (visited.has(current)) return false;
+    visited.add(current);
+    if ('code' in current && current.code === code) return true;
+    if (!('cause' in current)) return false;
+    current = current.cause;
+  }
+  return false;
 }
 
 function throwDeviceConstraintError(error: unknown): never {

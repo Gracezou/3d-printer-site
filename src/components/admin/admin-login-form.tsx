@@ -1,6 +1,9 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
+import { useRouter } from 'next/navigation';
+
+import { zhCN } from '@/messages/zh-CN';
 
 interface AdminLoginFormProps {
   returnTo: string;
@@ -12,6 +15,7 @@ interface ApiResult {
 }
 
 export function AdminLoginForm({ returnTo }: AdminLoginFormProps) {
+  const router = useRouter();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -32,9 +36,10 @@ export function AdminLoginForm({ returnTo }: AdminLoginFormProps) {
         setMessage(result.message);
         return;
       }
-      window.location.assign(returnTo);
+      router.replace(returnTo);
+      router.refresh();
     } catch {
-      setMessage('网络异常，请稍后再试');
+      setMessage(zhCN.errors.network);
     } finally {
       setLoading(false);
     }

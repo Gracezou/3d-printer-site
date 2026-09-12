@@ -15,6 +15,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { zhCN } from '@/messages/zh-CN';
+
 interface OrderItem {
   id: string;
   productName: string;
@@ -342,7 +344,7 @@ export function OrderDetail({ orderNo }: { orderNo: string }) {
                 <dd>-¥{order.discountAmount}</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="text-stone-500">运费</dt>
+                <dt className="text-stone-500">{zhCN.commerce.shippingFee}</dt>
                 <dd>¥{order.shippingAmount}</dd>
               </div>
               <div className="flex justify-between border-t border-stone-900/8 pt-3 text-base font-semibold">

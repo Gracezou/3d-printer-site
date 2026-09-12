@@ -11,6 +11,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 
+import { customerOrderStatusLabels } from '@/messages/zh-CN';
+
 interface OrderItemSummary {
   productName: string;
   variantName: string;
@@ -45,11 +47,14 @@ interface ApiEnvelope<T> {
 
 const tabs = [
   { value: 'all', label: '全部' },
-  { value: 'pending_payment', label: '待支付' },
-  { value: 'in_production', label: '生产中' },
-  { value: 'shipped', label: '待收货' },
-  { value: 'completed', label: '已完成' },
-  { value: 'cancelled', label: '已取消/退款' },
+  { value: 'pending_payment', label: customerOrderStatusLabels.pending_payment },
+  { value: 'in_production', label: customerOrderStatusLabels.in_production },
+  { value: 'shipped', label: customerOrderStatusLabels.shipped },
+  { value: 'completed', label: customerOrderStatusLabels.completed },
+  {
+    value: 'cancelled',
+    label: `${customerOrderStatusLabels.cancelled}/${customerOrderStatusLabels.refunded}`,
+  },
 ] as const;
 
 function formatDate(value: string): string {

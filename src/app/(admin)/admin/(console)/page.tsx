@@ -10,6 +10,7 @@ import Link from 'next/link';
 
 import { requirePermission } from '@/lib/auth/admin';
 import { getAdminDashboard } from '@/lib/services/dashboard.service';
+import { orderStatusLabels, printStatusLabels } from '@/messages/zh-CN';
 
 export default async function AdminDashboardPage() {
   const admin = await requirePermission('dashboard:view');
@@ -31,14 +32,14 @@ export default async function AdminDashboardPage() {
       tone: 'bg-lime-100 text-lime-800',
     },
     {
-      label: '待排产',
+      label: printStatusLabels.queued,
       value: String(dashboard.pendingProductionCount),
       suffix: '项',
       icon: Printer,
       tone: 'bg-violet-100 text-violet-700',
     },
     {
-      label: '待发货',
+      label: orderStatusLabels.pending_shipment,
       value: String(dashboard.pendingShipmentCount),
       suffix: '单',
       icon: PackageCheck,

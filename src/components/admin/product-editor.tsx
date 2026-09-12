@@ -31,6 +31,9 @@ import {
   type ReactNode,
 } from 'react';
 
+import { notifyAdminUnauthorized } from '@/lib/admin-session-client';
+import { zhCN } from '@/messages/zh-CN';
+
 import {
   buildAttributeCombinations,
   buildVariantName,
@@ -141,7 +144,7 @@ async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
   });
   const result = (await response.json()) as ApiEnvelope<T>;
   if (!response.ok || result.data === null) {
-    if (response.status === 401) window.location.assign('/admin/login');
+    if (response.status === 401) notifyAdminUnauthorized();
     throw new Error(result.message || '请求失败');
   }
   return result.data;
@@ -799,14 +802,14 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
           description="商品名称、分类、展示地址与推荐状态"
         >
           <div className="grid gap-5 px-5 py-6 sm:grid-cols-2 sm:px-7 lg:grid-cols-3">
-            <Field label="商品名称">
+            <Field label="商品名称" hint={zhCN.naming.adminHint}>
               <input
                 required
                 maxLength={120}
                 value={form.name}
                 onChange={(event) => patchForm('name', event.target.value)}
                 className={inputClass}
-                placeholder="龙猫桌面摆件"
+                placeholder={zhCN.naming.compatibilityExample}
               />
             </Field>
             <Field

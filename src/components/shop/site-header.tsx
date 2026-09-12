@@ -4,13 +4,15 @@ import { Menu, Search, UserRound, X } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 
+import { zhCN } from '@/messages/zh-CN';
+
 import { CartIndicator } from './cart-indicator';
 
 const navigation = [
-  { href: '/', label: '首页' },
-  { href: '/products', label: '全部机型' },
-  { href: '/account/orders', label: '我的订单' },
-  { href: '/account/profile', label: '个人资料' },
+  { href: '/', label: zhCN.navigation.home },
+  { href: '/products', label: zhCN.navigation.allDevices },
+  { href: '/account/orders', label: zhCN.navigation.orders },
+  { href: '/account/profile', label: zhCN.navigation.profile },
 ] as const;
 
 export function SiteHeader() {
@@ -34,7 +36,7 @@ export function SiteHeader() {
             书
           </span>
           <span className="text-store-ink text-sm font-black tracking-[0.15em] sm:text-base">
-            书衣
+            {zhCN.brand.name}
           </span>
         </Link>
 

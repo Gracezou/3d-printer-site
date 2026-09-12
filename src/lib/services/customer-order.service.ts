@@ -10,29 +10,13 @@ import {
 } from '@/lib/db/schema';
 import { BizError } from '@/lib/errors';
 import { logger, maskPhone } from '@/lib/logger';
+import {
+  customerOrderStatusLabels as orderStatusLabels,
+  printStatusLabels,
+} from '@/messages/zh-CN';
 import type { DbTransaction } from '@/lib/services/admin-log.service';
 import { releaseDiscount } from '@/lib/services/promotion.service';
 import type { CustomerOrderListQuery } from '@/lib/validators/order';
-
-export const orderStatusLabels: Record<string, string> = {
-  pending_payment: '待支付',
-  paid: '已支付',
-  in_production: '生产中',
-  pending_shipment: '等待发货',
-  shipped: '待收货',
-  completed: '已完成',
-  cancelled: '已取消',
-  refunding: '退款中',
-  refunded: '已退款',
-};
-
-export const printStatusLabels: Record<string, string> = {
-  queued: '待排产',
-  printing: '打印中',
-  post_processing: '后处理中',
-  done: '已完成',
-  failed: '打印失败',
-};
 
 function statusFilter(
   status: CustomerOrderListQuery['status'],
