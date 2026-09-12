@@ -2,6 +2,8 @@
 
 import { RefreshCcw, TriangleAlert } from 'lucide-react';
 
+import { zhCN } from '@/messages/zh-CN';
+
 interface StorefrontErrorStateProps {
   title?: string;
   description?: string;
@@ -10,7 +12,7 @@ interface StorefrontErrorStateProps {
 
 export function StorefrontErrorState({
   title = '页面暂时没有加载出来',
-  description = '可能是网络短暂波动，请稍后重试。',
+  description = zhCN.errors.temporary,
   retry,
 }: StorefrontErrorStateProps) {
   return (
@@ -26,7 +28,7 @@ export function StorefrontErrorState({
           onClick={retry}
           className="bg-store-ink hover:bg-store-ink-hover mt-7 inline-flex h-11 items-center gap-2 rounded-full px-6 text-sm font-bold text-white transition"
         >
-          <RefreshCcw className="size-4" /> 重新加载
+          <RefreshCcw className="size-4" /> {zhCN.actions.retry}
         </button>
       </div>
     </main>

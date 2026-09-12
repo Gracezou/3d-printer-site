@@ -151,27 +151,34 @@ async function main(): Promise<void> {
     );
 
     const codePrefix = `T052${suffix}`.toUpperCase();
+    // Avoid treating freshly inserted codes as future codes when the database
+    // clock is slightly ahead of the application host running this acceptance test.
+    const activeStartsAt = new Date(Date.now() - 60_000);
     await db.insert(discountCodes).values([
       {
         promotionId: fixedPromotion.id,
         code: `${codePrefix}FIXED`,
         codeType: 'permanent',
+        startsAt: activeStartsAt,
       },
       {
         promotionId: percentagePromotion.id,
         code: `${codePrefix}PERCENT`,
         codeType: 'permanent',
+        startsAt: activeStartsAt,
       },
       {
         promotionId: freePromotion.id,
         code: `${codePrefix}FREE`,
         codeType: 'permanent',
+        startsAt: activeStartsAt,
       },
       {
         promotionId: limitedPromotion.id,
         code: `${codePrefix}LIMITED`,
         codeType: 'limited',
         maxUses: 1,
+        startsAt: activeStartsAt,
       },
       {
         promotionId: fixedPromotion.id,

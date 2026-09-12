@@ -17,17 +17,15 @@ import { DeviceSelector } from '@/components/shop/device-selector';
 import { ProductCard } from '@/components/shop/product-card';
 import { absoluteSiteUrl, getSiteOrigin, serializeJsonLd } from '@/lib/seo';
 import { getHomePageData } from '@/lib/services/storefront.service';
+import { zhCN } from '@/messages/zh-CN';
 
 export const dynamic = 'force-dynamic';
 
-const HOME_DESCRIPTION =
-  '专做墨水屏阅读器保护壳，覆盖阅星瞳、Kindle、掌阅、文石等品牌，含停产老机型。按单 3D 打印，装机复核后 7 天内发出。没有你的型号？登记意向，够人要就开模。';
-
 export const metadata: Metadata = {
   title: {
-    absolute: '书衣｜电子阅读器保护壳 · 按单打印，冷门机型也有',
+    absolute: zhCN.seo.homeTitle,
   },
-  description: HOME_DESCRIPTION,
+  description: zhCN.seo.homeDescription,
   alternates: { canonical: absoluteSiteUrl('/') },
 };
 
@@ -103,24 +101,24 @@ export default async function HomePage() {
     {
       '@context': 'https://schema.org',
       '@type': 'Organization',
-      name: '书衣',
-      alternateName: 'Bookskin',
+      name: zhCN.brand.name,
+      alternateName: zhCN.brand.englishName,
       url: siteUrl,
-      description: '为每一台阅读器做一件合身的壳。',
+      description: `${zhCN.brand.tagline}。`,
     },
     {
       '@context': 'https://schema.org',
       '@type': 'WebSite',
-      name: '书衣',
-      alternateName: 'Bookskin',
+      name: zhCN.brand.name,
+      alternateName: zhCN.brand.englishName,
       url: siteUrl,
-      description: HOME_DESCRIPTION,
+      description: zhCN.seo.homeDescription,
       inLanguage: 'zh-CN',
     },
     {
       '@context': 'https://schema.org',
       '@type': 'ItemList',
-      name: '书衣电子阅读器保护壳',
+      name: `${zhCN.brand.name}电子阅读器保护壳`,
       numberOfItems: homepageProducts.length,
       itemListElement: homepageProducts.map((product, index) => ({
         '@type': 'ListItem',
@@ -159,13 +157,14 @@ export default async function HomePage() {
         <div className="mx-auto flex min-h-[calc(100svh-72px)] max-w-7xl items-center px-5 py-14 sm:px-8 sm:py-20">
           <div className="w-full max-w-4xl">
             <p className="text-store-accent flex items-center gap-3 text-xs font-bold tracking-[0.25em]">
-              <span className="h-px w-8 bg-current" /> 书衣 · 阅读器保护壳
+              <span className="h-px w-8 bg-current" /> {zhCN.brand.name} ·
+              阅读器保护壳
             </p>
             <h1 className="mt-5 text-5xl leading-[1.03] font-semibold tracking-[-0.06em] text-balance sm:text-7xl lg:text-8xl">
-              量卷裁衣
+              {zhCN.brand.heroTitle}
             </h1>
             <p className="mt-6 max-w-2xl text-base leading-8 text-white/70 sm:text-lg">
-              为每一台电子阅读器，做一件合身的壳。新品到停产旧机，按单打印，一台也做。
+              {zhCN.brand.heroDescription}
             </p>
             <div id="choose-device" className="mt-9 max-w-3xl scroll-mt-28">
               <DeviceSelector brands={data.deviceCatalog} />
@@ -174,7 +173,7 @@ export default async function HomePage() {
         </div>
         <a
           href="#why-bookskin"
-          aria-label="继续了解书衣"
+          aria-label={`继续了解${zhCN.brand.name}`}
           className="absolute bottom-5 left-1/2 grid size-10 -translate-x-1/2 place-items-center rounded-full border border-white/15 text-white/50"
         >
           <ArrowDown className="size-4" />
@@ -275,7 +274,7 @@ export default async function HomePage() {
       <section className="bg-store-ink text-white">
         <div className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-24">
           <SectionHeading
-            eyebrow="按单生产 · 7 天内发出"
+            eyebrow={`按单生产 · ${zhCN.commerce.deliveryShort}`}
             title="一件壳怎样来到你手里"
             inverted
           />
@@ -298,8 +297,8 @@ export default async function HomePage() {
               我们不囤货。你下单之后，这件壳才进入打印队列。打印完成后会手工去除支撑、打磨接缝，再装到对应机型上复核卡扣和开孔，确认没问题才寄出。
             </p>
             <p>
-              自下单起，排产打印、去支撑打磨、装机复核与打包发货合计在 7
-              个自然日内完成。订单集中时排产可能顺延，我们会在订单状态里同步进度。
+              排产打印、去支撑打磨、装机复核与打包发货均包含在交付周期内。
+              {zhCN.commerce.deliveryExpected}。{zhCN.commerce.deliveryDelay}
             </p>
           </div>
         </div>
@@ -308,7 +307,7 @@ export default async function HomePage() {
       <section className="mx-auto grid max-w-7xl gap-10 px-5 py-16 sm:px-8 sm:py-24 lg:grid-cols-[0.55fr_1.45fr]">
         <div>
           <p className="text-store-muted text-xs font-bold tracking-[0.22em]">
-            书衣 · 电子阅读器保护壳
+            {zhCN.brand.name} · 电子阅读器保护壳
           </p>
           <h2 className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
             小众机型，也该有合身的壳
@@ -324,7 +323,7 @@ export default async function HomePage() {
           <p>
             我们用 3D
             打印按单生产，没有开模成本，一个型号只有几十个人需要也做得起。每件壳在下单后才开始打印，逐层成形，再经过手工打磨和装机复核，确认卡扣与开孔无误才发出，通常
-            7 天内完成。
+            {zhCN.commerce.deliveryComplete}。
           </p>
           <p>
             如果站内还没有你的型号，可以登记意向。同一机型的登记人数够了，我们就安排建模和打样。下一个做哪台机器，由需求决定。

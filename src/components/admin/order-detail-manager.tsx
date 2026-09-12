@@ -12,6 +12,9 @@ import {
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 
+import { notifyAdminUnauthorized } from '@/lib/admin-session-client';
+import { orderStatusLabels as statusLabels } from '@/messages/zh-CN';
+
 interface BomItem {
   material_id: string;
   material_name: string;
@@ -109,18 +112,6 @@ interface ApiEnvelope<T> {
   message: string;
 }
 
-const statusLabels: Record<string, string> = {
-  pending_payment: '待支付',
-  paid: '已支付',
-  in_production: '生产中',
-  pending_shipment: '待发货',
-  shipped: '已发货',
-  completed: '已完成',
-  cancelled: '已取消',
-  refunding: '退款中',
-  refunded: '已退款',
-};
-
 function formatDate(value: string | null): string {
   if (!value) return '—';
   return new Intl.DateTimeFormat('zh-CN', {
@@ -139,7 +130,7 @@ async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
   });
   const body = (await response.json()) as ApiEnvelope<T>;
   if (response.status === 401) {
-    window.location.assign('/admin/login');
+    notifyAdminUnauthorized();
     throw new Error('后台登录已失效');
   }
   if (!response.ok || body.data === null)

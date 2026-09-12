@@ -23,7 +23,15 @@ const nullableUrl = z
 
 const productFields = {
   categoryId: z.string().uuid().nullable().optional(),
-  name: z.string().trim().min(1, '商品名称不能为空').max(120),
+  name: z
+    .string()
+    .trim()
+    .min(1, '商品名称不能为空')
+    .max(120)
+    .refine(
+      (value) => !/(?:官方|原装|授权)/u.test(value),
+      '商品名称不得暗示第三方官方出品、原装或授权',
+    ),
   slug: z
     .string()
     .trim()

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 
 import { CheckoutManager } from '@/components/shop/checkout-manager';
+import { zhCN } from '@/messages/zh-CN';
 
 export const metadata: Metadata = { title: '确认订单' };
 
@@ -14,8 +15,8 @@ export default function CheckoutPage() {
         确认订单
       </h1>
       <div className="bg-store-mist mt-6 rounded-2xl p-4 text-sm leading-6 text-stone-600">
-        商品将在下单后排产打印、去支撑打磨并完成装机复核，7
-        个自然日内发出。订单集中时排产可能顺延，进度会同步到订单状态。
+        商品下单后将排产打印、去支撑打磨并完成装机复核。
+        {zhCN.commerce.deliveryExpected}。{zhCN.commerce.deliveryDelay}
       </div>
       <div className="mt-9">
         <CheckoutManager />

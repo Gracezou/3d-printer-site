@@ -12,6 +12,9 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
+import { notifyAdminUnauthorized } from '@/lib/admin-session-client';
+import { printStatusLabels } from '@/messages/zh-CN';
+
 interface JobMaterial {
   id: string;
   name: string;
@@ -53,15 +56,31 @@ interface ApiEnvelope<T> {
 }
 
 const columns = [
-  { status: 'queued', label: '待排产', tone: 'bg-slate-100 text-slate-700' },
-  { status: 'printing', label: '打印中', tone: 'bg-blue-100 text-blue-700' },
+  {
+    status: 'queued',
+    label: printStatusLabels.queued,
+    tone: 'bg-slate-100 text-slate-700',
+  },
+  {
+    status: 'printing',
+    label: printStatusLabels.printing,
+    tone: 'bg-blue-100 text-blue-700',
+  },
   {
     status: 'post_processing',
-    label: '后处理',
+    label: printStatusLabels.post_processing,
     tone: 'bg-violet-100 text-violet-700',
   },
-  { status: 'done', label: '已完成', tone: 'bg-emerald-100 text-emerald-700' },
-  { status: 'failed', label: '失败', tone: 'bg-rose-100 text-rose-700' },
+  {
+    status: 'done',
+    label: printStatusLabels.done,
+    tone: 'bg-emerald-100 text-emerald-700',
+  },
+  {
+    status: 'failed',
+    label: printStatusLabels.failed,
+    tone: 'bg-rose-100 text-rose-700',
+  },
 ] as const;
 
 function formatDate(value: string): string {
@@ -83,7 +102,7 @@ async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
   });
   const body = (await response.json()) as ApiEnvelope<T>;
   if (response.status === 401) {
-    window.location.assign('/admin/login');
+    notifyAdminUnauthorized();
     throw new Error('后台登录已失效');
   }
   if (!response.ok || body.data === null)

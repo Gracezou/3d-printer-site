@@ -25,6 +25,8 @@ import {
   type ReactNode,
 } from 'react';
 
+import { notifyAdminUnauthorized } from '@/lib/admin-session-client';
+
 interface CategoryNode {
   id: string;
   parentId: string | null;
@@ -64,7 +66,7 @@ async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
   });
   const result = (await response.json()) as ApiEnvelope<T>;
   if (!response.ok || result.data === null) {
-    if (response.status === 401) window.location.assign('/admin/login');
+    if (response.status === 401) notifyAdminUnauthorized();
     throw new Error(result.message || '请求失败');
   }
   return result.data;

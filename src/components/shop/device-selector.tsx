@@ -2,7 +2,7 @@
 
 import { ArrowRight, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { type KeyboardEvent, useMemo, useState } from 'react';
 
 interface DeviceOption {
   id: string;
@@ -38,6 +38,7 @@ export function DeviceSelector({ brands }: DeviceSelectorProps) {
   const [brandId, setBrandId] = useState(brands[0]?.id ?? '');
   const [modelId, setModelId] = useState('');
   const [query, setQuery] = useState('');
+  const [activeMatchIndex, setActiveMatchIndex] = useState(-1);
   const selectedBrand = brands.find((brand) => brand.id === brandId);
   const selectedModel = selectedBrand?.models.find(
     (model) => model.id === modelId,
@@ -55,6 +56,32 @@ export function DeviceSelector({ brands }: DeviceSelectorProps) {
 
   function goToDevice(brandSlug: string, modelSlug: string): void {
     router.push(`/devices/${brandSlug}/${modelSlug}`);
+  }
+
+  function handleSearchKeyDown(event: KeyboardEvent<HTMLInputElement>): void {
+    if (event.key === 'Escape') {
+      setQuery('');
+      setActiveMatchIndex(-1);
+      return;
+    }
+    if (!matches.length) return;
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setActiveMatchIndex((current) => (current + 1) % matches.length);
+      return;
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setActiveMatchIndex((current) =>
+        current <= 0 ? matches.length - 1 : current - 1,
+      );
+      return;
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      const match = matches[activeMatchIndex] ?? matches[0];
+      if (match) goToDevice(match.brand.slug, match.model.slug);
+    }
   }
 
   return (
@@ -120,10 +147,19 @@ export function DeviceSelector({ brands }: DeviceSelectorProps) {
                 aria-autocomplete="list"
                 aria-haspopup="listbox"
                 value={query}
-                onChange={(event) => setQuery(event.target.value)}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setActiveMatchIndex(0);
+                }}
+                onKeyDown={handleSearchKeyDown}
                 placeholder="输入品牌或型号，比如 阅星瞳 X4"
                 aria-controls="device-search-results"
                 aria-expanded={matches.length > 0}
+                aria-activedescendant={
+                  matches[activeMatchIndex]
+                    ? `device-search-option-${matches[activeMatchIndex].model.id}`
+                    : undefined
+                }
                 className="h-12 w-full rounded-2xl border border-white/12 bg-black/15 pr-4 pl-11 text-sm text-white outline-none placeholder:text-white/40 focus:border-white/35 focus:ring-2 focus:ring-white/10"
               />
             </label>
@@ -135,13 +171,15 @@ export function DeviceSelector({ brands }: DeviceSelectorProps) {
                 className="absolute top-[calc(100%+0.5rem)] right-0 left-0 z-20 overflow-hidden rounded-2xl border border-stone-900/10 bg-white p-2 text-stone-900 shadow-2xl"
               >
                 {matches.length ? (
-                  matches.map(({ brand, model }) => (
+                  matches.map(({ brand, model }, index) => (
                     <button
                       key={model.id}
+                      id={`device-search-option-${model.id}`}
                       type="button"
                       role="option"
-                      aria-selected="false"
+                      aria-selected={index === activeMatchIndex}
                       onClick={() => goToDevice(brand.slug, model.slug)}
+                      onMouseEnter={() => setActiveMatchIndex(index)}
                       className="flex w-full items-center justify-between gap-4 rounded-xl px-3 py-3 text-left hover:bg-stone-100 focus:bg-stone-100"
                     >
                       <span>

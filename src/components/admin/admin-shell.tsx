@@ -20,7 +20,9 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+
+import { ADMIN_UNAUTHORIZED_EVENT } from '@/lib/admin-session-client';
 
 interface AdminShellProps {
   admin: {
@@ -100,6 +102,16 @@ export function AdminShell({ admin, children }: AdminShellProps) {
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+
+  useEffect(() => {
+    const redirectToLogin = () => {
+      router.replace('/admin/login');
+      router.refresh();
+    };
+    window.addEventListener(ADMIN_UNAUTHORIZED_EVENT, redirectToLogin);
+    return () =>
+      window.removeEventListener(ADMIN_UNAUTHORIZED_EVENT, redirectToLogin);
+  }, [router]);
 
   async function logout(): Promise<void> {
     setLoggingOut(true);

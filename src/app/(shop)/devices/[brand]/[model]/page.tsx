@@ -16,6 +16,7 @@ import { StorefrontEmptyState } from '@/components/shop/storefront-states';
 import { BizError } from '@/lib/errors';
 import { absoluteSiteUrl, serializeJsonLd } from '@/lib/seo';
 import { getPublicDeviceDetail } from '@/lib/services/device.service';
+import { zhCN } from '@/messages/zh-CN';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,7 +39,7 @@ export async function generateMetadata({
   const { brand, model } = await params;
   const device = await findDevice(brand, model);
   if (!device) return { title: '机型不存在' };
-  const title = `${device.brandName}${device.name} 保护壳｜书衣`;
+  const title = `${device.brandName}${device.name} 保护壳｜${zhCN.brand.name}`;
   const description = `查找适用于 ${device.brandName} ${device.name} 的电子阅读器保护壳；没有现成款式时，可登记开模意向。`;
   const url = absoluteSiteUrl(`/devices/${device.brandSlug}/${device.slug}`);
   return {
@@ -182,7 +183,7 @@ export default async function DevicePage({ params }: DevicePageProps) {
                 <div>
                   <dt className="text-xs text-stone-400">交付说明</dt>
                   <dd className="mt-1 text-sm font-semibold">
-                    下单后 7 个自然日内发出
+                    {zhCN.commerce.deliveryExpected}
                   </dd>
                 </div>
               </div>

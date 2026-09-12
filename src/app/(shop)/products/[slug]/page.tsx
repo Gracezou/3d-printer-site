@@ -11,6 +11,7 @@ import { BizError } from '@/lib/errors';
 import { getProductSpecLabel } from '@/lib/display-labels';
 import { absoluteSiteUrl, serializeJsonLd } from '@/lib/seo';
 import { getStorefrontProductBySlug } from '@/lib/services/storefront.service';
+import { zhCN } from '@/messages/zh-CN';
 
 export const revalidate = 60;
 
@@ -47,7 +48,7 @@ export async function generateMetadata({
     openGraph: {
       type: 'website',
       url,
-      title: `${product.name}｜书衣`,
+      title: `${product.name}｜${zhCN.brand.name}`,
       description,
       images: product.mainImageUrl ? [product.mainImageUrl] : undefined,
     },
@@ -87,7 +88,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
       description,
       image: uniqueImages,
       url: productUrl,
-      brand: { '@type': 'Brand', name: '书衣' },
+      brand: { '@type': 'Brand', name: zhCN.brand.name },
       offers: product.variants.map((variant) => ({
         '@type': 'Offer',
         url: productUrl,
@@ -233,16 +234,13 @@ export default async function ProductPage({ params }: ProductPageProps) {
               <div className="grid grid-cols-[7rem_1fr] gap-4 py-4">
                 <dt className="text-stone-400">预计发货</dt>
                 <dd className="text-right font-medium text-stone-700">
-                  下单后 7 个自然日内发出
+                  {zhCN.commerce.deliveryExpected}
                 </dd>
               </div>
             </dl>
             <div className="bg-store-mist mt-8 rounded-2xl p-5 text-sm leading-7 text-stone-600">
               <h3 className="font-semibold text-stone-900">配送与售后</h3>
-              <p className="mt-2">
-                3D
-                打印作品可能存在轻微层纹，这是逐层成型工艺的正常特征。运输损坏或质量问题请在签收后及时联系我们。
-              </p>
+              <p className="mt-2">{zhCN.commerce.afterSales}</p>
             </div>
           </div>
         </div>

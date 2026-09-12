@@ -18,5 +18,7 @@ run test:customer-orders
 run test:admin-orders
 run test:production
 run test:admin-access
+run test:devices
+run test:model-requests
 
-printf '\nAll v0.1 acceptance checks passed.\n'
+printf '\nAll acceptance checks passed.\n'

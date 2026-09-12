@@ -15,6 +15,7 @@ import {
   CHECKOUT_STORAGE_KEY,
   type CheckoutSelection,
 } from '@/lib/checkout-storage';
+import { zhCN } from '@/messages/zh-CN';
 
 interface Address {
   id: string;
@@ -502,7 +503,7 @@ export function CheckoutManager() {
             </dd>
           </div>
           <div className="flex justify-between">
-            <dt className="text-white/60">运费</dt>
+            <dt className="text-white/60">{zhCN.commerce.shippingFee}</dt>
             <dd>
               {addressId
                 ? `¥${preview?.shippingAmount ?? '--'}`
@@ -512,9 +513,11 @@ export function CheckoutManager() {
           {addressId && preview?.shipping ? (
             <p className="text-right text-xs leading-5 text-white/45">
               {preview.shipping.reason === 'threshold'
-                ? `商品满 ¥${preview.shipping.freeThreshold}，已包邮`
+                ? zhCN.commerce.freeShippingThreshold(
+                    preview.shipping.freeThreshold,
+                  )
                 : preview.shipping.reason === 'discount_code'
-                  ? '优惠码已免除运费'
+                  ? zhCN.commerce.freeShippingByCode
                   : `按“${preview.shipping.ruleName}”计算`}
             </p>
           ) : null}

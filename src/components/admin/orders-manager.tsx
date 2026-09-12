@@ -13,6 +13,9 @@ import {
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 
+import { notifyAdminUnauthorized } from '@/lib/admin-session-client';
+import { orderStatusLabels as statusLabels } from '@/messages/zh-CN';
+
 interface OrderListItem {
   id: string;
   orderNo: string;
@@ -40,18 +43,6 @@ interface ApiEnvelope<T> {
   data: T | null;
   message: string;
 }
-
-const statusLabels: Record<string, string> = {
-  pending_payment: '待支付',
-  paid: '已支付',
-  in_production: '生产中',
-  pending_shipment: '待发货',
-  shipped: '已发货',
-  completed: '已完成',
-  cancelled: '已取消',
-  refunding: '退款中',
-  refunded: '已退款',
-};
 
 const statusStyles: Record<string, string> = {
   pending_payment: 'bg-amber-50 text-amber-700',
@@ -109,7 +100,7 @@ export function OrdersManager({ canExport }: { canExport: boolean }) {
       });
       const body = (await response.json()) as ApiEnvelope<ListResult>;
       if (response.status === 401) {
-        window.location.assign('/admin/login');
+        notifyAdminUnauthorized();
         return;
       }
       if (!response.ok || !body.data) throw new Error(body.message);

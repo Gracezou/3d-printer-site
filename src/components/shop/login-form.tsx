@@ -3,6 +3,8 @@
 import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
+import { zhCN } from '@/messages/zh-CN';
+
 interface LoginFormProps {
   returnTo: string;
 }
@@ -38,7 +40,7 @@ export function LoginForm({ returnTo }: LoginFormProps) {
       setCodeSent(true);
       setMessage('验证码已发送');
     } catch {
-      setMessage('网络异常，请稍后再试');
+      setMessage(zhCN.errors.network);
     } finally {
       setLoading(false);
     }
@@ -62,7 +64,7 @@ export function LoginForm({ returnTo }: LoginFormProps) {
       router.replace(returnTo);
       router.refresh();
     } catch {
-      setMessage('网络异常，请稍后再试');
+      setMessage(zhCN.errors.network);
     } finally {
       setLoading(false);
     }
