@@ -7,10 +7,11 @@ const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
 export const metadata: Metadata = {
   metadataBase: new URL(configuredSiteUrl ?? 'http://localhost:5003'),
   title: {
-    default: '层光造物 · 3D 打印成品店',
-    template: '%s | 层光造物',
+    default: '书衣｜电子阅读器保护壳',
+    template: '%s｜书衣',
   },
-  description: '精选设计，按单生产的 3D 打印成品独立站。',
+  description:
+    '为每一台阅读器做一件合身的壳。按单打印，冷门机型与停产老款也做。',
   robots: { index: true, follow: true },
 };
 

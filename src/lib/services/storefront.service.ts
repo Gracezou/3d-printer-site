@@ -23,6 +23,7 @@ import {
 import { BizError } from '@/lib/errors';
 import type { StorefrontProductListQuery } from '@/lib/validators/storefront';
 import { storefrontCacheTags } from '@/lib/storefront-cache';
+import { getPublicDeviceCatalog } from '@/lib/services/device.service';
 
 export interface StorefrontBanner {
   title: string;
@@ -142,25 +143,6 @@ const getHomeBanners = unstable_cache(
   { revalidate: 60, tags: [storefrontCacheTags.banners] },
 );
 
-async function loadHomeCategories() {
-  return getDb()
-    .select({
-      id: categories.id,
-      name: categories.name,
-      slug: categories.slug,
-      imageUrl: categories.imageUrl,
-    })
-    .from(categories)
-    .where(and(eq(categories.isVisible, true), isNull(categories.parentId)))
-    .orderBy(asc(categories.sortOrder), asc(categories.createdAt));
-}
-
-const getHomeCategories = unstable_cache(
-  loadHomeCategories,
-  ['storefront-home-categories'],
-  { revalidate: 60, tags: [storefrontCacheTags.categories] },
-);
-
 function homeOnSaleFilter() {
   return and(eq(products.status, 'on_sale'), isNull(products.deletedAt));
 }
@@ -206,16 +188,43 @@ export function excludeFeaturedProducts(
     .slice(0, limit);
 }
 
+export function hasPostgresErrorCode(error: unknown, code: string): boolean {
+  const seen = new Set<object>();
+  let current = error;
+
+  while (typeof current === 'object' && current !== null) {
+    if (seen.has(current)) return false;
+    seen.add(current);
+
+    if ('code' in current && current.code === code) return true;
+    current = 'cause' in current ? current.cause : undefined;
+  }
+
+  return false;
+}
+
+async function getHomeDeviceCatalog() {
+  try {
+    return await getPublicDeviceCatalog();
+  } catch (error: unknown) {
+    // Keep the storefront usable while the reviewed migration is rolling out.
+    // Other database failures must still surface instead of being hidden.
+    if (hasPostgresErrorCode(error, '42P01')) {
+      return [];
+    }
+    throw error;
+  }
+}
+
 export async function getHomePageData() {
   // Keep the individual datasets independently invalidatable. The extra newest
   // rows allow featured products to be removed without under-filling the section.
-  const [banners, siteInfo, categoryRows, featuredProducts, newestCandidates] =
+  const [banners, featuredProducts, newestCandidates, deviceCatalog] =
     await Promise.all([
       getHomeBanners(),
-      getStorefrontSiteInfo(),
-      getHomeCategories(),
       getFeaturedProducts(),
       getNewestProducts(),
+      getHomeDeviceCatalog(),
     ]);
   const newestProducts = excludeFeaturedProducts(
     featuredProducts,
@@ -224,10 +233,9 @@ export async function getHomePageData() {
 
   return {
     banners,
-    siteInfo,
-    categories: categoryRows,
     featuredProducts,
     newestProducts,
+    deviceCatalog,
   };
 }
 
