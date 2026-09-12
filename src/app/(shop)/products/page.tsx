@@ -1,14 +1,24 @@
 import type { Metadata } from 'next';
 
 import { ProductListing } from '@/components/shop/product-listing';
+import { absoluteSiteUrl } from '@/lib/seo';
 import { storefrontProductListQuerySchema } from '@/lib/validators/storefront';
 
 export const revalidate = 60;
 
+const PRODUCTS_DESCRIPTION =
+  '浏览书衣为 Kindle、文石、掌阅、阅星瞳等电子阅读器制作的 3D 打印保护壳，支持冷门及停产机型按需开模。';
+
 export const metadata: Metadata = {
-  title: '全部作品',
-  description: '浏览全部在售 3D 打印作品，按分类、价格与打印材质筛选。',
-  alternates: { canonical: '/products' },
+  title: '电子阅读器保护壳',
+  description: PRODUCTS_DESCRIPTION,
+  alternates: { canonical: absoluteSiteUrl('/products') },
+  openGraph: {
+    type: 'website',
+    url: absoluteSiteUrl('/products'),
+    title: '电子阅读器保护壳｜书衣',
+    description: PRODUCTS_DESCRIPTION,
+  },
 };
 
 interface ProductsPageProps {
@@ -32,9 +42,9 @@ export default async function ProductsPage({
 
   return (
     <ProductListing
-      eyebrow="全部作品"
-      title="全部作品"
-      description="从桌面摆件到实用家居，每一件作品都按需打印、逐件检查后发出。"
+      eyebrow="全部机型"
+      title="电子阅读器保护壳"
+      description="按设备寻找合身的保护壳。每一件都按单打印，并在装机复核后发出。"
       query={query}
     />
   );

@@ -9,6 +9,7 @@ import { ProductGallery } from '@/components/shop/product-gallery';
 import { ProductPurchasePanel } from '@/components/shop/product-purchase-panel';
 import { BizError } from '@/lib/errors';
 import { getProductSpecLabel } from '@/lib/display-labels';
+import { absoluteSiteUrl, serializeJsonLd } from '@/lib/seo';
 import { getStorefrontProductBySlug } from '@/lib/services/storefront.service';
 
 export const revalidate = 60;
@@ -36,14 +37,18 @@ export async function generateMetadata({
   const { slug } = await params;
   const product = await findProduct(slug);
   if (!product) return { title: '商品不存在' };
+  const description =
+    product.subtitle ?? `${product.name}，按单生产的电子阅读器保护壳。`;
+  const url = absoluteSiteUrl(`/products/${product.slug}`);
   return {
     title: product.name,
-    description:
-      product.subtitle ?? `${product.name}，按单生产的 3D 打印作品。`,
-    alternates: { canonical: `/products/${product.slug}` },
+    description,
+    alternates: { canonical: url },
     openGraph: {
-      title: product.name,
-      description: product.subtitle ?? undefined,
+      type: 'website',
+      url,
+      title: `${product.name}｜书衣`,
+      description,
       images: product.mainImageUrl ? [product.mainImageUrl] : undefined,
     },
   };
@@ -58,6 +63,53 @@ export default async function ProductPage({ params }: ProductPageProps) {
     (image): image is string => Boolean(image),
   );
   const uniqueImages = [...new Set(images)];
+  const productUrl = absoluteSiteUrl(`/products/${product.slug}`);
+  const description =
+    product.subtitle ?? `${product.name}，按单生产的电子阅读器保护壳。`;
+  const breadcrumbItems = [
+    { name: '首页', url: absoluteSiteUrl('/') },
+    { name: '全部机型', url: absoluteSiteUrl('/products') },
+    ...(product.categoryName && product.categorySlug
+      ? [
+          {
+            name: product.categoryName,
+            url: absoluteSiteUrl(`/category/${product.categorySlug}`),
+          },
+        ]
+      : []),
+    { name: product.name, url: productUrl },
+  ];
+  const structuredData = [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'Product',
+      name: product.name,
+      description,
+      image: uniqueImages,
+      url: productUrl,
+      brand: { '@type': 'Brand', name: '书衣' },
+      offers: product.variants.map((variant) => ({
+        '@type': 'Offer',
+        url: productUrl,
+        sku: variant.skuCode,
+        name: variant.name,
+        price: variant.price,
+        priceCurrency: 'CNY',
+        availability: 'https://schema.org/InStock',
+        itemCondition: 'https://schema.org/NewCondition',
+      })),
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: breadcrumbItems.map((item, index) => ({
+        '@type': 'ListItem',
+        position: index + 1,
+        name: item.name,
+        item: item.url,
+      })),
+    },
+  ];
   const ModelPreviewLauncher = product.modelPreviewUrl
     ? (await import('@/components/shop/model-preview-launcher'))
         .ModelPreviewLauncher
@@ -65,6 +117,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
   return (
     <main>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(structuredData) }}
+      />
       <div className="mx-auto max-w-7xl px-5 py-6 sm:px-8">
         <nav
           aria-label="面包屑"
@@ -75,7 +131,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
           </Link>
           <span>/</span>
           <Link href="/products" className="hover:text-stone-800">
-            全部作品
+            全部机型
           </Link>
           {product.categoryName && product.categorySlug ? (
             <>

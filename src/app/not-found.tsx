@@ -9,14 +9,14 @@ export default function NotFound() {
       <StorefrontEmptyState
         className="w-full"
         title="没有找到这个页面"
-        description="链接可能已经失效，或者这件作品暂时没有上架。"
+        description="链接可能已经失效，或这个机型暂未收录。可以回到首页按品牌、型号或别名重新搜索。"
         action={
           <div className="flex flex-wrap justify-center gap-3">
             <Link
-              href="/products"
+              href="/#choose-device"
               className="bg-store-ink inline-flex h-11 items-center gap-2 rounded-full px-6 text-sm font-bold text-white"
             >
-              <Search className="size-4" /> 浏览全部机型
+              <Search className="size-4" /> 搜索设备机型
             </Link>
             <Link
               href="/"

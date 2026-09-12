@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
 import { ProductListing } from '@/components/shop/product-listing';
+import { absoluteSiteUrl } from '@/lib/seo';
 import { getStorefrontCategoryBySlug } from '@/lib/services/storefront.service';
 import { storefrontProductListQuerySchema } from '@/lib/validators/storefront';
 
@@ -21,7 +22,9 @@ export async function generateMetadata({
   return {
     title: category.name,
     description: `浏览${category.name}分类下的 3D 打印作品。`,
-    alternates: { canonical: `/category/${category.slug}` },
+    alternates: {
+      canonical: absoluteSiteUrl(`/category/${category.slug}`),
+    },
   };
 }
 

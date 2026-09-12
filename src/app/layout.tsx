@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
 
+import { getSiteOrigin } from '@/lib/seo';
+
 import './globals.css';
 
-const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
-
 export const metadata: Metadata = {
-  metadataBase: new URL(configuredSiteUrl ?? 'http://localhost:5003'),
+  metadataBase: new URL(getSiteOrigin()),
   title: {
     default: '书衣｜电子阅读器保护壳',
     template: '%s｜书衣',
