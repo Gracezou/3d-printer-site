@@ -199,7 +199,7 @@ async function main(): Promise<void> {
     printState('变更前状态：', await loadState(sql));
     if (command === 'preview') {
       process.stdout.write(
-        '预览完成：应用后会软删除氛围灯，并创建未上架的 X3 保护壳草稿；不会删除历史订单。\n',
+        '预览完成：应用后会软删除氛围灯，并在缺少时创建 X3 保护壳草稿；已存在的 X3 商品不会被降级或覆盖。\n',
       );
       return;
     }
@@ -209,7 +209,8 @@ async function main(): Promise<void> {
     if (
       !after.legacyProduct[0]?.deleted_at ||
       after.x3Model.length !== 1 ||
-      after.x3Product[0]?.status !== 'draft' ||
+      !after.x3Product[0] ||
+      after.x3Product[0].deleted_at !== null ||
       after.x3Product[0]?.device_link_count !== 1 ||
       after.x3Product[0]?.category_slug !== 'ereader-cases'
     ) {

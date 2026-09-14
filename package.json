@@ -30,6 +30,8 @@
     "devices:seed": "dotenv -e .env.dev -- tsx scripts/device-catalog.ts apply",
     "catalog:x3:preview": "dotenv -e .env.dev -- tsx scripts/replace-lamp-with-x3.ts preview",
     "catalog:x3:apply": "dotenv -e .env.dev -- tsx scripts/replace-lamp-with-x3.ts apply",
+    "catalog:x3:test:preview": "dotenv -e .env.dev -- tsx scripts/publish-x3-feasibility-product.ts preview",
+    "catalog:x3:test:apply": "dotenv -e .env.dev -- tsx scripts/publish-x3-feasibility-product.ts apply",
     "preprod:data:check": "dotenv -e .env.production -- tsx scripts/preprod-data.ts check",
     "preprod:data:reset": "dotenv -e .env.production -- tsx scripts/preprod-data.ts reset",
     "test:inventory": "dotenv -e .env.dev -- tsx scripts/test-inventory-sql.ts",
