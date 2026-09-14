@@ -67,6 +67,29 @@ export const deviceSeedBrands: DeviceSeedBrand[] = [
 
 export const deviceSeedModels: DeviceSeedModel[] = [
   {
+    id: '22000000-0000-4000-8000-000000000105',
+    brandSlug: 'xteink',
+    name: 'X3',
+    slug: 'x3',
+    aliases: ['XTEINK X3', '阅星瞳 X3', '小鼻嘎 X3'],
+    releaseYear: 2026,
+    isDiscontinued: false,
+    isMolded: false,
+    dimensions: {
+      widthMm: 63.7,
+      heightMm: 97.6,
+      thicknessMm: 5.1,
+      weightGrams: 58,
+    },
+    compatGroup: null,
+    notes:
+      '3.7 英寸版本，带实体翻页键、NFC 与磁吸 Pogo Pin 充电。保护壳尚未完成销售参数配置；正式开模和上架前必须用实机复核按键、卡槽、磁吸件与充电触点位置。',
+    sourceUrl: 'https://www.xteink.com/products/xteink-x3',
+    sourceLabel: 'XTEINK 官方产品页',
+    sortOrder: 5,
+    isVisible: true,
+  },
+  {
     id: '22000000-0000-4000-8000-000000000101',
     brandSlug: 'xteink',
     name: 'X4 Classic（X4 V2）',

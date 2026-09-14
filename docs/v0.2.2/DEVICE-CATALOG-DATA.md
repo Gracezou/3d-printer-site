@@ -1,6 +1,6 @@
 # v0.2.2 首批机型数据说明
 
-> 更新日期：2026-09-11  
+> 更新日期：2026-09-14  
 > 用途：T152 首批机型数据的审查、写入与复核依据
 
 ## 执行原则
@@ -15,6 +15,7 @@
 
 | 品牌 | 型号 | 年份 | 外形尺寸（高 × 宽 × 厚） | 重量 | 资料来源 |
 |---|---|---:|---|---:|---|
+| 阅星瞳 / XTEINK | X3 | 2026 | 97.6 × 63.7 × 5.1 mm | 58 g | [XTEINK 官方产品页](https://www.xteink.com/products/xteink-x3) |
 | 阅星瞳 / XTEINK | X4 Classic（X4 V2） | 2026 | 114 × 69 × 4.9 mm | 68 g | [XTEINK 官方产品页](https://www.xteink.com/products/xteink-x4-classic-pocket-ereader) |
 | Kindle | Paperwhite（第 11 代，2021） | 2021 | 174.2 × 124.6 × 8.1 mm | 205 g | [Amazon 官方机型识别页](https://www.amazon.com/gp/help/customer/display.html?nodeId=GK33S847NN4V6Y83) |
 | 掌阅 / iReader | Ocean 4 Turbo（2025） | 2025 | 154.2 × 136 × 4–7.8 mm | 179 g | [中关村在线产品参数页](https://detail.zol.com.cn/ebook/index2114646.shtml)（基于官方发布信息汇总） |
@@ -36,4 +37,4 @@ pnpm devices:seed:preview
 CONFIRM_DEVICE_CATALOG_SEED=SEED_V022_DEVICE_CATALOG pnpm devices:seed
 ```
 
-脚本会输出数据库主机和库名、检查 `device_brands` 表是否存在，在单个事务中写入数据，并在提交后核对四个机型是否齐全。
+脚本会输出数据库主机和库名、检查 `device_brands` 表是否存在，在单个事务中写入数据，并在提交后核对五个机型是否齐全。
