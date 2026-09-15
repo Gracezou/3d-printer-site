@@ -19,6 +19,7 @@ import { createOrder } from '@/lib/services/order.service';
 
 async function main() {
   const db = getDb();
+  const location = process.env['MEASURE_LOCATION'] ?? 'unknown';
   const suffix = crypto.randomUUID().replaceAll('-', '').slice(0, 10);
   const userIds = Array.from({ length: 10 }, () => crypto.randomUUID());
   let productId = '';
@@ -88,6 +89,7 @@ async function main() {
     });
     assert.equal((await getByVariantIds([variant!.id]))[0]?.availableQty, 5);
 
+    const startedAt = performance.now();
     const results = await Promise.allSettled(
       userIds.map((userId) =>
         createOrder(userId, {
@@ -97,6 +99,7 @@ async function main() {
         }),
       ),
     );
+    const elapsedMs = performance.now() - startedAt;
     const successes = results.filter(
       (
         result,
@@ -119,8 +122,26 @@ async function main() {
       .where(eq(materials.id, materialId));
     assert.equal(stock!.reservedGrams, '50.00');
     assert.equal((await getByVariantIds([variant!.id]))[0]?.availableQty, 0);
+    const persistedOrders = await db
+      .select({ id: orders.id })
+      .from(orders)
+      .where(inArray(orders.userId, userIds));
+    assert.equal(persistedOrders.length, 5, '失败事务不能残留订单或重复订单');
     process.stdout.write(
-      'Order concurrency acceptance passed: 10 simultaneous orders for quantity 5 produced exactly 5 successes, 5 inventory errors, and no oversell.\n',
+      `${JSON.stringify({
+        schemaVersion: 1,
+        measuredAt: new Date().toISOString(),
+        location,
+        elapsedMs: Math.round(elapsedMs * 100) / 100,
+        requestCount: results.length,
+        initialAvailableQty: 5,
+        successCount: successes.length,
+        inventoryErrorCount: failures.length,
+        persistedOrderCount: persistedOrders.length,
+        reservedGrams: stock!.reservedGrams,
+        finalAvailableQty: 0,
+        oversold: false,
+      })}\n`,
     );
   } finally {
     const createdOrders = await db

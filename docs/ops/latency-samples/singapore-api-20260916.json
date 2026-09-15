@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "measuredAt": "2026-09-15T16:15:51.421Z",
+  "location": "singapore",
+  "baseUrl": "http://127.0.0.1:3001",
+  "warmupSamples": 5,
+  "sampleCount": 30,
+  "results": [
+    { "label": "product_list", "p50Ms": 16.12, "p95Ms": 28.07, "p99Ms": 31.8, "serverP95Ms": 14.4 },
+    { "label": "x3_product_detail", "p50Ms": 14.16, "p95Ms": 15.89, "p99Ms": 16.03, "serverP95Ms": 9.8 },
+    { "label": "x3_live_availability", "p50Ms": 14.57, "p95Ms": 19.43, "p99Ms": 23.68, "serverP95Ms": 10.4 },
+    { "label": "authenticated_cart", "p50Ms": 90.7, "p95Ms": 215.53, "p99Ms": 361.95, "serverP95Ms": 209.4 },
+    { "label": "x3_device_detail", "p50Ms": 23.93, "p95Ms": 28, "p99Ms": 31.15, "serverP95Ms": 19.1 }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "measuredAt": "2026-09-15T16:39:04.173Z",
+  "location": "shanghai",
+  "elapsedMs": 5842.2,
+  "requestCount": 10,
+  "initialAvailableQty": 5,
+  "successCount": 5,
+  "inventoryErrorCount": 5,
+  "persistedOrderCount": 5,
+  "reservedGrams": "50.00",
+  "finalAvailableQty": 0,
+  "oversold": false
+}

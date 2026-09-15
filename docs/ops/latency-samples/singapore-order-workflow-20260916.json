@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "measuredAt": "2026-09-15T16:37:55.162Z",
+  "location": "singapore",
+  "sampleCount": 30,
+  "successCount": 30,
+  "errorCount": 0,
+  "workflow": { "p50Ms": 606.3, "p95Ms": 787.24, "p99Ms": 907.02, "minMs": 351.74, "maxMs": 907.02 },
+  "phases": {
+    "cartAdd": { "p50Ms": 236.18, "p95Ms": 272.31, "p99Ms": 389.48 },
+    "orderPreview": { "p50Ms": 202.85, "p95Ms": 213.78, "p99Ms": 241.33 },
+    "orderCreate": { "p50Ms": 171.6, "p95Ms": 363.98, "p99Ms": 424.89 }
+  }
+}
