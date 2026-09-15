@@ -24,6 +24,8 @@ fi
 install -d -m 0700 -o root -g root "$deploy_dir"
 install -m 0600 -o root -g root "$source_dir/compose.yaml" "$deploy_dir/compose.yaml"
 install -m 0700 -o root -g root "$source_dir/release.sh" "$deploy_dir/release.sh"
+install -m 0600 -o root -g root "$source_dir/compose.low-memory.yaml" "$deploy_dir/compose.low-memory.yaml"
+install -m 0700 -o root -g root "$source_dir/release-low-memory.sh" "$deploy_dir/release-low-memory.sh"
 install -m 0644 -o root -g root "$source_dir/server/nginx-site.conf" /etc/nginx/sites-available/3d-printer-site.conf
 if [[ ! -e /etc/nginx/conf.d/3d-printer-site-upstream.conf ]]; then
   install -m 0644 -o root -g root "$source_dir/server/nginx-upstream.conf" /etc/nginx/conf.d/3d-printer-site-upstream.conf

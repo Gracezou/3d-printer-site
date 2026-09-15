@@ -33,6 +33,7 @@
     "catalog:x3:test:preview": "dotenv -e .env.dev -- tsx scripts/publish-x3-feasibility-product.ts preview",
     "catalog:x3:test:apply": "dotenv -e .env.dev -- tsx scripts/publish-x3-feasibility-product.ts apply",
     "latency:db": "node scripts/measure-db-latency.mjs",
+    "test:deploy:low-memory": "bash -n deploy/release-low-memory.sh && APP_IMAGE=ghcr.io/example/example:sha-0000000 docker compose -f deploy/compose.yaml -f deploy/compose.low-memory.yaml config --quiet",
     "preprod:data:check": "dotenv -e .env.production -- tsx scripts/preprod-data.ts check",
     "preprod:data:reset": "dotenv -e .env.production -- tsx scripts/preprod-data.ts reset",
     "test:inventory": "dotenv -e .env.dev -- tsx scripts/test-inventory-sql.ts",
