@@ -3,7 +3,7 @@
 Next.js 15 + PostgreSQL/Supabase 实现的 3D 打印成品商城，包含商品、多耗材 BOM、实时可售库存、购物车、订单、优惠、支付、生产、物流、退款和权限化管理后台。
 
 > [!WARNING]
-> v0.2.1 当前用于境外预生产 Beta 验证，只允许受邀测试者和支付宝沙箱交易。测试者应使用专用邮箱与虚构手机号、收货地址；真实用户与真实资金接入须等数据库迁回境内并完成个人信息与备案合规工作。
+> v0.2.2 当前部署于新加坡服务器并承载现网（2026-09-13 蓝绿发布，`v0.2.2+sha-718fc0d`，两项人工验收未完成），仍只允许受邀测试者和支付宝沙箱交易。测试者应使用专用邮箱与虚构手机号、收货地址；真实用户与真实资金接入须等 ICP 备案与企业支付宝签约完成、应用按 [v0.2.3](./docs/v0.2.3/CHANGES-v0.2.3.md) 计划迁入境内后进行（当前正式迁移因跨境延迟门禁暂停，见 [v0.2.3 验收记录](./docs/v0.2.3/ACCEPTANCE-v0.2.3.md)）。
 
 ## 本地启动
 
@@ -107,7 +107,7 @@ CONFIRM_PREPROD_RESET=RESET_PREPROD_DATA pnpm preprod:data:reset
 
 ## 验证环境部署约束
 
-v0.2.1 预生产目标是华为云新加坡主机 + Nginx + Next.js，Supabase 使用新加坡 `ap-southeast-1` 区域，数据库连接使用 Supavisor `6543` transaction 模式。应用暂时监听公网 `5003` 端口；支付宝异步通知的完整验收仍应使用 HTTPS 域名。
+现网 v0.2.2 运行于华为云新加坡主机（Nginx + HTTPS + Next.js 容器，应用绑定 `127.0.0.1:3000`），Supabase 使用新加坡 `ap-southeast-1` 区域，数据库连接使用 Supavisor `6543` transaction 模式。上海 2 核 2G 服务器已完成安全加固与低内存预部署（见 [上海低内存部署记录](./docs/ops/SHANGHAI-DEPLOYMENT.md)），正式迁移因 v0.2.3 L3 性能门禁暂停。支付宝异步通知的完整验收仍应使用 HTTPS 域名。
 
 ## 已知限制与迁移
 
@@ -133,10 +133,17 @@ v0.2.1 预生产目标是华为云新加坡主机 + Nginx + Next.js，Supabase �
 - [v0.2.1 生产服务器选型与转生产检查清单](./docs/v0.2.1/PRODUCTION-SERVER.md)
 - [v0.2.1 Release Notes](./docs/v0.2.1/RELEASE_NOTES.md)
 - [未决事项与决策留痕](./docs/OPEN-DECISIONS.md)
+- [v0.2.3 增量变更 · 境内迁移与跨境延迟验证](./docs/v0.2.3/CHANGES-v0.2.3.md)
 - [v0.2.2 增量变更](./docs/v0.2.2/CHANGES-v0.2.2.md)
 - [v0.2.2 品牌文案定稿清单](./docs/v0.2.2/BRAND-COPY.md)
 - [Playwright 快速上手](./docs/guides/PLAYWRIGHT-GETTING-STARTED.md)
-- [v0.3.0 增量变更（初稿）](./docs/v0.3.0/CHANGES-v0.3.0.md)
+- [v0.2.2 验收记录](./docs/v0.2.2/ACCEPTANCE-v0.2.2.md)
+- [v0.2.3 执行任务清单](./docs/v0.2.3/TASKS-v0.2.3.md)
+- [v0.2.3 验收记录](./docs/v0.2.3/ACCEPTANCE-v0.2.3.md)
+- [跨境延迟基线：上海 → 新加坡 Supabase](./docs/ops/LATENCY-BASELINE.md)
+- [上海低内存部署记录](./docs/ops/SHANGHAI-DEPLOYMENT.md)
+- [上海服务器安全加固记录](./docs/ops/SHANGHAI-SERVER-HARDENING.md)
+- [v0.3.0 增量变更 · 退款引擎商品级重构](./docs/v0.3.0/CHANGES-v0.3.0.md)
 
 ## License
 

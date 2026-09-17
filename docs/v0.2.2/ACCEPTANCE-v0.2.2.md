@@ -1,8 +1,8 @@
 # v0.2.2 验收记录
 
-> 日期：2026-09-12
-> 分支：`release-v0.2.2`
-> 验收基线：`bdce8a5` + 当前未提交的 B6/B7 工作树
+> 日期：2026-09-13
+> 分支：`master`
+> 验收基线：`master@3c83fde`；发布镜像来源 `718fc0d` 与其 Git tree 完全一致
 
 ## 自动质量门禁
 
@@ -44,14 +44,25 @@
 - 本地 sitemap 已包含四个机型页，robots 已屏蔽 `/admin`、`/account`、`/checkout`、`/api`。
 - 生产模式首次访问首页后，机型/品牌查询计数分别由 6/4 增至 7/5；第二次访问保持 7/5，缓存命中成立。后台品牌与机型写接口均已核对调用 `revalidateTag`。
 
+## 部署与线上技术验收
+
+- 2026-09-13 使用蓝绿发布脚本将 `ghcr.io/gracezou/3d-printer-site:sha-718fc0d8e3b22be8f6e7e29c8916bbb20d4a1433` 发布到 blue 槽位 `127.0.0.1:3000`，旧 green 槽位在切流后正常停止。
+- 线上 `/api/health` 返回 HTTP 200、`status=ok`、`database=ok` 和 `v0.2.2+sha-718fc0d…`。
+- `.active-release`、运行容器镜像与健康检查 SHA 一致，容器状态为 healthy；发布后日志未发现 error、fatal 或 unhandled。
+- HTTPS 首页返回 200，HTTP 自动 301 到 HTTPS；HSTS、X-Content-Type-Options、X-Frame-Options、Referrer-Policy 和 Permissions-Policy 均存在。
+- 首页显示“量卷裁衣”和“电子阅读器保护壳”；设备 API 返回四个首批品牌，`PW5` 可命中 Kindle Paperwhite。
+- 商品页和机型页返回 200，渲染 HTML 中存在预期 Product、Offer、BreadcrumbList JSON-LD。
+- sitemap 返回 200 并包含四个机型页；robots 返回 200 并屏蔽 `/admin`、`/account`、`/checkout`、`/api`。
+- 未登录访问后台会跳转登录页；三个 Cron 端点无授权访问均返回 401。
+- 生产域名存在于渲染 HTML 和服务端 bundle；客户端 `_next/static` 不含生产域名，也不含服务器 IP 或 HTTP 旧地址。
+
 ## 尚未满足的发布条件
 
 以下项目仍需上线或人工环境才能宣告完成：
 
 1. 部署完成后人工回归登录恢复购买、支付宝外跳与 return 回跳；用户已确认本阶段暂缓。
 2. 按 [`GOOGLE-RICH-RESULTS-ACCEPTANCE.md`](./GOOGLE-RICH-RESULTS-ACCEPTANCE.md) 验证线上结构化数据。
-3. 推送分支后验证 GitHub Actions、线上 `/api/health` 和 T144 三项构建产物证据。
 
 T154 原定随机抽查 10 个机型页；当前仅有 4 个机型，已全部检查通过。用户确认 v0.2.2 按当前数据范围验收，新增机型及内容扩充留待后续版本。
 
-在以上项目完成前，B7 保持“进行中”，不生成最终 Tag。
+Tag `v0.2.2` 已建立；在以上两项人工验收完成前，B7 与 Release Notes 保持“待人工验收”状态。

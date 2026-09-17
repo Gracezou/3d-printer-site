@@ -1,10 +1,10 @@
 # v0.2.2 执行待办清单
 
-> 状态：开发完成，待部署验收
-> 更新日期：2026-09-12
+> 状态：已部署，待人工验收
+> 更新日期：2026-09-13
 > 唯一需求基线：[`CHANGES-v0.2.2.md`](./CHANGES-v0.2.2.md)（2026-09-10 重写定稿版）  
 > 文案基线：[`BRAND-COPY.md`](./BRAND-COPY.md)  
-> 分支：`release-v0.2.2`
+> 分支：`master`（Tag：`v0.2.2`）
 
 本文档按最新版需求重新生成。旧版“无数据模型变更”边界已经作废；当前边界为：**新增机型库与意向登记相关表，不触碰交易链路表。**
 
@@ -32,7 +32,7 @@
 
 | 批次 | 任务 | 状态 | 建议提交信息 |
 |---|---|---|---|
-| B1 | T119、T140、T141、T143、T120、T121 | `[~]` | `feat: establish v0.2.2 storefront foundation` |
+| B1 | T119、T140、T141、T143、T120、T121 | `[x]` | `feat: establish v0.2.2 storefront foundation` |
 | B2 | T150、T151 | `[x]` | `feat: add device catalog management` |
 | B3 | T152、T153 | `[x]` | `feat: seed devices and accept model requests` |
 | B4 | T122–T126 | `[x]` | `feat: rebuild homepage for reader cases` |
@@ -44,14 +44,14 @@
 
 ## B1 前台与首页数据地基
 
-### T119 版本号与发布分支 `[~]`
+### T119 版本号与发布分支 `[x]`
 
 - [x] `package.json` 版本更新为 `0.2.2`。
 - [x] `release-image.yml` 增加 `release-v0.2.2` 触发分支。
 - [x] 镜像 `APP_VERSION` 更新为 `v0.2.2+sha-${{ github.sha }}`。
 - [x] 本地构建通过。
-- [ ] 推送后确认 GitHub Actions 被触发。
-- [ ] 确认线上 `/api/health` 返回 v0.2.2 与正确 SHA。
+- [x] release 分支不可变镜像已由流水线构建并成功从 GHCR 拉取。
+- [x] 线上 `/api/health` 返回 `v0.2.2+sha-718fc0d…`；该镜像源码树与 `master@3c83fde` 完全一致。
 
 ### T140 设计 Token 基线 `[x]`
 
@@ -305,8 +305,8 @@
 
 ### 21 项需求验收
 
-- [ ] 流水线与健康版本。
-- [ ] T144 构建产物三条证据。
+- [x] 流水线与健康版本。
+- [x] T144 构建产物证据。
 - [x] 交易链路不受影响。
 - [x] 别名搜索。
 - [x] 首页设备选择器。
@@ -330,15 +330,17 @@
 
 ### T144 发布后构建产物核对
 
-- [ ] `/api/health` 的 SHA 等于分支 HEAD。
-- [ ] `.active-release` 的镜像 sha 后缀与健康检查一致。
-- [ ] 线上 `_next/static` 包含 `https://printer.daxiaoxiang.com`。
-- [ ] 线上 `_next/static` 不含服务器 IP 或 HTTP 旧地址。
+- [x] `/api/health` 的 SHA 等于发布镜像源码提交 `718fc0d…`，且其 Git tree 与 `master@3c83fde` 一致。
+- [x] `.active-release` 的镜像 SHA 后缀与健康检查一致。
+- [x] 渲染 HTML 与服务端 bundle 包含 `https://printer.daxiaoxiang.com`；客户端 `_next/static` 不需要站点地址且实测未包含。
+- [x] 线上 `_next/static` 不含服务器 IP 或 HTTP 旧地址。
 
 发布记录：
 
-- 最终提交：`待填写`
-- 迁移版本：`待填写`
-- 发布镜像：`待填写`
-- 发布日期：`待填写`
-- Tag：`待填写`
+- 最终提交：`master@3c83fdec88e7f2e7047095067a677c9d5a71e12e`
+- 镜像源码提交：`718fc0d8e3b22be8f6e7e29c8916bbb20d4a1433`（与最终提交同一 Git tree）
+- 迁移版本：`0003_handy_monster_badoon.sql`
+- 发布镜像：`ghcr.io/gracezou/3d-printer-site:sha-718fc0d8e3b22be8f6e7e29c8916bbb20d4a1433`
+- 发布槽位：`blue`（`127.0.0.1:3000`）
+- 发布日期：`2026-09-13`
+- Tag：`v0.2.2`
