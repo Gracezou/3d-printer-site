@@ -12,7 +12,7 @@ import {
   refundItems,
   refunds,
 } from '@/lib/db/schema';
-import { BizError } from '@/lib/errors';
+import { BizError, ERROR_DEFINITIONS } from '@/lib/errors';
 import { logger } from '@/lib/logger';
 import { toFixed2 } from '@/lib/money';
 import type { DbTransaction } from '@/lib/services/admin-log.service';
@@ -78,7 +78,9 @@ export interface RefundDependencies {
   getProvider?: (code: PaymentProviderCode) => PaymentProvider;
 }
 
-const REFUND_PROCESSING_LEASE_MS = 60_000;
+function processingLeaseUntil() {
+  return sql`now() + interval '60 seconds'`;
+}
 
 const refundableOrderStatuses = [
   'paid',
@@ -188,9 +190,6 @@ async function prepareRefund(
       )
       .limit(1);
     if (sameKey) {
-      if (sameKey.orderId !== orderId) {
-        throw new BizError('PARAM_INVALID', '幂等键已用于其他订单');
-      }
       const lines = await loadRefundLines(tx, sameKey.id);
       if (!sameRequest(lines, input.items) || sameKey.reason !== input.reason) {
         throw new BizError('PARAM_INVALID', '幂等键对应的退款内容不一致');
@@ -386,7 +385,6 @@ async function prepareRefund(
     );
     const restock = input.items.some((item) => item.restock);
     const attemptToken = crypto.randomUUID();
-    const processingUntil = new Date(Date.now() + REFUND_PROCESSING_LEASE_MS);
     const printJobRows = await tx
       .select({
         orderItemId: printJobs.orderItemId,
@@ -415,7 +413,7 @@ async function prepareRefund(
         reason: input.reason,
         previousOrderStatus: order.status,
         processingToken: attemptToken,
-        processingUntil,
+        processingUntil: processingLeaseUntil(),
         operatorId: context.admin.sub,
       })
       .returning({ id: refunds.id });
@@ -480,7 +478,7 @@ async function acquireProcessingLease(
     .update(refunds)
     .set({
       processingToken: attemptToken,
-      processingUntil: new Date(Date.now() + REFUND_PROCESSING_LEASE_MS),
+      processingUntil: processingLeaseUntil(),
       updatedAt: new Date(),
     })
     .where(
@@ -495,6 +493,30 @@ async function acquireProcessingLease(
     throw new BizError('REFUND_IN_PROGRESS', '该退款正在处理，请稍后续记');
   }
   return { ...pending, attemptToken };
+}
+
+async function renewProcessingLease(pending: PendingRefund): Promise<void> {
+  const [renewed] = await getDb()
+    .update(refunds)
+    .set({
+      processingUntil: processingLeaseUntil(),
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(refunds.id, pending.refundId),
+        eq(refunds.status, 'pending'),
+        eq(refunds.processingToken, pending.attemptToken!),
+      ),
+    )
+    .returning({ id: refunds.id });
+  if (!renewed) {
+    logger.error(
+      { refundId: pending.refundId },
+      'Failed to renew refund processing lease because ownership was lost',
+    );
+    throw new BizError('REFUND_IN_PROGRESS', '退款处理租约已失效');
+  }
 }
 
 async function markProviderConfirmed(
@@ -562,6 +584,7 @@ async function queryProviderRefund(
   pending: PendingRefund,
   provider: PaymentProvider,
 ) {
+  await renewProcessingLease(pending);
   return provider.queryRefund({
     outTradeNo: pending.outTradeNo,
     outRefundNo: pending.outRefundNo,
@@ -573,6 +596,7 @@ async function attemptProviderRefund(
   pending: PendingRefund,
   provider: PaymentProvider,
 ) {
+  await renewProcessingLease(pending);
   try {
     return await provider.refund({
       outTradeNo: pending.outTradeNo,
@@ -595,9 +619,16 @@ async function attemptProviderRefund(
 async function rejectRefund(
   pending: PendingRefund,
   message?: string,
+  canMarkFailed = false,
 ): Promise<never> {
-  await markRefundFailed(pending, message);
-  throw new BizError('REFUND_REJECTED', message || '支付渠道明确拒绝退款');
+  if (canMarkFailed) {
+    await markRefundFailed(pending, message);
+    throw new BizError('REFUND_REJECTED', message || '支付渠道明确拒绝退款');
+  }
+  throw new BizError(
+    'PAYMENT_PROVIDER_ERROR',
+    '支付渠道在重试或续记时返回拒绝，退款可能已生效，请人工复核',
+  );
 }
 
 async function callOrRecoverProvider(
@@ -622,7 +653,7 @@ async function callOrRecoverProvider(
       return;
     }
     if (firstAttempt.status === 'rejected') {
-      return rejectRefund(pending, firstAttempt.message);
+      return await rejectRefund(pending, firstAttempt.message, pending.created);
     }
 
     const queried = await queryProviderRefund(pending, provider);
@@ -638,7 +669,7 @@ async function callOrRecoverProvider(
       return;
     }
     if (retry.status === 'rejected') {
-      return rejectRefund(pending, retry.message);
+      return await rejectRefund(pending, retry.message);
     }
 
     const finalQuery = await queryProviderRefund(pending, provider);
@@ -648,7 +679,12 @@ async function callOrRecoverProvider(
     }
     throw unknownRefundError();
   } catch (error: unknown) {
-    if (error instanceof BizError && error.code === 40922) throw error;
+    if (
+      error instanceof BizError &&
+      error.code === ERROR_DEFINITIONS.REFUND_REJECTED.code
+    ) {
+      throw error;
+    }
     await markManualReview(pending);
     throw error;
   }
@@ -726,8 +762,10 @@ async function finalizeRefund(
             orderItemId: printJobs.orderItemId,
             status: printJobs.status,
             quantity: printJobs.quantity,
+            purchasedQuantity: orderItems.quantity,
           })
           .from(printJobs)
+          .innerJoin(orderItems, eq(orderItems.id, printJobs.orderItemId))
           .where(
             inArray(
               printJobs.orderItemId,
@@ -760,6 +798,28 @@ async function finalizeRefund(
     if (!updatedRefund) {
       throw new BizError('RETURN_STATUS_INVALID', '退款记录已被处理');
     }
+    const refundedQuantityRows = lines.length
+      ? await tx
+          .select({
+            orderItemId: refundItems.orderItemId,
+            quantity: sql<number>`sum(${refundItems.quantity})::int`,
+          })
+          .from(refundItems)
+          .innerJoin(refunds, eq(refunds.id, refundItems.refundId))
+          .where(
+            and(
+              inArray(
+                refundItems.orderItemId,
+                lines.map((line) => line.orderItemId),
+              ),
+              eq(refunds.status, 'success'),
+            ),
+          )
+          .groupBy(refundItems.orderItemId)
+      : [];
+    const refundedQuantityByItem = new Map(
+      refundedQuantityRows.map((item) => [item.orderItemId, item.quantity]),
+    );
 
     if (record.isFullRefund) {
       await tx
@@ -777,7 +837,14 @@ async function finalizeRefund(
     for (const line of lines) {
       const job = printJobByItem.get(line.orderItemId);
       if (!job || job.status !== 'queued') continue;
-      const remainingQuantity = job.quantity - line.quantity;
+      const remainingQuantity = Math.min(
+        job.quantity,
+        Math.max(
+          job.purchasedQuantity -
+            (refundedQuantityByItem.get(line.orderItemId) ?? 0),
+          0,
+        ),
+      );
       if (remainingQuantity <= 0) {
         await tx
           .delete(printJobs)
@@ -910,9 +977,19 @@ async function markRefundFailed(
       );
       return;
     }
+    await tx.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtext(${failed.orderId}))`,
+    );
+    let nextStatus = pending.previousStatus;
+    if (
+      pending.previousStatus === 'in_production' &&
+      (await isOrderProductionReady(tx, failed.orderId))
+    ) {
+      nextStatus = 'pending_shipment';
+    }
     await tx
       .update(orders)
-      .set({ status: pending.previousStatus, updatedAt: new Date() })
+      .set({ status: nextStatus, updatedAt: new Date() })
       .where(
         and(eq(orders.id, failed.orderId), eq(orders.status, 'refunding')),
       );

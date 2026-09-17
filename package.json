@@ -20,7 +20,7 @@
     "test:acceptance": "./scripts/run-acceptance-v01.sh",
     "security:audit": "./scripts/security-audit.sh",
     "db:generate": "dotenv -e .env.dev -- drizzle-kit generate",
-    "db:migrate": "dotenv -e .env.dev -- drizzle-kit migrate",
+    "db:migrate": "dotenv -e .env.dev -- tsx scripts/migrate-db.ts",
     "db:check": "dotenv -e .env.dev -- tsx scripts/check-db.ts",
     "db:seed": "dotenv -e .env.dev -- tsx scripts/seed.ts",
     "demo:seed": "dotenv -e .env.dev -- tsx scripts/demo-data.ts seed",

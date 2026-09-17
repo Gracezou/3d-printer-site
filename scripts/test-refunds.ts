@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import Decimal from 'decimal.js';
 
 import { closeDatabaseConnection, getDb } from '@/lib/db/client';
@@ -16,17 +16,24 @@ import {
   orders,
   payments,
   printJobs,
+  products,
+  productVariants,
   promotions,
   refundItems,
   refunds,
   userProfiles,
+  variantMaterials,
 } from '@/lib/db/schema';
 import { BizError } from '@/lib/errors';
 import type { PaymentProvider } from '@/lib/services/payment/provider.interface';
 import { refundOrder, resumeRefund } from '@/lib/services/refund.service';
 import { assertLocalDatabaseUrl } from './assert-local-database';
 
-function fakeProvider(options?: { fail?: boolean; delayMs?: number }): {
+function fakeProvider(options?: {
+  fail?: boolean;
+  delayMs?: number;
+  beforeRefundResult?: () => Promise<void>;
+}): {
   provider: PaymentProvider;
   refundCalls: () => number;
 } {
@@ -50,6 +57,7 @@ function fakeProvider(options?: { fail?: boolean; delayMs?: number }): {
         if (options?.delayMs) {
           await new Promise((resolve) => setTimeout(resolve, options.delayMs));
         }
+        await options?.beforeRefundResult?.();
         if (options?.fail)
           return { status: 'rejected' as const, message: '模拟渠道拒绝' };
         const providerRefundId =
@@ -74,6 +82,7 @@ async function main(): Promise<void> {
   const userId = crypto.randomUUID();
   const orderIds: string[] = [];
   const materialIds: string[] = [];
+  const productIds: string[] = [];
   let adminId: string | undefined;
   let roleId: string | undefined;
   let promotionId: string | undefined;
@@ -126,6 +135,45 @@ async function main(): Promise<void> {
       .returning({ id: materials.id });
     assert(material);
     materialIds.push(material.id);
+
+    const [availabilityProduct] = await db
+      .insert(products)
+      .values({
+        name: 'B2 退款可售数测试商品',
+        slug: `b2-refund-availability-${suffix}`,
+      })
+      .returning({ id: products.id });
+    assert(availabilityProduct);
+    productIds.push(availabilityProduct.id);
+    const [availabilityVariant] = await db
+      .insert(productVariants)
+      .values({
+        productId: availabilityProduct.id,
+        skuCode: `B2-AVAIL-${suffix}`,
+        name: '可售数测试款',
+        price: '19.99',
+      })
+      .returning({ id: productVariants.id });
+    assert(availabilityVariant);
+    await db.insert(variantMaterials).values({
+      variantId: availabilityVariant.id,
+      materialId: material.id,
+      grams: '1.00',
+    });
+    const availability = async () => {
+      const [row] = await db
+        .select({
+          availableQty: sql<number>`(
+            SELECT available_qty
+            FROM v_variant_availability
+            WHERE variant_id = ${availabilityVariant.id}
+          )`,
+        })
+        .from(productVariants)
+        .where(eq(productVariants.id, availabilityVariant.id));
+      return row?.availableQty;
+    };
+    assert.equal(await availability(), 900);
 
     const [promotion] = await db
       .insert(promotions)
@@ -190,6 +238,7 @@ async function main(): Promise<void> {
           ['60.00', 'done', '3.00'],
         ].map(([subtotal], index) => ({
           orderId: mainOrder.id,
+          variantId: index === 0 ? availabilityVariant.id : null,
           productName: `退款测试商品 ${index + 1}`,
           variantName: '标准款',
           skuCode: `B2-${suffix}-${index + 1}`,
@@ -265,6 +314,11 @@ async function main(): Promise<void> {
           .where(eq(materials.id, material.id))
       )[0]?.stock,
       '901.00',
+    );
+    assert.equal(
+      await availability(),
+      901,
+      'item-level restock must increase v_variant_availability',
     );
 
     const replay = await refundOrder(mainOrder.id, firstInput, context, {
@@ -385,7 +439,11 @@ async function main(): Promise<void> {
     async function createSingleOrder(
       tag: string,
       materialId = material.id,
-      options: { quantity?: number; status?: string } = {},
+      options: {
+        quantity?: number;
+        status?: string;
+        printStatus?: string;
+      } = {},
     ) {
       const quantity = options.quantity ?? 1;
       const amount = new Decimal(10).mul(quantity).toFixed(2);
@@ -431,12 +489,16 @@ async function main(): Promise<void> {
         })
         .returning({ id: orderItems.id });
       assert(item);
-      await db.insert(printJobs).values({
-        orderId: order.id,
-        orderItemId: item.id,
-        quantity,
-        status: 'queued',
-      });
+      const [job] = await db
+        .insert(printJobs)
+        .values({
+          orderId: order.id,
+          orderItemId: item.id,
+          quantity,
+          status: options.printStatus ?? 'queued',
+        })
+        .returning({ id: printJobs.id });
+      assert(job);
       await db.insert(payments).values({
         orderId: order.id,
         outTradeNo: `B2-${tag}-PAY-${suffix}`,
@@ -445,7 +507,7 @@ async function main(): Promise<void> {
         status: 'success',
         paidAt: new Date(),
       });
-      return { order, item };
+      return { order, item, job };
     }
 
     const concurrent = await createSingleOrder('CON');
@@ -518,6 +580,7 @@ async function main(): Promise<void> {
     const quantityOrder = await createSingleOrder('QTY', material.id, {
       quantity: 3,
       status: 'in_production',
+      printStatus: 'printing',
     });
     const quantityProvider = fakeProvider();
     await refundOrder(
@@ -532,16 +595,20 @@ async function main(): Promise<void> {
       context,
       { getProvider: () => quantityProvider.provider },
     );
-    assert.equal(
-      (
-        await db
-          .select({ quantity: printJobs.quantity })
-          .from(printJobs)
-          .where(eq(printJobs.orderItemId, quantityOrder.item.id))
-      )[0]?.quantity,
-      2,
-      'partial refund must decrement rather than delete a queued print job',
-    );
+    const [printingAfterFirstRefund] = await db
+      .select({ status: printJobs.status, quantity: printJobs.quantity })
+      .from(printJobs)
+      .where(eq(printJobs.id, quantityOrder.job.id));
+    assert.deepEqual(printingAfterFirstRefund, {
+      status: 'printing',
+      quantity: 3,
+    });
+    // Mirrors production.service failPrintJob: a failed print returns the full
+    // original task quantity to queued, including the already-refunded unit.
+    await db
+      .update(printJobs)
+      .set({ status: 'queued', failedCount: 1, updatedAt: new Date() })
+      .where(eq(printJobs.id, quantityOrder.job.id));
     await refundOrder(
       quantityOrder.order.id,
       {
@@ -760,6 +827,191 @@ async function main(): Promise<void> {
       'a deterministic provider rejection may be marked failed',
     );
 
+    const failedReady = await createSingleOrder('FAILREADY', material.id, {
+      status: 'in_production',
+      printStatus: 'post_processing',
+    });
+    const failedReadyProvider = fakeProvider({
+      fail: true,
+      beforeRefundResult: async () => {
+        await db
+          .update(printJobs)
+          .set({
+            status: 'done',
+            finishedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(printJobs.id, failedReady.job.id));
+      },
+    });
+    await assert.rejects(() =>
+      refundOrder(
+        failedReady.order.id,
+        {
+          idempotencyKey: `b2:failed-ready:${suffix}`,
+          reason: '渠道拒绝前最后一条生产任务完成',
+          items: [
+            {
+              orderItemId: failedReady.item.id,
+              quantity: 1,
+              restock: false,
+            },
+          ],
+        },
+        context,
+        { getProvider: () => failedReadyProvider.provider },
+      ),
+    );
+    assert.equal(
+      (
+        await db
+          .select({ status: orders.status })
+          .from(orders)
+          .where(eq(orders.id, failedReady.order.id))
+      )[0]?.status,
+      'pending_shipment',
+      'a rejected refund must not restore a production-ready order to in_production',
+    );
+
+    const retryRejected = await createSingleOrder('RETRYREJECT');
+    let retryRejectedCalls = 0;
+    const retryRejectedProvider: PaymentProvider = {
+      code: 'mock',
+      async createPayment() {
+        return { payUrl: 'http://localhost/mock' };
+      },
+      async queryPayment() {
+        return { status: 'pending' as const };
+      },
+      async verifyNotify() {
+        return { valid: false, raw: {} };
+      },
+      async refund() {
+        retryRejectedCalls += 1;
+        return retryRejectedCalls === 1
+          ? { status: 'unknown' as const, message: '模拟首次结果未知' }
+          : {
+              status: 'rejected' as const,
+              providerCode: 'ACQ.TRADE_HAS_CLOSE',
+              message: '模拟重试时交易已关闭',
+            };
+      },
+      async queryRefund() {
+        return { status: 'not_found' as const };
+      },
+    };
+    await assert.rejects(
+      () =>
+        refundOrder(
+          retryRejected.order.id,
+          {
+            idempotencyKey: `b2:retry-rejected:${suffix}`,
+            reason: '首次未知后重试收到白名单拒绝',
+            items: [
+              {
+                orderItemId: retryRejected.item.id,
+                quantity: 1,
+                restock: false,
+              },
+            ],
+          },
+          context,
+          { getProvider: () => retryRejectedProvider },
+        ),
+      (error: unknown) => error instanceof BizError && error.code === 50001,
+    );
+    const [retryRejectedRecord] = await db
+      .select({
+        status: refunds.status,
+        needsManualReview: refunds.needsManualReview,
+      })
+      .from(refunds)
+      .where(eq(refunds.orderId, retryRejected.order.id));
+    assert.deepEqual(retryRejectedRecord, {
+      status: 'pending',
+      needsManualReview: true,
+    });
+    assert.equal(
+      (
+        await db
+          .select({ status: orders.status })
+          .from(orders)
+          .where(eq(orders.id, retryRejected.order.id))
+      )[0]?.status,
+      'refunding',
+    );
+
+    const resumeRejected = await createSingleOrder('RESUMEREJECT');
+    let resumeRejectedPhase: 'initial' | 'resume' = 'initial';
+    const resumeRejectedProvider: PaymentProvider = {
+      code: 'mock',
+      async createPayment() {
+        return { payUrl: 'http://localhost/mock' };
+      },
+      async queryPayment() {
+        return { status: 'pending' as const };
+      },
+      async verifyNotify() {
+        return { valid: false, raw: {} };
+      },
+      async refund() {
+        return resumeRejectedPhase === 'initial'
+          ? { status: 'unknown' as const, message: '模拟首次结果未知' }
+          : {
+              status: 'rejected' as const,
+              providerCode: 'ACQ.REFUND_AMT_NOT_EQUAL_TOTAL',
+              message: '模拟续记时累计金额已达上限',
+            };
+      },
+      async queryRefund() {
+        return resumeRejectedPhase === 'initial'
+          ? { status: 'pending' as const }
+          : { status: 'not_found' as const };
+      },
+    };
+    await assert.rejects(() =>
+      refundOrder(
+        resumeRejected.order.id,
+        {
+          idempotencyKey: `b2:resume-rejected:${suffix}`,
+          reason: '续记收到白名单拒绝',
+          items: [
+            {
+              orderItemId: resumeRejected.item.id,
+              quantity: 1,
+              restock: false,
+            },
+          ],
+        },
+        context,
+        { getProvider: () => resumeRejectedProvider },
+      ),
+    );
+    const [resumeRejectedPending] = await db
+      .select({ id: refunds.id })
+      .from(refunds)
+      .where(eq(refunds.orderId, resumeRejected.order.id));
+    assert(resumeRejectedPending);
+    resumeRejectedPhase = 'resume';
+    await assert.rejects(
+      () =>
+        resumeRefund(resumeRejectedPending.id, context, {
+          getProvider: () => resumeRejectedProvider,
+        }),
+      (error: unknown) => error instanceof BizError && error.code === 50001,
+    );
+    const [resumeRejectedRecord] = await db
+      .select({
+        status: refunds.status,
+        needsManualReview: refunds.needsManualReview,
+      })
+      .from(refunds)
+      .where(eq(refunds.id, resumeRejectedPending.id));
+    assert.deepEqual(resumeRejectedRecord, {
+      status: 'pending',
+      needsManualReview: true,
+    });
+
     const unknown = await createSingleOrder('UNKNOWN');
     let unknownRefundCalls = 0;
     let unknownQueryCalls = 0;
@@ -973,6 +1225,9 @@ async function main(): Promise<void> {
         .delete(discountCodes)
         .where(eq(discountCodes.promotionId, promotionId));
       await db.delete(promotions).where(eq(promotions.id, promotionId));
+    }
+    if (productIds.length) {
+      await db.delete(products).where(inArray(products.id, productIds));
     }
     if (materialIds.length) {
       await db.delete(materials).where(inArray(materials.id, materialIds));
