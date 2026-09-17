@@ -159,4 +159,31 @@ export class AlipayPageProvider implements PaymentProvider {
       paymentError('支付宝退款请求失败', error);
     }
   }
+
+  async queryRefund(params: { outTradeNo: string; outRefundNo: string }) {
+    try {
+      const result = await this.sdk.exec('alipay.trade.fastpay.refund.query', {
+        bizContent: {
+          outTradeNo: params.outTradeNo,
+          outRequestNo: params.outRefundNo,
+        },
+      });
+      if (result.code === '10000') {
+        return {
+          status: 'success' as const,
+          providerRefundId: result.tradeNo ? String(result.tradeNo) : undefined,
+        };
+      }
+      if (
+        ['ACQ.TRADE_NOT_EXIST', 'ACQ.REFUND_NOT_EXIST'].includes(
+          String(result.subCode ?? ''),
+        )
+      ) {
+        return { status: 'not_found' as const };
+      }
+      throw new Error(result.subMsg || result.msg || '支付宝退款查询失败');
+    } catch (error: unknown) {
+      paymentError('查询支付宝退款状态失败', error);
+    }
+  }
 }

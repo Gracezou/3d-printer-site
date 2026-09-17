@@ -2,6 +2,7 @@ import type { PaymentProvider } from './provider.interface';
 
 export class MockPaymentProvider implements PaymentProvider {
   readonly code = 'mock' as const;
+  private readonly refunds = new Map<string, string>();
 
   async createPayment(params: {
     outTradeNo: string;
@@ -35,10 +36,25 @@ export class MockPaymentProvider implements PaymentProvider {
     };
   }
 
-  async refund(): Promise<{ success: true; providerRefundId: string }> {
+  async refund(params: {
+    outTradeNo: string;
+    outRefundNo: string;
+    amount: string;
+    reason: string;
+  }): Promise<{ success: true; providerRefundId: string }> {
+    const existing = this.refunds.get(params.outRefundNo);
+    const providerRefundId = existing ?? `MOCK-REFUND-${crypto.randomUUID()}`;
+    this.refunds.set(params.outRefundNo, providerRefundId);
     return {
       success: true,
-      providerRefundId: `MOCK-REFUND-${crypto.randomUUID()}`,
+      providerRefundId,
     };
+  }
+
+  async queryRefund(params: { outRefundNo: string }) {
+    const providerRefundId = this.refunds.get(params.outRefundNo);
+    return providerRefundId
+      ? { status: 'success' as const, providerRefundId }
+      : { status: 'not_found' as const };
   }
 }

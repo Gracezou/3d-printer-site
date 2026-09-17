@@ -1,5 +1,5 @@
 import Decimal from 'decimal.js';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 
 import {
   materialStockMovements,
@@ -11,6 +11,44 @@ import {
 import { BizError } from '@/lib/errors';
 import type { DbTransaction } from '@/lib/services/admin-log.service';
 import { calculateRefundRestock } from '@/lib/services/refund-restock';
+
+/** Acquires every material lock for a refund in one global order. */
+export async function lockRefundStockMaterials(
+  tx: DbTransaction,
+  refundItemIds: string[],
+): Promise<void> {
+  if (!refundItemIds.length) return;
+  const lines = await tx
+    .select({
+      restock: refundItems.restock,
+      quantity: refundItems.quantity,
+      bomSnapshot: orderItems.bomSnapshot,
+    })
+    .from(refundItems)
+    .innerJoin(orderItems, eq(orderItems.id, refundItems.orderItemId))
+    .where(inArray(refundItems.id, refundItemIds));
+  const materialIds = [
+    ...new Set(
+      lines
+        .filter((line) => line.restock)
+        .flatMap((line) =>
+          calculateRefundRestock(line.bomSnapshot, line.quantity).map(
+            (material) => material.materialId,
+          ),
+        ),
+    ),
+  ].sort((left, right) => left.localeCompare(right));
+
+  for (const materialId of materialIds) {
+    const [material] = await tx
+      .select({ id: materials.id })
+      .from(materials)
+      .where(eq(materials.id, materialId))
+      .limit(1)
+      .for('update');
+    if (!material) throw new BizError('NOT_FOUND', '订单耗材已不存在');
+  }
+}
 
 /** Must run in the same transaction that confirms the provider refund. */
 export async function returnRefundItemStock(

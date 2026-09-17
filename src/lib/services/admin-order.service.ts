@@ -18,6 +18,7 @@ import {
   orderItems,
   orders,
   payments,
+  refundItems,
   refunds,
   shipments,
   userProfiles,
@@ -144,50 +145,65 @@ export async function getAdminOrderDetail(orderId: string) {
     .limit(1);
   if (!order) throw new BizError('NOT_FOUND', '订单不存在');
 
-  const [items, paymentRows, refundRows, shipmentRows] = await Promise.all([
-    db
-      .select()
-      .from(orderItems)
-      .where(eq(orderItems.orderId, orderId))
-      .orderBy(orderItems.createdAt),
-    db
-      .select({
-        id: payments.id,
-        outTradeNo: payments.outTradeNo,
-        provider: payments.provider,
-        providerTxnId: payments.providerTxnId,
-        amount: payments.amount,
-        currency: payments.currency,
-        status: payments.status,
-        needsManualReview: payments.needsManualReview,
-        paidAt: payments.paidAt,
-        createdAt: payments.createdAt,
-      })
-      .from(payments)
-      .where(eq(payments.orderId, orderId))
-      .orderBy(desc(payments.createdAt)),
-    db
-      .select({
-        id: refunds.id,
-        outRefundNo: refunds.outRefundNo,
-        providerRefundId: refunds.providerRefundId,
-        amount: refunds.amount,
-        isFullRefund: refunds.isFullRefund,
-        restock: refunds.restock,
-        reason: refunds.reason,
-        status: refunds.status,
-        createdAt: refunds.createdAt,
-        updatedAt: refunds.updatedAt,
-      })
-      .from(refunds)
-      .where(eq(refunds.orderId, orderId))
-      .orderBy(desc(refunds.createdAt)),
-    db
-      .select()
-      .from(shipments)
-      .where(eq(shipments.orderId, orderId))
-      .orderBy(desc(shipments.shippedAt)),
-  ]);
+  const [items, paymentRows, refundRows, shipmentRows, refundedItemRows] =
+    await Promise.all([
+      db
+        .select()
+        .from(orderItems)
+        .where(eq(orderItems.orderId, orderId))
+        .orderBy(orderItems.createdAt),
+      db
+        .select({
+          id: payments.id,
+          outTradeNo: payments.outTradeNo,
+          provider: payments.provider,
+          providerTxnId: payments.providerTxnId,
+          amount: payments.amount,
+          currency: payments.currency,
+          status: payments.status,
+          needsManualReview: payments.needsManualReview,
+          paidAt: payments.paidAt,
+          createdAt: payments.createdAt,
+        })
+        .from(payments)
+        .where(eq(payments.orderId, orderId))
+        .orderBy(desc(payments.createdAt)),
+      db
+        .select({
+          id: refunds.id,
+          outRefundNo: refunds.outRefundNo,
+          providerRefundId: refunds.providerRefundId,
+          providerConfirmedAt: refunds.providerConfirmedAt,
+          needsManualReview: refunds.needsManualReview,
+          amount: refunds.amount,
+          isFullRefund: refunds.isFullRefund,
+          restock: refunds.restock,
+          reason: refunds.reason,
+          status: refunds.status,
+          createdAt: refunds.createdAt,
+          updatedAt: refunds.updatedAt,
+        })
+        .from(refunds)
+        .where(eq(refunds.orderId, orderId))
+        .orderBy(desc(refunds.createdAt)),
+      db
+        .select()
+        .from(shipments)
+        .where(eq(shipments.orderId, orderId))
+        .orderBy(desc(shipments.shippedAt)),
+      db
+        .select({
+          orderItemId: refundItems.orderItemId,
+          quantity: sql<number>`sum(${refundItems.quantity})::int`,
+        })
+        .from(refundItems)
+        .innerJoin(refunds, eq(refunds.id, refundItems.refundId))
+        .where(and(eq(refunds.orderId, orderId), eq(refunds.status, 'success')))
+        .groupBy(refundItems.orderItemId),
+    ]);
+  const refundedByItem = new Map(
+    refundedItemRows.map((item) => [item.orderItemId, item.quantity]),
+  );
   return {
     ...order,
     userEmail: maskEmail(order.userEmail),
@@ -197,7 +213,14 @@ export async function getAdminOrderDetail(orderId: string) {
         new Decimal(0),
       ),
     ),
-    items,
+    items: items.map((item) => {
+      const refundedQuantity = refundedByItem.get(item.id) ?? 0;
+      return {
+        ...item,
+        refundedQuantity,
+        refundableQuantity: Math.max(item.quantity - refundedQuantity, 0),
+      };
+    }),
     payments: paymentRows,
     refunds: refundRows,
     shipments: shipmentRows,

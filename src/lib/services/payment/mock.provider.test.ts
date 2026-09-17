@@ -31,4 +31,21 @@ describe('MockPaymentProvider', () => {
     process.env.ENABLE_MOCK_PAYMENT = 'true';
     expect(getPaymentProvider('mock').code).toBe('mock');
   });
+
+  it('reuses one provider refund for the same out-refund number', async () => {
+    const provider = new MockPaymentProvider();
+    const params = {
+      outTradeNo: 'ORDER-REFUND-001',
+      outRefundNo: 'REFUND-001',
+      amount: '18.80',
+      reason: '幂等退款测试',
+    };
+    const first = await provider.refund(params);
+    const replay = await provider.refund(params);
+    expect(replay.providerRefundId).toBe(first.providerRefundId);
+    await expect(provider.queryRefund(params)).resolves.toEqual({
+      status: 'success',
+      providerRefundId: first.providerRefundId,
+    });
+  });
 });

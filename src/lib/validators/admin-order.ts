@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import Decimal from 'decimal.js';
 
 export const orderStatuses = [
   'pending_payment',
@@ -49,13 +48,38 @@ export const adminOrderShipSchema = z
 
 export const adminOrderRefundSchema = z
   .object({
-    amount: z
+    idempotencyKey: z
       .string()
       .trim()
-      .regex(/^\d+(?:\.\d{1,2})?$/, '退款金额格式不正确')
-      .refine((value) => new Decimal(value).gt(0), '退款金额必须大于 0'),
+      .min(8, '幂等键至少 8 个字符')
+      .max(64, '幂等键最多 64 个字符')
+      .regex(/^[A-Za-z0-9:_-]+$/, '幂等键格式不正确'),
     reason: z.string().trim().min(1, '退款原因不能为空').max(200),
-    restock: z.boolean().default(false),
+    items: z
+      .array(
+        z
+          .object({
+            orderItemId: z.string().uuid('订单商品 ID 无效'),
+            quantity: z.number().int().min(1, '退款数量必须大于 0'),
+            restock: z.boolean().default(false),
+          })
+          .strict(),
+      )
+      .min(1, '退款商品不能为空')
+      .max(100, '退款商品过多')
+      .superRefine((items, context) => {
+        const seen = new Set<string>();
+        items.forEach((item, index) => {
+          if (seen.has(item.orderItemId)) {
+            context.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: '退款商品不能重复',
+              path: [index, 'orderItemId'],
+            });
+          }
+          seen.add(item.orderItemId);
+        });
+      }),
   })
   .strict();
 

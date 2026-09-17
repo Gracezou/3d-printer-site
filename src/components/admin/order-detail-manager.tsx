@@ -31,6 +31,8 @@ interface OrderItem {
   imageUrl: string | null;
   unitPrice: string;
   quantity: number;
+  refundedQuantity: number;
+  refundableQuantity: number;
   subtotal: string;
   bomSnapshot: BomItem[];
 }
@@ -61,6 +63,8 @@ interface Refund {
   id: string;
   outRefundNo: string;
   providerRefundId: string | null;
+  providerConfirmedAt: string | null;
+  needsManualReview: boolean;
   amount: string;
   isFullRefund: boolean;
   restock: boolean;
@@ -159,9 +163,11 @@ export function OrderDetailManager({
   const [carrierCode, setCarrierCode] = useState('sf');
   const [carrierName, setCarrierName] = useState('顺丰速运');
   const [trackingNo, setTrackingNo] = useState('');
-  const [refundAmount, setRefundAmount] = useState('');
   const [refundReason, setRefundReason] = useState('');
-  const [refundRestock, setRefundRestock] = useState(false);
+  const [refundItems, setRefundItems] = useState<
+    Record<string, { selected: boolean; quantity: number; restock: boolean }>
+  >({});
+  const [refundIdempotencyKey, setRefundIdempotencyKey] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -172,7 +178,19 @@ export function OrderDetailManager({
       );
       setOrder(detail);
       setAdminRemark(detail.adminRemark ?? '');
-      setRefundAmount(detail.refundableAmount);
+      setRefundItems(
+        Object.fromEntries(
+          detail.items.map((item) => [
+            item.id,
+            {
+              selected: false,
+              quantity: Math.max(item.refundableQuantity, 1),
+              restock: false,
+            },
+          ]),
+        ),
+      );
+      setRefundIdempotencyKey((current) => current || crypto.randomUUID());
     } catch (caught: unknown) {
       setError(caught instanceof Error ? caught.message : '订单详情加载失败');
     } finally {
@@ -247,12 +265,18 @@ export function OrderDetailManager({
   }
 
   async function refundOrder(): Promise<void> {
-    const restockMessage = refundRestock
-      ? '；若为全额退款，将同时回补耗材库存'
-      : '';
+    if (!order) return;
+    const selectedItems = order.items
+      .filter((item) => refundItems[item.id]?.selected)
+      .map((item) => ({
+        orderItemId: item.id,
+        quantity: refundItems[item.id]?.quantity ?? 0,
+        restock: refundItems[item.id]?.restock ?? false,
+      }));
+    if (!selectedItems.length) return;
     if (
       !window.confirm(
-        `确认退款 ¥${refundAmount}${restockMessage}？退款请求提交后不可撤销。`,
+        `确认退款 ${selectedItems.reduce((sum, item) => sum + item.quantity, 0)} 件商品？金额将由服务端按优惠与运费规则计算。`,
       )
     )
       return;
@@ -262,14 +286,14 @@ export function OrderDetailManager({
       await apiRequest(`/api/admin/orders/${orderId}/refund`, {
         method: 'POST',
         body: JSON.stringify({
-          amount: refundAmount,
+          idempotencyKey: refundIdempotencyKey,
           reason: refundReason.trim(),
-          restock: refundRestock,
+          items: selectedItems,
         }),
       });
       setNotice('退款成功');
       setRefundReason('');
-      setRefundRestock(false);
+      setRefundIdempotencyKey(crypto.randomUUID());
       await load();
     } catch (caught: unknown) {
       setError(caught instanceof Error ? caught.message : '退款失败');
@@ -356,6 +380,12 @@ export function OrderDetailManager({
                       </span>
                     </p>
                   </div>
+                  {item.refundedQuantity ? (
+                    <p className="mt-2 text-xs text-indigo-700">
+                      已退 {item.refundedQuantity} 件，剩余可退{' '}
+                      {item.refundableQuantity} 件
+                    </p>
+                  ) : null}
                   <div className="mt-3 rounded-xl bg-neutral-50 p-3">
                     <p className="text-xs font-semibold text-neutral-500">
                       耗材需求快照
@@ -435,6 +465,16 @@ export function OrderDetailManager({
                       {refund.restock ? '已回补库存' : '未回补库存'} ·{' '}
                       {formatDate(refund.createdAt)}
                     </p>
+                    {refund.needsManualReview ? (
+                      <p className="mt-2 text-xs font-semibold text-rose-600">
+                        渠道结果待人工对账；请使用原请求幂等键续记，不要新建退款
+                      </p>
+                    ) : refund.status === 'pending' &&
+                      refund.providerConfirmedAt ? (
+                      <p className="mt-2 text-xs font-semibold text-amber-700">
+                        渠道已确认，本地账务待续记
+                      </p>
+                    ) : null}
                   </div>
                 ))}
               </div>
@@ -601,19 +641,89 @@ export function OrderDetailManager({
                 订单退款
               </h2>
               <p className="mt-2 text-xs leading-5 text-indigo-700">
-                当前最多可退 ¥{order.refundableAmount}。部分退款不会回补库存，
-                也不会释放折扣码；只有一次性退回应付总额才视为全额退款。
+                当前订单剩余可退 ¥{order.refundableAmount}
+                。请按商品选择数量和是否返库，
+                实退金额由服务端重新分摊，最后一件退完时才退运费。
               </p>
-              <label className="mt-4 block text-xs font-medium text-indigo-900">
-                退款金额
-              </label>
-              <input
-                value={refundAmount}
-                onChange={(event) => setRefundAmount(event.target.value)}
-                inputMode="decimal"
-                placeholder={order.refundableAmount}
-                className="mt-2 h-10 w-full rounded-xl border border-indigo-200 bg-white px-3 text-sm"
-              />
+              <div className="mt-4 space-y-2">
+                {order.items
+                  .filter((item) => item.refundableQuantity > 0)
+                  .map((item) => {
+                    const selection = refundItems[item.id] ?? {
+                      selected: false,
+                      quantity: 1,
+                      restock: false,
+                    };
+                    return (
+                      <div
+                        key={item.id}
+                        className="rounded-xl border border-indigo-200 bg-white p-3"
+                      >
+                        <label className="flex items-start gap-2 text-sm font-medium text-indigo-950">
+                          <input
+                            type="checkbox"
+                            checked={selection.selected}
+                            onChange={(event) =>
+                              setRefundItems((current) => ({
+                                ...current,
+                                [item.id]: {
+                                  ...selection,
+                                  selected: event.target.checked,
+                                },
+                              }))
+                            }
+                            className="mt-1"
+                          />
+                          <span>
+                            {item.productName} · {item.variantName}
+                            <span className="mt-1 block text-xs font-normal text-indigo-600">
+                              可退 {item.refundableQuantity} 件
+                            </span>
+                          </span>
+                        </label>
+                        {selection.selected ? (
+                          <div className="mt-3 grid grid-cols-2 gap-3">
+                            <label className="text-xs text-indigo-800">
+                              退款数量
+                              <input
+                                type="number"
+                                min={1}
+                                max={item.refundableQuantity}
+                                value={selection.quantity}
+                                onChange={(event) =>
+                                  setRefundItems((current) => ({
+                                    ...current,
+                                    [item.id]: {
+                                      ...selection,
+                                      quantity: Number(event.target.value),
+                                    },
+                                  }))
+                                }
+                                className="mt-1 h-9 w-full rounded-lg border border-indigo-200 px-3"
+                              />
+                            </label>
+                            <label className="flex items-end gap-2 pb-2 text-xs text-indigo-800">
+                              <input
+                                type="checkbox"
+                                checked={selection.restock}
+                                onChange={(event) =>
+                                  setRefundItems((current) => ({
+                                    ...current,
+                                    [item.id]: {
+                                      ...selection,
+                                      restock: event.target.checked,
+                                    },
+                                  }))
+                                }
+                              />
+                              返还该商品耗材库存
+                            </label>
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+              </div>
               <label className="mt-3 block text-xs font-medium text-indigo-900">
                 退款原因
               </label>
@@ -625,18 +735,13 @@ export function OrderDetailManager({
                 placeholder="请填写退款原因"
                 className="mt-2 w-full resize-none rounded-xl border border-indigo-200 bg-white p-3 text-sm"
               />
-              <label className="mt-3 flex items-start gap-2 text-xs leading-5 text-indigo-800">
-                <input
-                  type="checkbox"
-                  checked={refundRestock}
-                  onChange={(event) => setRefundRestock(event.target.checked)}
-                  className="mt-1"
-                />
-                全额退款成功后回补该订单消耗的耗材库存（部分退款勾选无效）
-              </label>
               <button
                 disabled={
-                  busy !== '' || !refundAmount.trim() || !refundReason.trim()
+                  busy !== '' ||
+                  !refundReason.trim() ||
+                  !Object.values(refundItems).some(
+                    (item) => item.selected && item.quantity > 0,
+                  )
                 }
                 onClick={() => void refundOrder()}
                 className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-indigo-700 text-sm font-semibold text-white disabled:opacity-50"

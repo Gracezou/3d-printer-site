@@ -36,4 +36,9 @@ export interface PaymentProvider {
     providerRefundId?: string;
     message?: string;
   }>;
+
+  queryRefund(params: { outTradeNo: string; outRefundNo: string }): Promise<{
+    status: 'success' | 'pending' | 'not_found';
+    providerRefundId?: string;
+  }>;
 }

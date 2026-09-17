@@ -180,7 +180,13 @@ export const refunds = pgTable(
       .notNull()
       .references(() => payments.id, { onDelete: 'restrict' }),
     outRefundNo: varchar('out_refund_no', { length: 64 }).notNull().unique(),
+    idempotencyKey: varchar('idempotency_key', { length: 64 }).unique(),
     providerRefundId: varchar('provider_refund_id', { length: 64 }),
+    providerConfirmedAt: timestamp('provider_confirmed_at', {
+      withTimezone: true,
+    }),
+    needsManualReview: boolean('needs_manual_review').notNull().default(false),
+    previousOrderStatus: varchar('previous_order_status', { length: 30 }),
     amount: numeric('amount', { precision: 10, scale: 2 }).notNull(),
     isFullRefund: boolean('is_full_refund').notNull(),
     restock: boolean('restock').notNull().default(false),

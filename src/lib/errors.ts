@@ -24,6 +24,11 @@ export const ERROR_DEFINITIONS = {
   MATERIAL_IN_USE: { code: 40912, httpStatus: 409 },
   MODEL_REQUEST_EXISTS: { code: 40913, httpStatus: 409 },
   MODEL_REQUEST_RATE_LIMITED: { code: 40914, httpStatus: 429 },
+  RETURN_REQUEST_EXISTS: { code: 40915, httpStatus: 409 },
+  RETURN_NOT_ALLOWED: { code: 40916, httpStatus: 409 },
+  RETURN_STATUS_INVALID: { code: 40917, httpStatus: 409 },
+  RETURN_AMOUNT_EXCEEDED: { code: 40918, httpStatus: 409 },
+  RETURN_FIT_EXCEPTION: { code: 40919, httpStatus: 409 },
   INTERNAL_ERROR: { code: 50000, httpStatus: 500 },
   PAYMENT_PROVIDER_ERROR: { code: 50001, httpStatus: 502 },
 } as const;
