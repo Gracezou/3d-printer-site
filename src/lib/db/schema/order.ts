@@ -7,9 +7,11 @@ import {
   jsonb,
   numeric,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
@@ -198,6 +200,109 @@ export const refunds = pgTable(
       'refunds_status_check',
       sql`${table.status} IN ('pending','success','failed')`,
     ),
+  ],
+);
+
+export const refundItems = pgTable(
+  'refund_items',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    refundId: uuid('refund_id')
+      .notNull()
+      .references(() => refunds.id, { onDelete: 'restrict' }),
+    orderItemId: uuid('order_item_id')
+      .notNull()
+      .references(() => orderItems.id, { onDelete: 'restrict' }),
+    quantity: integer('quantity').notNull(),
+    itemsAmount: numeric('items_amount', { precision: 10, scale: 2 }).notNull(),
+    discountShare: numeric('discount_share', {
+      precision: 10,
+      scale: 2,
+    }).notNull(),
+    shippingShare: numeric('shipping_share', {
+      precision: 10,
+      scale: 2,
+    }).notNull(),
+    amount: numeric('amount', { precision: 10, scale: 2 }).notNull(),
+    restock: boolean('restock').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique('uq_refund_items_refund_order_item').on(
+      table.refundId,
+      table.orderItemId,
+    ),
+    check('refund_items_quantity_check', sql`${table.quantity} > 0`),
+    check(
+      'refund_items_amount_check',
+      sql`${table.itemsAmount} >= 0 AND ${table.discountShare} >= 0 AND ${table.shippingShare} >= 0 AND ${table.amount} >= 0 AND ${table.amount} = ${table.itemsAmount} - ${table.discountShare} + ${table.shippingShare}`,
+    ),
+    index('idx_refund_items_order_item').on(table.orderItemId),
+  ],
+);
+
+export const returnRequests = pgTable(
+  'return_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    requestNo: varchar('request_no', { length: 32 }).notNull().unique(),
+    orderId: uuid('order_id')
+      .notNull()
+      .references(() => orders.id, { onDelete: 'restrict' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => userProfiles.id, { onDelete: 'restrict' }),
+    reasonCode: varchar('reason_code', { length: 30 }).notNull(),
+    reasonText: varchar('reason_text', { length: 500 }),
+    images: jsonb('images')
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    status: varchar('status', { length: 20 }).notNull().default('pending'),
+    reviewerId: uuid('reviewer_id').references(() => adminUsers.id),
+    reviewRemark: text('review_remark'),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    refundId: uuid('refund_id').references(() => refunds.id),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      'return_requests_status_check',
+      sql`${table.status} IN ('pending','approved','rejected','completed','cancelled')`,
+    ),
+    uniqueIndex('uq_return_pending_per_order')
+      .on(table.orderId)
+      .where(sql`${table.status} = 'pending'`),
+    index('idx_return_requests_user').on(table.userId, table.createdAt.desc()),
+    index('idx_return_requests_status').on(
+      table.status,
+      table.createdAt.desc(),
+    ),
+  ],
+);
+
+export const returnRequestItems = pgTable(
+  'return_request_items',
+  {
+    requestId: uuid('request_id')
+      .notNull()
+      .references(() => returnRequests.id, { onDelete: 'restrict' }),
+    orderItemId: uuid('order_item_id')
+      .notNull()
+      .references(() => orderItems.id, { onDelete: 'restrict' }),
+    quantity: integer('quantity').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.requestId, table.orderItemId] }),
+    check('return_request_items_quantity_check', sql`${table.quantity} > 0`),
+    index('idx_return_request_items_order_item').on(table.orderItemId),
   ],
 );
 

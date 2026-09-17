@@ -259,7 +259,7 @@ async function main(): Promise<void> {
       .select({ status: orders.status, refundedAmount: orders.refundedAmount })
       .from(orders)
       .where(eq(orders.id, partialOrder.id));
-    assert.equal(partialOrderAfter?.status, 'refunded');
+    assert.equal(partialOrderAfter?.status, 'paid');
     assert.equal(partialOrderAfter?.refundedAmount, '20.00');
     assert.equal(
       (
