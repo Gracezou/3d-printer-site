@@ -87,6 +87,18 @@ describe('allocateRefund', () => {
     ).toHaveLength(1);
   });
 
+  it('does not invent shipping on a free-shipping order', () => {
+    const result = allocateRefund({
+      ...order,
+      shippingAmount: '0.00',
+      paidAmount: '42.64',
+      requests: [{ orderItemId: 'c', quantity: 1 }],
+    });
+    expect(result.isFullRefund).toBe(false);
+    expect(result.lines[0]?.shippingShare).toBe('0.00');
+    expect(new Decimal(result.amount).gt(0)).toBe(true);
+  });
+
   it('rejects over-refunding and inconsistent order totals', () => {
     expect(() =>
       allocateRefund({

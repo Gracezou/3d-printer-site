@@ -147,5 +147,10 @@ export const materialStockMovements = pgTable(
       .where(
         sql`${table.refType} = 'order' AND ${table.movementType} IN ('reserve','consume','reserve_release','refund_return')`,
       ),
+    uniqueIndex('uq_movements_refund_item_once')
+      .on(table.refType, table.refId, table.materialId, table.movementType)
+      .where(
+        sql`${table.refType} = 'refund_item' AND ${table.movementType} = 'refund_return'`,
+      ),
   ],
 );

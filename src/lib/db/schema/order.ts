@@ -281,6 +281,8 @@ export const returnRequests = pgTable(
       .on(table.orderId)
       .where(sql`${table.status} = 'pending'`),
     index('idx_return_requests_user').on(table.userId, table.createdAt.desc()),
+    index('idx_return_requests_reviewer').on(table.reviewerId),
+    index('idx_return_requests_refund').on(table.refundId),
     index('idx_return_requests_status').on(
       table.status,
       table.createdAt.desc(),

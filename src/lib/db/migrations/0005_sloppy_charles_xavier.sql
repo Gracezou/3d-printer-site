@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "uq_movements_refund_item_once" ON "material_stock_movements" USING btree ("ref_type","ref_id","material_id","movement_type") WHERE "material_stock_movements"."ref_type" = 'refund_item' AND "material_stock_movements"."movement_type" = 'refund_return';

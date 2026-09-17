@@ -1,0 +1,2 @@
+CREATE INDEX "idx_return_requests_reviewer" ON "return_requests" USING btree ("reviewer_id");--> statement-breakpoint
+CREATE INDEX "idx_return_requests_refund" ON "return_requests" USING btree ("refund_id");

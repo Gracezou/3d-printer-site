@@ -36,6 +36,20 @@
       "when": 1789623764322,
       "tag": "0004_clear_hammerhead",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789624432802,
+      "tag": "0005_sloppy_charles_xavier",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789624861240,
+      "tag": "0006_tense_flatman",
+      "breakpoints": true
     }
   ]
 }
