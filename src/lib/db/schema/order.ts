@@ -180,13 +180,15 @@ export const refunds = pgTable(
       .notNull()
       .references(() => payments.id, { onDelete: 'restrict' }),
     outRefundNo: varchar('out_refund_no', { length: 64 }).notNull().unique(),
-    idempotencyKey: varchar('idempotency_key', { length: 64 }).unique(),
+    idempotencyKey: varchar('idempotency_key', { length: 64 }),
     providerRefundId: varchar('provider_refund_id', { length: 64 }),
     providerConfirmedAt: timestamp('provider_confirmed_at', {
       withTimezone: true,
     }),
     needsManualReview: boolean('needs_manual_review').notNull().default(false),
     previousOrderStatus: varchar('previous_order_status', { length: 30 }),
+    processingToken: uuid('processing_token'),
+    processingUntil: timestamp('processing_until', { withTimezone: true }),
     amount: numeric('amount', { precision: 10, scale: 2 }).notNull(),
     isFullRefund: boolean('is_full_refund').notNull(),
     restock: boolean('restock').notNull().default(false),
@@ -201,6 +203,10 @@ export const refunds = pgTable(
       .defaultNow(),
   },
   (table) => [
+    unique('uq_refunds_order_idempotency_key').on(
+      table.orderId,
+      table.idempotencyKey,
+    ),
     check('refunds_amount_check', sql`${table.amount} > 0`),
     check(
       'refunds_status_check',

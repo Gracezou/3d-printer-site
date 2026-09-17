@@ -29,6 +29,9 @@ export const ERROR_DEFINITIONS = {
   RETURN_STATUS_INVALID: { code: 40917, httpStatus: 409 },
   RETURN_AMOUNT_EXCEEDED: { code: 40918, httpStatus: 409 },
   RETURN_FIT_EXCEPTION: { code: 40919, httpStatus: 409 },
+  REFUND_IN_PROGRESS: { code: 40920, httpStatus: 409 },
+  ZERO_AMOUNT_REFUND: { code: 40921, httpStatus: 409 },
+  REFUND_REJECTED: { code: 40922, httpStatus: 409 },
   INTERNAL_ERROR: { code: 50000, httpStatus: 500 },
   PAYMENT_PROVIDER_ERROR: { code: 50001, httpStatus: 502 },
 } as const;

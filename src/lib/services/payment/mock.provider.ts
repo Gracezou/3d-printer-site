@@ -41,12 +41,12 @@ export class MockPaymentProvider implements PaymentProvider {
     outRefundNo: string;
     amount: string;
     reason: string;
-  }): Promise<{ success: true; providerRefundId: string }> {
+  }): Promise<{ status: 'success'; providerRefundId: string }> {
     const existing = this.refunds.get(params.outRefundNo);
     const providerRefundId = existing ?? `MOCK-REFUND-${crypto.randomUUID()}`;
     this.refunds.set(params.outRefundNo, providerRefundId);
     return {
-      success: true,
+      status: 'success',
       providerRefundId,
     };
   }

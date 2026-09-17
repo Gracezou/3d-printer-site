@@ -40,6 +40,12 @@ export interface RefundAllocationResult {
 
 const ZERO = new Decimal(0);
 
+export class ZeroRefundAmountError extends RangeError {}
+
+function compareIds(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
 function money(value: string): Decimal {
   const amount = new Decimal(value);
   if (!amount.isFinite() || amount.isNegative() || amount.decimalPlaces() > 2) {
@@ -80,7 +86,7 @@ export function allocateRefund(
   }
 
   const sortedItems = [...input.items].sort((left, right) =>
-    left.orderItemId.localeCompare(right.orderItemId),
+    compareIds(left.orderItemId, right.orderItemId),
   );
   const itemById = new Map<string, RefundAllocationItem>();
   let subtotalSum = ZERO;
@@ -172,7 +178,10 @@ export function allocateRefund(
   }
 
   const amount = lines.reduce((sum, line) => sum.plus(line.amount), ZERO);
-  if (amount.lte(0) || amount.gt(paidAmount)) {
+  if (amount.lte(0)) {
+    throw new ZeroRefundAmountError('退款金额必须大于 0');
+  }
+  if (amount.gt(paidAmount)) {
     throw new RangeError('退款金额无效');
   }
   return { lines, amount: toFixed2(amount), isFullRefund };

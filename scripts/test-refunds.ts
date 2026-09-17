@@ -23,7 +23,8 @@ import {
 } from '@/lib/db/schema';
 import { BizError } from '@/lib/errors';
 import type { PaymentProvider } from '@/lib/services/payment/provider.interface';
-import { refundOrder } from '@/lib/services/refund.service';
+import { refundOrder, resumeRefund } from '@/lib/services/refund.service';
+import { assertLocalDatabaseUrl } from './assert-local-database';
 
 function fakeProvider(options?: { fail?: boolean; delayMs?: number }): {
   provider: PaymentProvider;
@@ -49,11 +50,12 @@ function fakeProvider(options?: { fail?: boolean; delayMs?: number }): {
         if (options?.delayMs) {
           await new Promise((resolve) => setTimeout(resolve, options.delayMs));
         }
-        if (options?.fail) return { success: false, message: '模拟渠道拒绝' };
+        if (options?.fail)
+          return { status: 'rejected' as const, message: '模拟渠道拒绝' };
         const providerRefundId =
           completed.get(params.outRefundNo) ?? `FAKE-${params.outRefundNo}`;
         completed.set(params.outRefundNo, providerRefundId);
-        return { success: true, providerRefundId };
+        return { status: 'success' as const, providerRefundId };
       },
       async queryRefund(params) {
         const providerRefundId = completed.get(params.outRefundNo);
@@ -66,6 +68,7 @@ function fakeProvider(options?: { fail?: boolean; delayMs?: number }): {
 }
 
 async function main(): Promise<void> {
+  assertLocalDatabaseUrl();
   const db = getDb();
   const suffix = crypto.randomUUID().replaceAll('-', '').slice(0, 10);
   const userId = crypto.randomUUID();
@@ -283,9 +286,15 @@ async function main(): Promise<void> {
         await db
           .select({ id: materialStockMovements.id })
           .from(materialStockMovements)
-          .where(eq(materialStockMovements.refType, 'refund_item'))
-      ).filter((row) => row.id).length >= 1,
-      true,
+          .where(
+            and(
+              eq(materialStockMovements.refType, 'refund_item'),
+              eq(materialStockMovements.refId, first.items[0]!.id),
+            ),
+          )
+      ).length,
+      1,
+      'replay must leave exactly one stock movement for each refund item',
     );
 
     const second = await refundOrder(
@@ -373,16 +382,22 @@ async function main(): Promise<void> {
       'released',
     );
 
-    async function createSingleOrder(tag: string, materialId = material.id) {
+    async function createSingleOrder(
+      tag: string,
+      materialId = material.id,
+      options: { quantity?: number; status?: string } = {},
+    ) {
+      const quantity = options.quantity ?? 1;
+      const amount = new Decimal(10).mul(quantity).toFixed(2);
       const [order] = await db
         .insert(orders)
         .values({
           orderNo: `B2${tag}${suffix}`,
           userId,
-          status: 'paid',
-          itemsAmount: '10.00',
-          payableAmount: '10.00',
-          paidAmount: '10.00',
+          status: options.status ?? 'paid',
+          itemsAmount: amount,
+          payableAmount: amount,
+          paidAmount: amount,
           receiverName: `${tag} 测试`,
           receiverPhone: '13800138000',
           receiverProvince: '广东省',
@@ -402,8 +417,8 @@ async function main(): Promise<void> {
           variantName: '标准款',
           skuCode: `B2-${tag}-${suffix}`,
           unitPrice: '10.00',
-          quantity: 1,
-          subtotal: '10.00',
+          quantity,
+          subtotal: amount,
           bomSnapshot: [
             {
               material_id: materialId,
@@ -419,14 +434,14 @@ async function main(): Promise<void> {
       await db.insert(printJobs).values({
         orderId: order.id,
         orderItemId: item.id,
-        quantity: 1,
+        quantity,
         status: 'queued',
       });
       await db.insert(payments).values({
         orderId: order.id,
         outTradeNo: `B2-${tag}-PAY-${suffix}`,
         provider: 'mock',
-        amount: '10.00',
+        amount,
         status: 'success',
         paidAt: new Date(),
       });
@@ -463,6 +478,244 @@ async function main(): Promise<void> {
     );
     assert.equal(concurrentProvider.refundCalls(), 1);
 
+    const sameKeyConcurrent = await createSingleOrder('SAME');
+    const sameKeyProvider = fakeProvider({ delayMs: 80 });
+    const sameKeyInput = {
+      idempotencyKey: `b2:same-key:${suffix}`,
+      reason: '相同幂等键并发退款',
+      items: [
+        {
+          orderItemId: sameKeyConcurrent.item.id,
+          quantity: 1,
+          restock: false,
+        },
+      ],
+    };
+    const sameKeyResults = await Promise.allSettled([
+      refundOrder(sameKeyConcurrent.order.id, sameKeyInput, context, {
+        getProvider: () => sameKeyProvider.provider,
+      }),
+      refundOrder(sameKeyConcurrent.order.id, sameKeyInput, context, {
+        getProvider: () => sameKeyProvider.provider,
+      }),
+    ]);
+    assert.equal(
+      sameKeyResults.filter((result) => result.status === 'fulfilled').length,
+      1,
+      'same idempotency key must have a single processing owner',
+    );
+    assert(
+      sameKeyResults.some(
+        (result) =>
+          result.status === 'rejected' &&
+          result.reason instanceof BizError &&
+          result.reason.code === 40920,
+      ),
+      'the lease loser must receive REFUND_IN_PROGRESS',
+    );
+    assert.equal(sameKeyProvider.refundCalls(), 1);
+
+    const quantityOrder = await createSingleOrder('QTY', material.id, {
+      quantity: 3,
+      status: 'in_production',
+    });
+    const quantityProvider = fakeProvider();
+    await refundOrder(
+      quantityOrder.order.id,
+      {
+        idempotencyKey: `b2:quantity-1:${suffix}`,
+        reason: '三件商品先退一件',
+        items: [
+          { orderItemId: quantityOrder.item.id, quantity: 1, restock: false },
+        ],
+      },
+      context,
+      { getProvider: () => quantityProvider.provider },
+    );
+    assert.equal(
+      (
+        await db
+          .select({ quantity: printJobs.quantity })
+          .from(printJobs)
+          .where(eq(printJobs.orderItemId, quantityOrder.item.id))
+      )[0]?.quantity,
+      2,
+      'partial refund must decrement rather than delete a queued print job',
+    );
+    await refundOrder(
+      quantityOrder.order.id,
+      {
+        idempotencyKey: `b2:quantity-2:${suffix}`,
+        reason: '三件商品再退两件',
+        items: [
+          { orderItemId: quantityOrder.item.id, quantity: 2, restock: false },
+        ],
+      },
+      context,
+      { getProvider: () => quantityProvider.provider },
+    );
+    assert.equal(
+      (
+        await db
+          .select({ id: printJobs.id })
+          .from(printJobs)
+          .where(eq(printJobs.orderItemId, quantityOrder.item.id))
+      ).length,
+      0,
+      'the queued print job must be removed after all three units are refunded',
+    );
+
+    const [productionOrder] = await db
+      .insert(orders)
+      .values({
+        orderNo: `B2PROD${suffix}`,
+        userId,
+        status: 'in_production',
+        itemsAmount: '20.00',
+        payableAmount: '20.00',
+        paidAmount: '20.00',
+        receiverName: '生产完成推进测试',
+        receiverPhone: '13800138000',
+        receiverProvince: '广东省',
+        receiverCity: '深圳市',
+        receiverDistrict: '南山区',
+        receiverDetail: '测试路 3 号',
+        paidAt: new Date(),
+      })
+      .returning({ id: orders.id });
+    assert(productionOrder);
+    orderIds.push(productionOrder.id);
+    const productionItems = await db
+      .insert(orderItems)
+      .values(
+        ['DONE', 'QUEUE'].map((tag) => ({
+          orderId: productionOrder.id,
+          productName: `生产 ${tag}`,
+          variantName: '标准款',
+          skuCode: `B2-PROD-${tag}-${suffix}`,
+          unitPrice: '10.00',
+          quantity: 1,
+          subtotal: '10.00',
+          bomSnapshot: [],
+        })),
+      )
+      .returning({ id: orderItems.id });
+    await db.insert(printJobs).values([
+      {
+        orderId: productionOrder.id,
+        orderItemId: productionItems[0]!.id,
+        quantity: 1,
+        status: 'done',
+      },
+      {
+        orderId: productionOrder.id,
+        orderItemId: productionItems[1]!.id,
+        quantity: 1,
+        status: 'queued',
+      },
+    ]);
+    await db.insert(payments).values({
+      orderId: productionOrder.id,
+      outTradeNo: `B2-PROD-PAY-${suffix}`,
+      provider: 'mock',
+      amount: '20.00',
+      status: 'success',
+      paidAt: new Date(),
+    });
+    const productionProvider = fakeProvider();
+    await refundOrder(
+      productionOrder.id,
+      {
+        idempotencyKey: `b2:production-ready:${suffix}`,
+        reason: '退款移除最后一条未完成生产任务',
+        items: [
+          {
+            orderItemId: productionItems[1]!.id,
+            quantity: 1,
+            restock: false,
+          },
+        ],
+      },
+      context,
+      { getProvider: () => productionProvider.provider },
+    );
+    assert.equal(
+      (
+        await db
+          .select({ status: orders.status })
+          .from(orders)
+          .where(eq(orders.id, productionOrder.id))
+      )[0]?.status,
+      'pending_shipment',
+      'in_production order must advance when no unfinished print jobs remain',
+    );
+
+    const firstScoped = await createSingleOrder('SCOPE1');
+    const secondScoped = await createSingleOrder('SCOPE2');
+    const scopedKey = `b2:scoped:${suffix}`;
+    await refundOrder(
+      firstScoped.order.id,
+      {
+        idempotencyKey: scopedKey,
+        reason: '订单内幂等键一',
+        items: [
+          { orderItemId: firstScoped.item.id, quantity: 1, restock: false },
+        ],
+      },
+      context,
+      { getProvider: () => fakeProvider().provider },
+    );
+    await refundOrder(
+      secondScoped.order.id,
+      {
+        idempotencyKey: scopedKey,
+        reason: '订单内幂等键二',
+        items: [
+          { orderItemId: secondScoped.item.id, quantity: 1, restock: false },
+        ],
+      },
+      context,
+      { getProvider: () => fakeProvider().provider },
+    );
+
+    const zeroAmount = await createSingleOrder('ZERO');
+    await db
+      .update(orders)
+      .set({
+        discountAmount: '10.00',
+        payableAmount: '0.00',
+        paidAmount: '0.00',
+      })
+      .where(eq(orders.id, zeroAmount.order.id));
+    const zeroProvider = fakeProvider();
+    await assert.rejects(
+      () =>
+        refundOrder(
+          zeroAmount.order.id,
+          {
+            idempotencyKey: `b2:zero:${suffix}`,
+            reason: '零金额退款',
+            items: [
+              { orderItemId: zeroAmount.item.id, quantity: 1, restock: false },
+            ],
+          },
+          context,
+          { getProvider: () => zeroProvider.provider },
+        ),
+      (error: unknown) => error instanceof BizError && error.code === 40921,
+    );
+    assert.equal(zeroProvider.refundCalls(), 0);
+    assert.equal(
+      (
+        await db
+          .select({ id: refunds.id })
+          .from(refunds)
+          .where(eq(refunds.orderId, zeroAmount.order.id))
+      ).length,
+      0,
+      'zero-amount rejection must not persist a refund record',
+    );
+
     const failed = await createSingleOrder('FAIL');
     const failedProvider = fakeProvider({ fail: true });
     await assert.rejects(() =>
@@ -496,6 +749,98 @@ async function main(): Promise<void> {
       'queued',
       'provider failure must not mutate the print queue',
     );
+    assert.equal(
+      (
+        await db
+          .select({ status: refunds.status })
+          .from(refunds)
+          .where(eq(refunds.orderId, failed.order.id))
+      )[0]?.status,
+      'failed',
+      'a deterministic provider rejection may be marked failed',
+    );
+
+    const unknown = await createSingleOrder('UNKNOWN');
+    let unknownRefundCalls = 0;
+    let unknownQueryCalls = 0;
+    let channelConfirmed = false;
+    const unknownProvider: PaymentProvider = {
+      code: 'mock',
+      async createPayment() {
+        return { payUrl: 'http://localhost/mock' };
+      },
+      async queryPayment() {
+        return { status: 'pending' as const };
+      },
+      async verifyNotify() {
+        return { valid: false, raw: {} };
+      },
+      async refund() {
+        unknownRefundCalls += 1;
+        return { status: 'unknown' as const, message: '模拟渠道结果未知' };
+      },
+      async queryRefund(params) {
+        unknownQueryCalls += 1;
+        if (channelConfirmed) {
+          return {
+            status: 'success' as const,
+            providerRefundId: params.outRefundNo,
+          };
+        }
+        return unknownQueryCalls === 1
+          ? { status: 'not_found' as const }
+          : { status: 'pending' as const };
+      },
+    };
+    await assert.rejects(
+      () =>
+        refundOrder(
+          unknown.order.id,
+          {
+            idempotencyKey: `b2:unknown:${suffix}`,
+            reason: '渠道结果未知后续记',
+            items: [
+              { orderItemId: unknown.item.id, quantity: 1, restock: false },
+            ],
+          },
+          context,
+          { getProvider: () => unknownProvider },
+        ),
+      (error: unknown) => error instanceof BizError && error.code === 50001,
+    );
+    const [unknownPending] = await db
+      .select({
+        id: refunds.id,
+        status: refunds.status,
+        needsManualReview: refunds.needsManualReview,
+        outRefundNo: refunds.outRefundNo,
+      })
+      .from(refunds)
+      .where(eq(refunds.orderId, unknown.order.id));
+    assert(unknownPending);
+    assert.equal(unknownPending.status, 'pending');
+    assert.equal(unknownPending.needsManualReview, true);
+    assert.equal(unknownRefundCalls, 2);
+    channelConfirmed = true;
+    const unknownRecovered = await resumeRefund(unknownPending.id, context, {
+      getProvider: () => unknownProvider,
+    });
+    assert.equal(unknownRecovered.status, 'success');
+    assert.equal(unknownRecovered.outRefundNo, unknownPending.outRefundNo);
+    assert.equal(
+      unknownRefundCalls,
+      2,
+      'resume must query before paying again',
+    );
+    assert.equal(
+      (
+        await db
+          .select({ id: refunds.id })
+          .from(refunds)
+          .where(eq(refunds.orderId, unknown.order.id))
+      ).length,
+      1,
+    );
 
     const missingMaterialId = crypto.randomUUID();
     const recovery = await createSingleOrder('REC', missingMaterialId);
@@ -512,13 +857,16 @@ async function main(): Promise<void> {
     );
     const [pendingRecovery] = await db
       .select({
+        id: refunds.id,
         status: refunds.status,
         providerConfirmedAt: refunds.providerConfirmedAt,
+        needsManualReview: refunds.needsManualReview,
       })
       .from(refunds)
       .where(eq(refunds.orderId, recovery.order.id));
     assert.equal(pendingRecovery?.status, 'pending');
     assert(pendingRecovery?.providerConfirmedAt);
+    assert.equal(pendingRecovery.needsManualReview, true);
     assert.equal(
       (
         await db
@@ -538,12 +886,9 @@ async function main(): Promise<void> {
       wasteRate: '0.0000',
     });
     materialIds.push(missingMaterialId);
-    const recovered = await refundOrder(
-      recovery.order.id,
-      recoveryInput,
-      context,
-      { getProvider: () => recoveryProvider.provider },
-    );
+    const recovered = await resumeRefund(pendingRecovery.id, context, {
+      getProvider: () => recoveryProvider.provider,
+    });
     assert.equal(recovered.status, 'success');
     assert.equal(recoveryProvider.refundCalls(), 1);
     assert.equal(
@@ -557,8 +902,37 @@ async function main(): Promise<void> {
       'recovery must reuse the original refund and out-refund number',
     );
 
+    const returnedRefundItems = await db
+      .select({ id: refundItems.id })
+      .from(refundItems)
+      .innerJoin(refunds, eq(refunds.id, refundItems.refundId))
+      .where(
+        and(
+          inArray(refunds.orderId, orderIds),
+          eq(refunds.status, 'success'),
+          eq(refundItems.restock, true),
+        ),
+      );
+    for (const line of returnedRefundItems) {
+      assert.equal(
+        (
+          await db
+            .select({ id: materialStockMovements.id })
+            .from(materialStockMovements)
+            .where(
+              and(
+                eq(materialStockMovements.refType, 'refund_item'),
+                eq(materialStockMovements.refId, line.id),
+              ),
+            )
+        ).length,
+        1,
+        `refund item ${line.id} must have exactly one stock movement`,
+      );
+    }
+
     process.stdout.write(
-      'Refund B2 test passed: exact allocation, per-item restock, queue linkage, partial-state regression, idempotent replay, concurrency, over-refund, provider failure, and confirmed-provider recovery.\n',
+      'Refund B2 test passed: exact allocation, per-item restock, availability, quantity-aware queue linkage, partial-state regression, scoped idempotency, same-key and item concurrency, zero/over-refund rejection, provider tri-state recovery, and refund-id continuation.\n',
     );
   } finally {
     if (orderIds.length) {

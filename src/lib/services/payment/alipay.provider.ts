@@ -1,11 +1,47 @@
 import { Buffer } from 'node:buffer';
 
 import { AlipaySdk } from 'alipay-sdk';
+import Decimal from 'decimal.js';
 
 import { BizError } from '@/lib/errors';
 import { logger } from '@/lib/logger';
 
 import type { PaymentProvider } from './provider.interface';
+
+// Alipay alipay.trade.refund business errors documented as deterministic
+// rejections. Transient/ambiguous codes (notably ACQ.SYSTEM_ERROR,
+// ACQ.REFUND_CHARGE_ERROR and gateway code 20000) are intentionally excluded.
+// Source: https://aipay.alipay.com/docs/vibe-pay/ai-web-app-payment-qianyi/api-list/alipay-trade-refund.html
+export const ALIPAY_REFUND_REJECTION_CODES = new Set([
+  'ACQ.ALLOC_AMOUNT_VALIDATE_ERROR',
+  'ACQ.BUYER_ENABLE_STATUS_FORBID',
+  'ACQ.BUYER_ERROR',
+  'ACQ.BUYER_NOT_EXIST',
+  'ACQ.CURRENCY_NOT_SUPPORT',
+  'ACQ.CUSTOMER_VALIDATE_ERROR',
+  'ACQ.ENTERPRISE_PAY_BIZ_ERROR',
+  'ACQ.INVALID_PARAMETER',
+  'ACQ.NOT_ALLOW_PARTIAL_REFUND',
+  'ACQ.ONLINE_TRADE_VOUCHER_NOT_ALLOW_REFUND',
+  'ACQ.OVERDRAFT_AGREEMENT_NOT_MATCH',
+  'ACQ.OVERDRAFT_ASSIGN_ACCOUNT_INVALID',
+  'ACQ.REASON_TRADE_BEEN_FREEZEN',
+  'ACQ.REASON_TRADE_REFUND_FEE_ERR',
+  'ACQ.REASON_TRADE_STATUS_INVALID',
+  'ACQ.REFUNDALLOC_UNAUTH_LIMIT',
+  'ACQ.REFUND_ACCOUNT_NOT_EXIST',
+  'ACQ.REFUND_AMT_NOT_EQUAL_TOTAL',
+  'ACQ.REFUND_FEE_ERROR',
+  'ACQ.REFUND_ROYALTY_PAYEE_ACCOUNT_NOT_EXIST',
+  'ACQ.SELLER_BALANCE_NOT_ENOUGH',
+  'ACQ.TRADE_HAS_CLOSE',
+  'ACQ.TRADE_HAS_FINISHED',
+  'ACQ.TRADE_NOT_ALLOW_REFUND',
+  'ACQ.TRADE_NOT_EXIST',
+  'ACQ.TRADE_SETTLE_ERROR',
+  'ACQ.TRADE_STATUS_ERROR',
+  'ACQ.USER_NOT_MATCH_ERR',
+]);
 
 function normalizeEnvKey(value: string): string {
   return value.replace(/\\n/g, '\n').trim();
@@ -147,20 +183,37 @@ export class AlipayPageProvider implements PaymentProvider {
           refundReason: params.reason,
         },
       });
+      const providerCode = result.subCode ? String(result.subCode) : undefined;
+      if (result.code === '10000' && result.fundChange === 'Y') {
+        return {
+          status: 'success' as const,
+          providerRefundId: result.outRequestNo
+            ? String(result.outRequestNo)
+            : params.outRefundNo,
+        };
+      }
+      if (providerCode && ALIPAY_REFUND_REJECTION_CODES.has(providerCode)) {
+        return {
+          status: 'rejected' as const,
+          providerCode,
+          message: String(result.subMsg || result.msg || '支付宝拒绝退款'),
+        };
+      }
       return {
-        success: result.code === '10000',
-        providerRefundId: result.tradeNo ? String(result.tradeNo) : undefined,
-        message:
-          result.code === '10000'
-            ? undefined
-            : String(result.subMsg || result.msg || '支付宝退款失败'),
+        status: 'unknown' as const,
+        providerCode: providerCode ?? String(result.code ?? ''),
+        message: String(result.subMsg || result.msg || '支付宝退款结果未知'),
       };
     } catch (error: unknown) {
       paymentError('支付宝退款请求失败', error);
     }
   }
 
-  async queryRefund(params: { outTradeNo: string; outRefundNo: string }) {
+  async queryRefund(params: {
+    outTradeNo: string;
+    outRefundNo: string;
+    amount: string;
+  }) {
     try {
       const result = await this.sdk.exec('alipay.trade.fastpay.refund.query', {
         bizContent: {
@@ -169,16 +222,24 @@ export class AlipayPageProvider implements PaymentProvider {
         },
       });
       if (result.code === '10000') {
+        if (!result.refundStatus) return { status: 'not_found' as const };
+        if (result.refundStatus !== 'REFUND_SUCCESS') {
+          return { status: 'pending' as const };
+        }
+        if (
+          !result.refundAmount ||
+          !new Decimal(String(result.refundAmount)).eq(params.amount)
+        ) {
+          throw new Error('支付宝退款金额与本地记录不一致');
+        }
         return {
           status: 'success' as const,
-          providerRefundId: result.tradeNo ? String(result.tradeNo) : undefined,
+          providerRefundId: result.outRequestNo
+            ? String(result.outRequestNo)
+            : params.outRefundNo,
         };
       }
-      if (
-        ['ACQ.TRADE_NOT_EXIST', 'ACQ.REFUND_NOT_EXIST'].includes(
-          String(result.subCode ?? ''),
-        )
-      ) {
+      if (result.subCode === 'ACQ.TRADE_NOT_EXIST') {
         return { status: 'not_found' as const };
       }
       throw new Error(result.subMsg || result.msg || '支付宝退款查询失败');

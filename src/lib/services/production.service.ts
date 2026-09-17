@@ -200,6 +200,18 @@ export async function postProcessPrintJob(
   );
 }
 
+/** Shared readiness rule used by normal completion and refund finalization. */
+export async function isOrderProductionReady(
+  tx: DbTransaction,
+  orderId: string,
+): Promise<boolean> {
+  const [remaining] = await tx
+    .select({ total: count() })
+    .from(printJobs)
+    .where(and(eq(printJobs.orderId, orderId), ne(printJobs.status, 'done')));
+  return (remaining?.total ?? 0) === 0;
+}
+
 async function transitionJob(
   jobId: string,
   expectedStatus: string,
@@ -253,13 +265,7 @@ export async function completePrintJob(jobId: string, context: WriteContext) {
         )
         .returning();
       if (!updated) await throwJobTransitionError(tx, jobId);
-      const [remaining] = await tx
-        .select({ total: count() })
-        .from(printJobs)
-        .where(
-          and(eq(printJobs.orderId, job.orderId), ne(printJobs.status, 'done')),
-        );
-      const orderReady = (remaining?.total ?? 0) === 0;
+      const orderReady = await isOrderProductionReady(tx, job.orderId);
       if (orderReady) {
         await tx
           .update(orders)

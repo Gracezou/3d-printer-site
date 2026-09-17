@@ -7,6 +7,10 @@ export interface RefundRestockMaterial {
   grams: string;
 }
 
+function compareIds(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
 /** Uses the immutable order-item BOM snapshot, never the current variant BOM. */
 export function calculateRefundRestock(
   bomSnapshot: BomSnapshotItem[],
@@ -35,6 +39,6 @@ export function calculateRefundRestock(
   }
 
   return [...gramsByMaterial.entries()]
-    .sort(([left], [right]) => left.localeCompare(right))
+    .sort(([left], [right]) => compareIds(left, right))
     .map(([materialId, grams]) => ({ materialId, grams: grams.toFixed(2) }));
 }

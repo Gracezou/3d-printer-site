@@ -37,7 +37,7 @@ export async function lockRefundStockMaterials(
           ),
         ),
     ),
-  ].sort((left, right) => left.localeCompare(right));
+  ].sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
 
   for (const materialId of materialIds) {
     const [material] = await tx

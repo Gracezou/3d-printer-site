@@ -57,6 +57,13 @@
       "when": 1789653439388,
       "tag": "0007_melted_bloodaxe",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789655821591,
+      "tag": "0008_heavy_major_mapleleaf",
+      "breakpoints": true
     }
   ]
 }

@@ -32,12 +32,17 @@ export interface PaymentProvider {
     amount: string;
     reason: string;
   }): Promise<{
-    success: boolean;
+    status: 'success' | 'rejected' | 'unknown';
     providerRefundId?: string;
+    providerCode?: string;
     message?: string;
   }>;
 
-  queryRefund(params: { outTradeNo: string; outRefundNo: string }): Promise<{
+  queryRefund(params: {
+    outTradeNo: string;
+    outRefundNo: string;
+    amount: string;
+  }): Promise<{
     status: 'success' | 'pending' | 'not_found';
     providerRefundId?: string;
   }>;

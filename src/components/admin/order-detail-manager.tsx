@@ -116,6 +116,15 @@ interface ApiEnvelope<T> {
   message: string;
 }
 
+class ApiRequestError extends Error {
+  constructor(
+    message: string,
+    readonly code: number,
+  ) {
+    super(message);
+  }
+}
+
 function formatDate(value: string | null): string {
   if (!value) return '—';
   return new Intl.DateTimeFormat('zh-CN', {
@@ -138,7 +147,7 @@ async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
     throw new Error('后台登录已失效');
   }
   if (!response.ok || body.data === null)
-    throw new Error(body.message || '请求失败');
+    throw new ApiRequestError(body.message || '请求失败', body.code);
   return body.data;
 }
 
@@ -296,7 +305,26 @@ export function OrderDetailManager({
       setRefundIdempotencyKey(crypto.randomUUID());
       await load();
     } catch (caught: unknown) {
+      if (caught instanceof ApiRequestError && caught.code === 40922) {
+        setRefundIdempotencyKey(crypto.randomUUID());
+      }
       setError(caught instanceof Error ? caught.message : '退款失败');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function resumeRefund(refundId: string): Promise<void> {
+    setBusy(`resume:${refundId}`);
+    setError('');
+    try {
+      await apiRequest(`/api/admin/refunds/${refundId}/resume`, {
+        method: 'POST',
+      });
+      setNotice('退款续记成功');
+      await load();
+    } catch (caught: unknown) {
+      setError(caught instanceof Error ? caught.message : '退款续记失败');
     } finally {
       setBusy('');
     }
@@ -467,13 +495,28 @@ export function OrderDetailManager({
                     </p>
                     {refund.needsManualReview ? (
                       <p className="mt-2 text-xs font-semibold text-rose-600">
-                        渠道结果待人工对账；请使用原请求幂等键续记，不要新建退款
+                        渠道结果待人工对账；续记会自动使用原退款单号
                       </p>
                     ) : refund.status === 'pending' &&
                       refund.providerConfirmedAt ? (
                       <p className="mt-2 text-xs font-semibold text-amber-700">
                         渠道已确认，本地账务待续记
                       </p>
+                    ) : null}
+                    {permissions.refund && refund.status === 'pending' ? (
+                      <button
+                        type="button"
+                        disabled={Boolean(busy)}
+                        onClick={() => void resumeRefund(refund.id)}
+                        className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-black/10 bg-white px-3 py-1.5 text-xs font-semibold hover:bg-neutral-100 disabled:opacity-50"
+                      >
+                        {busy === `resume:${refund.id}` ? (
+                          <LoaderCircle className="size-3.5 animate-spin" />
+                        ) : (
+                          <RotateCcw className="size-3.5" />
+                        )}
+                        续记退款
+                      </button>
                     ) : null}
                   </div>
                 ))}

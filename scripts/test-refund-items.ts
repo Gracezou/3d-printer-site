@@ -19,10 +19,12 @@ import {
   variantMaterials,
 } from '@/lib/db/schema';
 import { returnRefundItemStock } from '@/lib/services/refund-stock.service';
+import { assertLocalDatabaseUrl } from './assert-local-database';
 
 class RollbackAfterAssertions extends Error {}
 
 async function main(): Promise<void> {
+  assertLocalDatabaseUrl();
   const suffix = crypto.randomUUID().replaceAll('-', '').slice(0, 10);
   const db = getDb();
 
