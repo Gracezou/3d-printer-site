@@ -1,6 +1,13 @@
 #!/bin/sh
 set -eu
 
+if [ "${ALLOW_REMOTE_TEST_DATABASE+x}" = x ]; then
+  printf '%s\n' '验收入口禁止远程放行：请取消设置 ALLOW_REMOTE_TEST_DATABASE' >&2
+  exit 1
+fi
+
+pnpm exec tsx scripts/assert-local-test-database.ts
+
 run() {
   printf '\n==> %s\n' "$1"
   pnpm "$1"

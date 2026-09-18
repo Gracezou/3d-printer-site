@@ -1,5 +1,7 @@
 import { randomBytes } from 'node:crypto';
+import { mkdir, writeFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
+import { dirname, resolve } from 'node:path';
 
 import bcrypt from 'bcryptjs';
 import { eq, inArray, sql } from 'drizzle-orm';
@@ -859,12 +861,29 @@ async function main(): Promise<void> {
     }
     await seedDemoData(await bcrypt.hash(password, 12));
     await verifyDemoData();
+    const credentialArgument = process.argv.find((argument) =>
+      argument.startsWith('--credential-file='),
+    );
+    const credentialFile = credentialArgument?.slice(
+      '--credential-file='.length,
+    );
+    if (credentialFile) {
+      const outputPath = resolve(credentialFile);
+      await mkdir(dirname(outputPath), { recursive: true });
+      await writeFile(
+        outputPath,
+        `username=demo_operator\npassword=${password}\n`,
+        { mode: 0o600 },
+      );
+    }
     process.stdout.write(
       [
         'v0.2.0 demo data is ready.',
         'Admin URL: http://localhost:5003/admin/login',
         'Username: demo_operator',
-        `Password: ${password}`,
+        credentialFile
+          ? `Credentials saved to ${credentialFile} with mode 0600.`
+          : `Password: ${password}`,
         'All customer emails, phones, addresses, payment IDs, and tracking numbers are fictional.',
       ].join('\n') + '\n',
     );
