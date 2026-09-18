@@ -26,7 +26,7 @@ describe('assertLocalDatabaseUrl', () => {
       /only run against localhost/,
     );
     expect(() => assertMigrationDatabaseUrl(remote, true)).toThrow(
-      /CONFIRM_REMOTE_DATABASE_HOST=db.example.supabase.co/,
+      /CONFIRM_REMOTE_DATABASE_HOST to match/,
     );
     expect(
       assertMigrationDatabaseUrl(remote, true, 'db.example.supabase.co'),

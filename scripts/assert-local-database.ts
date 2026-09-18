@@ -41,7 +41,7 @@ export function assertMigrationDatabaseUrl(
   }
   if (confirmedHost !== hostname) {
     throw new Error(
-      `Remote migration target ${hostname} requires CONFIRM_REMOTE_DATABASE_HOST=${hostname}`,
+      'Remote migration requires CONFIRM_REMOTE_DATABASE_HOST to match the DATABASE_URL hostname',
     );
   }
   return hostname;

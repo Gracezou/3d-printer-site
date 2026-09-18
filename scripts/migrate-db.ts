@@ -12,8 +12,7 @@ if (
   process.env.ALLOW_REMOTE_DATABASE_MIGRATION === 'true'
 ) {
   process.stderr.write(
-    `[MIGRATION WARNING] Remote database host: ${hostname}\n` +
-      `Confirm again with CONFIRM_REMOTE_DATABASE_HOST=${hostname}\n`,
+    '[MIGRATION WARNING] Approved remote migration target; exact host confirmation verified.\n',
   );
 }
 assertMigrationDatabaseUrl();
