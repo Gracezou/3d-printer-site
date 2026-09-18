@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import Decimal from 'decimal.js';
 import { and, eq, inArray } from 'drizzle-orm';
 
+import { assertAlipaySandboxGateway } from './assert-alipay-sandbox';
 import { assertLocalDatabaseUrl } from './assert-local-database';
 import { closeDatabaseConnection, getDb } from '@/lib/db/client';
 import {
@@ -24,6 +25,7 @@ function argument(name: string): string | undefined {
 }
 
 async function main(): Promise<void> {
+  assertAlipaySandboxGateway(process.env.ALIPAY_GATEWAY);
   assertLocalDatabaseUrl();
   if (process.env.ENABLE_MOCK_PAYMENT !== 'false') {
     throw new Error(

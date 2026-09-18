@@ -251,6 +251,17 @@ async function main(): Promise<void> {
     const printing = await createOrder('PRINT', userA, 'printing');
     await expectCode(
       () =>
+        createReturnRequest(userB, {
+          orderNo: printing.order.orderNo,
+          reasonCode: 'quality_issue',
+          reasonText: '其他客户不能对不属于自己的订单发起申请',
+          images: [],
+          items: [{ orderItemId: printing.item.id, quantity: 1 }],
+        }),
+      40401,
+    );
+    await expectCode(
+      () =>
         createReturnRequest(userA, {
           orderNo: printing.order.orderNo,
           reasonCode: 'quality_issue',
