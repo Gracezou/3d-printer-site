@@ -221,9 +221,11 @@ v0.2.3（境内迁移与延迟验证）的剩余任务大部分依赖服务器�
 | `GET /api/returns` | 用户申请列表 |
 | `GET /api/returns/[requestNo]` | 申请详情（必须带 `user_id` 条件查询） |
 | `POST /api/returns/[requestNo]/cancel` | 撤销 `pending` 申请 |
+| `POST /api/returns/upload` | 登录用户上传售后凭证，复用既有图片安全校验 |
 | `GET /api/admin/returns` | 审核队列，需 `return:review` |
 | `POST /api/admin/returns/[id]/approve` | 审核通过并发起退款，需 `return:review` |
 | `POST /api/admin/returns/[id]/reject` | 驳回，需 `return:review` |
+| `POST /api/admin/refunds/[id]/void` | 人工核实渠道未出款后作废待复核退款，需 `order:refund` |
 | `POST /api/admin/orders/[id]/refund` | **改为接受商品明细**（破坏性变更，后台前端需同步） |
 
 订单详情响应新增：每件商品的可退款状态与对应 `print_job` 状态。
@@ -244,6 +246,7 @@ v0.2.3（境内迁移与延迟验证）的剩余任务大部分依赖服务器�
 | 40920 | `REFUND_IN_PROGRESS` | 409 | 同一退款正在由其他请求处理 |
 | 40921 | `ZERO_AMOUNT_REFUND` | 409 | 退款明细计算结果为 0，拒绝发起渠道退款 |
 | 40922 | `REFUND_REJECTED` | 409 | 支付渠道已明确拒绝退款，可修正后重新发起 |
+| 40923 | `REFUND_MANUAL_REVIEW_REQUIRED` | 409 | 重试或续记收到拒绝，但历史渠道结果不确定，必须人工复核 |
 
 ---
 
