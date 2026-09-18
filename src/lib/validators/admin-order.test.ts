@@ -41,4 +41,14 @@ describe('adminOrderRefundSchema', () => {
       }),
     ).toThrow('退款商品不能重复');
   });
+
+  it('reserves the return: idempotency prefix for reviewed applications', () => {
+    expect(() =>
+      adminOrderRefundSchema.parse({
+        idempotencyKey: 'return:11111111-1111-4111-8111-111111111111',
+        reason: '后台直接退款不得占用售后审核键',
+        items: [{ orderItemId, quantity: 1, restock: false }],
+      }),
+    ).toThrow('return: 前缀仅供售后审核流程使用');
+  });
 });

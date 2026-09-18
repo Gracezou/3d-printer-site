@@ -926,7 +926,11 @@ async function finalizeRefund(
     if (context.returnRequestId) {
       const [completedRequest] = await tx
         .update(returnRequests)
-        .set({ status: 'completed', updatedAt: new Date() })
+        .set({
+          status: 'completed',
+          reviewRemark: '退款已完成，请留意原支付渠道到账情况',
+          updatedAt: new Date(),
+        })
         .where(
           and(
             eq(returnRequests.id, context.returnRequestId),
@@ -1047,47 +1051,144 @@ export async function voidRefundAfterManualVerification(
   refundId: string,
   conclusion: string,
   context: RefundContext,
+  dependencies: RefundDependencies = {},
 ): Promise<{ id: string; status: 'failed'; orderStatus: string }> {
   const [target] = await getDb()
-    .select({ orderId: refunds.orderId })
+    .select({
+      orderId: refunds.orderId,
+      paymentId: refunds.paymentId,
+      provider: payments.provider,
+      outTradeNo: payments.outTradeNo,
+      outRefundNo: refunds.outRefundNo,
+      amount: refunds.amount,
+      reason: refunds.reason,
+      isFullRefund: refunds.isFullRefund,
+      previousStatus: refunds.previousOrderStatus,
+      providerConfirmedAt: refunds.providerConfirmedAt,
+      status: refunds.status,
+      needsManualReview: refunds.needsManualReview,
+    })
     .from(refunds)
+    .innerJoin(payments, eq(payments.id, refunds.paymentId))
     .where(eq(refunds.id, refundId))
     .limit(1);
   if (!target) throw new BizError('NOT_FOUND', '退款记录不存在');
+  if (target.providerConfirmedAt) {
+    throw new BizError(
+      'RETURN_STATUS_INVALID',
+      '渠道已确认退款成功，只能续记本地账务，不能人工作废',
+    );
+  }
+  if (target.status !== 'pending' || !target.needsManualReview) {
+    throw new BizError(
+      'RETURN_STATUS_INVALID',
+      '只有待人工复核且渠道未确认的退款可以作废',
+    );
+  }
+  if (!target.previousStatus) {
+    throw new BizError('RETURN_STATUS_INVALID', '退款记录缺少订单恢复状态');
+  }
+
+  const attemptToken = crypto.randomUUID();
+  const [leased] = await getDb()
+    .update(refunds)
+    .set({
+      processingToken: attemptToken,
+      processingUntil: processingLeaseUntil(),
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(refunds.id, refundId),
+        eq(refunds.status, 'pending'),
+        eq(refunds.needsManualReview, true),
+        sql`${refunds.providerConfirmedAt} IS NULL`,
+        sql`(${refunds.processingUntil} IS NULL OR ${refunds.processingUntil} < now())`,
+      ),
+    )
+    .returning({ id: refunds.id });
+  if (!leased) {
+    throw new BizError('REFUND_IN_PROGRESS', '该退款正在处理，不能人工作废');
+  }
+
+  const pending: PendingRefund = {
+    orderId: target.orderId,
+    refundId,
+    paymentId: target.paymentId,
+    provider: paymentProviderCode(target.provider),
+    outTradeNo: target.outTradeNo,
+    outRefundNo: target.outRefundNo,
+    amount: target.amount,
+    reason: target.reason ?? '',
+    isFullRefund: target.isFullRefund,
+    previousStatus: target.previousStatus,
+    providerConfirmedAt: null,
+    attemptToken,
+    created: false,
+  };
+  const provider =
+    dependencies.getProvider?.(pending.provider) ??
+    getPaymentProvider(pending.provider);
+  let queryResult: Awaited<ReturnType<PaymentProvider['queryRefund']>>;
+  try {
+    queryResult = await queryProviderRefund(pending, provider);
+  } catch (error: unknown) {
+    await markManualReview(pending);
+    logger.warn(
+      { err: error, refundId },
+      'Manual refund void query failed; keeping the refund for manual review',
+    );
+    throw new BizError(
+      'REFUND_MANUAL_REVIEW_REQUIRED',
+      '渠道查询失败，无法确认未出款，退款仍需人工复核',
+    );
+  }
+
+  if (queryResult.status === 'pending') {
+    await markManualReview(pending);
+    throw new BizError(
+      'REFUND_MANUAL_REVIEW_REQUIRED',
+      '渠道退款结果尚未确认，不能人工作废',
+    );
+  }
+  if (queryResult.status === 'success') {
+    await markProviderConfirmed(pending, queryResult.providerRefundId);
+    const [linkedRequest] = await getDb()
+      .select({ id: returnRequests.id })
+      .from(returnRequests)
+      .where(
+        and(
+          eq(returnRequests.refundId, refundId),
+          eq(returnRequests.status, 'approved'),
+        ),
+      )
+      .limit(1);
+    try {
+      await finalizeRefund(
+        pending.orderId,
+        pending,
+        linkedRequest
+          ? { ...context, returnRequestId: linkedRequest.id }
+          : context,
+      );
+    } catch (error: unknown) {
+      logger.error(
+        { err: error, refundId },
+        'Provider confirmed refund during manual void but local continuation failed',
+      );
+      await markManualReview(pending);
+      throw error;
+    }
+    throw new BizError(
+      'RETURN_STATUS_INVALID',
+      '渠道已确认退款成功，已续记本地账务，不能人工作废',
+    );
+  }
 
   return getDb().transaction(async (tx) => {
     await tx.execute(
       sql`SELECT pg_advisory_xact_lock(hashtext(${target.orderId}))`,
     );
-    const [record] = await tx
-      .select({
-        id: refunds.id,
-        orderId: refunds.orderId,
-        status: refunds.status,
-        needsManualReview: refunds.needsManualReview,
-        providerConfirmedAt: refunds.providerConfirmedAt,
-        previousStatus: refunds.previousOrderStatus,
-      })
-      .from(refunds)
-      .where(eq(refunds.id, refundId))
-      .limit(1)
-      .for('update');
-    if (!record) throw new BizError('NOT_FOUND', '退款记录不存在');
-    if (record.providerConfirmedAt) {
-      throw new BizError(
-        'RETURN_STATUS_INVALID',
-        '渠道已确认退款成功，只能续记本地账务，不能人工作废',
-      );
-    }
-    if (record.status !== 'pending' || !record.needsManualReview) {
-      throw new BizError(
-        'RETURN_STATUS_INVALID',
-        '只有待人工复核且渠道未确认的退款可以作废',
-      );
-    }
-    if (!record.previousStatus) {
-      throw new BizError('RETURN_STATUS_INVALID', '退款记录缺少订单恢复状态');
-    }
     const [failed] = await tx
       .update(refunds)
       .set({
@@ -1103,16 +1204,17 @@ export async function voidRefundAfterManualVerification(
           eq(refunds.status, 'pending'),
           eq(refunds.needsManualReview, true),
           sql`${refunds.providerConfirmedAt} IS NULL`,
+          eq(refunds.processingToken, attemptToken),
         ),
       )
       .returning({ id: refunds.id });
     if (!failed) {
-      throw new BizError('RETURN_STATUS_INVALID', '退款状态已变化，请刷新后重试');
+      throw new BizError('REFUND_IN_PROGRESS', '退款处理权已变化，不能人工作废');
     }
-    let orderStatus = record.previousStatus;
+    let orderStatus = pending.previousStatus;
     if (
-      record.previousStatus === 'in_production' &&
-      (await isOrderProductionReady(tx, record.orderId))
+      pending.previousStatus === 'in_production' &&
+      (await isOrderProductionReady(tx, target.orderId))
     ) {
       orderStatus = 'pending_shipment';
     }
@@ -1120,13 +1222,13 @@ export async function voidRefundAfterManualVerification(
       .update(orders)
       .set({ status: orderStatus, updatedAt: new Date() })
       .where(
-        and(eq(orders.id, record.orderId), eq(orders.status, 'refunding')),
+        and(eq(orders.id, target.orderId), eq(orders.status, 'refunding')),
       );
     const rejectedRequests = await tx
       .update(returnRequests)
       .set({
         status: 'rejected',
-        reviewRemark: conclusion,
+        reviewRemark: '经核实渠道未出款，本次售后申请已结束',
         updatedAt: new Date(),
       })
       .where(
@@ -1141,7 +1243,7 @@ export async function voidRefundAfterManualVerification(
       adminName: context.admin.name,
       action: 'order.refund.void_manual',
       targetType: 'order',
-      targetId: record.orderId,
+      targetId: target.orderId,
       payload: {
         refundId,
         conclusion,

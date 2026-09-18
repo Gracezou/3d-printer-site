@@ -1,12 +1,25 @@
 import { and, asc, eq, inArray, lt, sql } from 'drizzle-orm';
 
 import { getDb } from '@/lib/db/client';
-import { materials, orders, payments, settings } from '@/lib/db/schema';
+import {
+  materials,
+  orders,
+  payments,
+  returnRequests,
+  settings,
+} from '@/lib/db/schema';
 import { logger } from '@/lib/logger';
 import { releaseDiscount } from '@/lib/services/promotion.service';
+import {
+  getReturnEvidencePublicUrl,
+  listReturnEvidenceObjects,
+  removeReturnEvidenceObjects,
+  type ReturnEvidenceObject,
+} from '@/lib/services/upload.service';
 
 const DEFAULT_BATCH_SIZE = 100;
 const DEFAULT_AUTO_COMPLETE_DAYS = 15;
+const RETURN_EVIDENCE_ORPHAN_GRACE_MS = 24 * 60 * 60_000;
 
 function positiveInteger(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isInteger(value) && value > 0
@@ -153,4 +166,53 @@ export async function collectLowStockAlert(now = new Date()) {
     'Low stock alert collected',
   );
   return lowStockMaterials;
+}
+
+interface ReturnEvidenceCleanupDependencies {
+  listObjects?: (maxFiles: number) => Promise<ReturnEvidenceObject[]>;
+  publicUrl?: (path: string) => string;
+  removeObjects?: (paths: string[]) => Promise<void>;
+}
+
+export async function cleanupOrphanReturnEvidence(
+  now = new Date(),
+  batchSize = DEFAULT_BATCH_SIZE,
+  dependencies: ReturnEvidenceCleanupDependencies = {},
+): Promise<number> {
+  const limit = Math.min(positiveInteger(batchSize, DEFAULT_BATCH_SIZE), 100);
+  const listObjects = dependencies.listObjects ?? listReturnEvidenceObjects;
+  const publicUrl = dependencies.publicUrl ?? getReturnEvidencePublicUrl;
+  const removeObjects = dependencies.removeObjects ?? removeReturnEvidenceObjects;
+  const cutoff = now.getTime() - RETURN_EVIDENCE_ORPHAN_GRACE_MS;
+  const candidates = (await listObjects(limit)).filter(
+    (object) => object.createdAt && object.createdAt.getTime() < cutoff,
+  );
+  if (!candidates.length) return 0;
+
+  const urlByPath = new Map(
+    candidates.map((object) => [object.path, publicUrl(object.path)]),
+  );
+  const candidateUrls = new Set(urlByPath.values());
+  const candidateUrlSql = sql.join(
+    [...candidateUrls].map((url) => sql`${url}`),
+    sql`, `,
+  );
+  const referencedRows = await getDb()
+    .select({ images: returnRequests.images })
+    .from(returnRequests)
+    .where(sql`${returnRequests.images} ?| ARRAY[${candidateUrlSql}]::text[]`);
+  const referenced = new Set(
+    referencedRows.flatMap((row) =>
+      row.images.filter((url) => candidateUrls.has(url)),
+    ),
+  );
+  const orphanPaths = candidates
+    .filter((object) => !referenced.has(urlByPath.get(object.path)!))
+    .map((object) => object.path);
+  await removeObjects(orphanPaths);
+  logger.info(
+    { scanned: candidates.length, removed: orphanPaths.length },
+    'Orphan return evidence cleaned up',
+  );
+  return orphanPaths.length;
 }

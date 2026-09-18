@@ -5,6 +5,8 @@ import { withAdminLog } from '@/lib/services/admin-log.service';
 import {
   delete as deleteStorageObject,
   getPublicUrl,
+  list as listStorageObjects,
+  removeMany as removeStorageObjects,
   upload,
 } from '@/lib/storage';
 import {
@@ -45,6 +47,53 @@ export async function uploadReturnEvidence(
     upsert: false,
   });
   return { url: getPublicUrl(bucket, path) };
+}
+
+export interface ReturnEvidenceObject {
+  path: string;
+  createdAt: Date | null;
+}
+
+export async function listReturnEvidenceObjects(
+  maxFiles = 100,
+): Promise<ReturnEvidenceObject[]> {
+  const bucket = process.env.SUPABASE_STORAGE_BUCKET ?? 'products';
+  const queue = ['returns'];
+  const files: ReturnEvidenceObject[] = [];
+  let scannedDirectories = 0;
+
+  while (queue.length && files.length < maxFiles && scannedDirectories < 1_000) {
+    const prefix = queue.shift()!;
+    scannedDirectories += 1;
+    let offset = 0;
+    for (;;) {
+      const entries = await listStorageObjects(bucket, prefix, 100, offset);
+      for (const entry of entries) {
+        const path = `${prefix}/${entry.name}`;
+        if (entry.id === null) queue.push(path);
+        else {
+          files.push({
+            path,
+            createdAt: entry.createdAt ? new Date(entry.createdAt) : null,
+          });
+          if (files.length >= maxFiles) return files;
+        }
+      }
+      if (entries.length < 100) break;
+      offset += entries.length;
+    }
+  }
+  return files;
+}
+
+export function getReturnEvidencePublicUrl(path: string): string {
+  const bucket = process.env.SUPABASE_STORAGE_BUCKET ?? 'products';
+  return getPublicUrl(bucket, path);
+}
+
+export async function removeReturnEvidenceObjects(paths: string[]): Promise<void> {
+  const bucket = process.env.SUPABASE_STORAGE_BUCKET ?? 'products';
+  await removeStorageObjects(bucket, paths);
 }
 
 export async function uploadAdminAsset(

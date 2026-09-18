@@ -53,7 +53,10 @@ export const adminOrderRefundSchema = z
       .trim()
       .min(8, '幂等键至少 8 个字符')
       .max(64, '幂等键最多 64 个字符')
-      .regex(/^[A-Za-z0-9:_-]+$/, '幂等键格式不正确'),
+      .regex(/^[A-Za-z0-9:_-]+$/, '幂等键格式不正确')
+      .refine((value) => !value.startsWith('return:'), {
+        message: 'return: 前缀仅供售后审核流程使用',
+      }),
     reason: z.string().trim().min(1, '退款原因不能为空').max(200),
     items: z
       .array(

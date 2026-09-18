@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { BizError } from '@/lib/errors';
+
 export const returnReasonCodes = [
   'quality_issue',
   'wrong_item',
@@ -106,6 +108,68 @@ export const rejectReturnRequestSchema = z
 export const voidRefundSchema = z
   .object({ conclusion: z.string().trim().min(5, '核实结论至少 5 个字符').max(1000) })
   .strict();
+
+export function assertReturnEvidenceUrls(
+  images: string[],
+  userId: string,
+): void {
+  if (!images.length) return;
+  const storageOrigin =
+    process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const bucket = process.env.SUPABASE_STORAGE_BUCKET ?? 'products';
+  if (!storageOrigin) {
+    throw new BizError('PARAM_INVALID', '凭证存储地址未配置');
+  }
+
+  let expected: URL;
+  try {
+    expected = new URL(
+      `/storage/v1/object/public/${bucket}/returns/${userId}/`,
+      storageOrigin,
+    );
+  } catch {
+    throw new BizError('PARAM_INVALID', '凭证存储地址配置无效');
+  }
+
+  for (const value of images) {
+    let candidate: URL;
+    try {
+      candidate = new URL(value);
+    } catch {
+      throw new BizError('PARAM_INVALID', '凭证图片地址无效');
+    }
+    const remainder = candidate.pathname.slice(expected.pathname.length);
+    let decodedSegments: string[];
+    try {
+      decodedSegments = remainder.split('/').map(decodeURIComponent);
+    } catch {
+      throw new BizError('PARAM_INVALID', '凭证图片地址无效');
+    }
+    if (
+      !['http:', 'https:'].includes(candidate.protocol) ||
+      candidate.origin !== expected.origin ||
+      !candidate.pathname.startsWith(expected.pathname) ||
+      candidate.username !== '' ||
+      candidate.password !== '' ||
+      candidate.search !== '' ||
+      candidate.hash !== '' ||
+      !remainder ||
+      decodedSegments.some(
+        (segment) =>
+          !segment ||
+          segment === '.' ||
+          segment === '..' ||
+          segment.includes('/') ||
+          segment.includes('\\'),
+      )
+    ) {
+      throw new BizError(
+        'PARAM_INVALID',
+        '凭证图片必须来自当前用户的本站上传目录',
+      );
+    }
+  }
+}
 
 export type CreateReturnRequestInput = z.infer<
   typeof createReturnRequestSchema

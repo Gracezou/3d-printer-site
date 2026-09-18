@@ -7,6 +7,12 @@ interface UploadOptions {
   upsert?: boolean;
 }
 
+export interface StorageObjectEntry {
+  name: string;
+  id: string | null;
+  createdAt: string | null;
+}
+
 let storageClient: SupabaseClient | undefined;
 
 function getStorageClient(): SupabaseClient {
@@ -54,6 +60,36 @@ export async function remove(bucket: string, path: string): Promise<void> {
   if (error) {
     throw error;
   }
+}
+
+export async function list(
+  bucket: string,
+  prefix: string,
+  limit = 100,
+  offset = 0,
+): Promise<StorageObjectEntry[]> {
+  const { data, error } = await getStorageClient()
+    .storage.from(bucket)
+    .list(prefix, {
+      limit,
+      offset,
+      sortBy: { column: 'name', order: 'asc' },
+    });
+  if (error) throw error;
+  return data.map((entry) => ({
+    name: entry.name,
+    id: entry.id ?? null,
+    createdAt: entry.created_at ?? null,
+  }));
+}
+
+export async function removeMany(
+  bucket: string,
+  paths: string[],
+): Promise<void> {
+  if (!paths.length) return;
+  const { error } = await getStorageClient().storage.from(bucket).remove(paths);
+  if (error) throw error;
 }
 
 export function getPublicUrl(bucket: string, path: string): string {

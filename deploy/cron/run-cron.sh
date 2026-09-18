@@ -15,7 +15,7 @@ set +a
 : "${CRON_SECRET:?CRON_SECRET is required}"
 
 case "${1:-}" in
-  release-expired|auto-complete|low-stock-alert) endpoint="$1" ;;
+  release-expired|auto-complete|cleanup-return-evidence|low-stock-alert) endpoint="$1" ;;
   *) echo "Unknown cron endpoint: ${1:-}" >&2; exit 2 ;;
 esac
 

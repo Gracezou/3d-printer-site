@@ -23,8 +23,10 @@ import {
 } from '@/lib/db/schema';
 import { BizError } from '@/lib/errors';
 import type { PaymentProvider } from '@/lib/services/payment/provider.interface';
+import { cleanupOrphanReturnEvidence } from '@/lib/services/cron.service';
 import {
   refundOrder,
+  resumeRefund,
   voidRefundAfterManualVerification,
 } from '@/lib/services/refund.service';
 import {
@@ -41,7 +43,15 @@ import {
 } from '@/lib/services/return-policy';
 import { assertLocalDatabaseUrl } from './assert-local-database';
 
-function provider(options: { delayMs?: number; unknown?: boolean } = {}) {
+function provider(
+  options: {
+    delayMs?: number;
+    unknown?: boolean;
+    rejected?: boolean;
+    queryStatus?: 'not_found' | 'pending' | 'success';
+    beforeRefund?: () => Promise<void>;
+  } = {},
+) {
   let refundCalls = 0;
   const value: PaymentProvider = {
     code: 'mock',
@@ -56,21 +66,32 @@ function provider(options: { delayMs?: number; unknown?: boolean } = {}) {
     },
     async refund({ outRefundNo }) {
       refundCalls += 1;
+      await options.beforeRefund?.();
       if (options.delayMs) {
         await new Promise((resolve) => setTimeout(resolve, options.delayMs));
       }
       if (options.unknown) {
         return { status: 'unknown' as const, message: '模拟渠道结果未知' };
       }
+      if (options.rejected) {
+        return {
+          status: 'rejected' as const,
+          message: 'ACQ.REASON_TRADE_REFUND_FEE_ERR: 内部渠道说明',
+        };
+      }
       return {
         status: 'success' as const,
         providerRefundId: `MOCK-${outRefundNo}`,
       };
     },
-    async queryRefund() {
-      return options.unknown
-        ? { status: 'pending' as const }
-        : { status: 'not_found' as const };
+    async queryRefund({ outRefundNo }) {
+      const status = options.queryStatus ?? (options.unknown ? 'pending' : 'not_found');
+      return status === 'success'
+        ? {
+            status: 'success' as const,
+            providerRefundId: `MOCK-${outRefundNo}`,
+          }
+        : { status };
     },
   };
   return { value, calls: () => refundCalls };
@@ -91,6 +112,10 @@ async function main(): Promise<void> {
   const userA = crypto.randomUUID();
   const userB = crypto.randomUUID();
   const orderIds: string[] = [];
+  const previousSupabaseUrl = process.env.SUPABASE_URL;
+  const previousStorageBucket = process.env.SUPABASE_STORAGE_BUCKET;
+  process.env.SUPABASE_URL = 'https://b3-storage.example.test';
+  process.env.SUPABASE_STORAGE_BUCKET = 'products';
   const [previousRules] = await db
     .select({ value: settings.value, remark: settings.remark })
     .from(settings)
@@ -501,10 +526,31 @@ async function main(): Promise<void> {
       .from(refunds)
       .where(eq(refunds.orderId, unknown.order.id));
     assert(unknownRefund);
+    await db
+      .update(refunds)
+      .set({
+        processingToken: crypto.randomUUID(),
+        processingUntil: new Date(Date.now() + 60_000),
+      })
+      .where(eq(refunds.id, unknownRefund.id));
+    await expectCode(
+      () =>
+        voidRefundAfterManualVerification(
+          unknownRefund.id,
+          '续记仍持有处理租约时不得作废',
+          context,
+        ),
+      40920,
+    );
+    await db
+      .update(refunds)
+      .set({ processingToken: null, processingUntil: null })
+      .where(eq(refunds.id, unknownRefund.id));
     const voided = await voidRefundAfterManualVerification(
       unknownRefund.id,
       '支付宝商家中心与资金账单均确认未出款',
       context,
+      { getProvider: () => provider().value },
     );
     assert.equal(voided.status, 'failed');
     assert.equal(voided.orderStatus, 'paid');
@@ -562,8 +608,327 @@ async function main(): Promise<void> {
     const queue = await listAdminReturnRequests({ page: 1, pageSize: 50 });
     assert(queue.list.some((request) => request.id === doneRequest.id));
 
+    const evidence = await createOrder('EVIDENCE', userA, 'queued');
+    const otherUserEvidence = `https://b3-storage.example.test/storage/v1/object/public/products/returns/${userB}/2026/09/other.png`;
+    for (const image of [
+      'javascript:alert(1)',
+      'data:image/png;base64,AAAA',
+      `https://evil.example/returns/${userA}/evidence.png`,
+      otherUserEvidence,
+    ]) {
+      await expectCode(
+        () =>
+          createReturnRequest(userA, {
+            orderNo: evidence.order.orderNo,
+            reasonCode: 'quality_issue',
+            reasonText: '非法凭证地址必须在服务端拒绝',
+            images: [image],
+            items: [{ orderItemId: evidence.item.id, quantity: 1 }],
+          }),
+        40001,
+      );
+    }
+
+    const longReason = await createOrder('LONG', userA, 'queued');
+    const longRequest = await createReturnRequest(userA, {
+      orderNo: longReason.order.orderNo,
+      reasonCode: 'quality_issue',
+      reasonText: 'x'.repeat(500),
+      images: [],
+      items: [{ orderItemId: longReason.item.id, quantity: 1 }],
+    });
+    await approveReturnRequest(
+      longRequest.id,
+      {
+        reviewRemark: '内部审核说明不得展示给客户',
+        items: [{ orderItemId: longReason.item.id, restock: false }],
+      },
+      context,
+      { refund: { getProvider: () => provider().value } },
+    );
+    const [longRefund] = await db
+      .select({ reason: refunds.reason })
+      .from(refunds)
+      .where(eq(refunds.orderId, longReason.order.id));
+    assert.equal(longRefund?.reason, `售后申请 ${longRequest.id}`);
+    const longCustomerView = await getCustomerReturnRequest(
+      userA,
+      longRequest.requestNo,
+    );
+    assert.equal(longCustomerView.status, 'completed');
+    assert.equal(
+      longCustomerView.reviewRemark,
+      '退款已完成，请留意原支付渠道到账情况',
+    );
+
+    const recovery = await createOrder('RECOVERY', userA, 'queued');
+    const recoveryRequest = await createReturnRequest(userA, {
+      orderNo: recovery.order.orderNo,
+      reasonCode: 'quality_issue',
+      reasonText: '渠道未知后必须使用原退款号续记',
+      images: [],
+      items: [{ orderItemId: recovery.item.id, quantity: 1 }],
+    });
+    await expectCode(
+      () =>
+        approveReturnRequest(
+          recoveryRequest.id,
+          { items: [{ orderItemId: recovery.item.id, restock: false }] },
+          context,
+          { refund: { getProvider: () => provider({ unknown: true }).value } },
+        ),
+      50001,
+    );
+    const recoveryPending = await getCustomerReturnRequest(
+      userA,
+      recoveryRequest.requestNo,
+    );
+    assert.equal(recoveryPending.status, 'approved');
+    assert.equal(recoveryPending.reviewRemark, '退款结果待确认，正在人工复核');
+    assert(recoveryPending.refundId);
+    await expectCode(
+      () =>
+        createReturnRequest(userA, {
+          orderNo: recovery.order.orderNo,
+          reasonCode: 'other',
+          reasonText: 'approved 未结案时不得重复申请',
+          images: [],
+          items: [{ orderItemId: recovery.item.id, quantity: 1 }],
+        }),
+      40915,
+    );
+    let signalRefundStarted!: () => void;
+    const refundStarted = new Promise<void>((resolve) => {
+      signalRefundStarted = resolve;
+    });
+    let releaseRefund!: () => void;
+    const refundGate = new Promise<void>((resolve) => {
+      releaseRefund = resolve;
+    });
+    const resumeProvider = provider({
+      queryStatus: 'not_found',
+      beforeRefund: async () => {
+        signalRefundStarted();
+        await refundGate;
+      },
+    });
+    const resume = resumeRefund(recoveryPending.refundId, context, {
+      getProvider: () => resumeProvider.value,
+    });
+    await refundStarted;
+    await expectCode(
+      () =>
+        voidRefundAfterManualVerification(
+          recoveryPending.refundId!,
+          '并发续记期间不允许作废',
+          context,
+          { getProvider: () => provider().value },
+        ),
+      40920,
+    );
+    releaseRefund();
+    await resume;
+    assert.equal(
+      (await getCustomerReturnRequest(userA, recoveryRequest.requestNo)).status,
+      'completed',
+    );
+
+    const rollback = await createOrder('ROLLBACK', userA, 'queued');
+    const rollbackRequest = await createReturnRequest(userA, {
+      orderNo: rollback.order.orderNo,
+      reasonCode: 'quality_issue',
+      reasonText: '建单前失败应恢复待审核',
+      images: [],
+      items: [{ orderItemId: rollback.item.id, quantity: 1 }],
+    });
+    await db
+      .update(orders)
+      .set({ status: 'cancelled' })
+      .where(eq(orders.id, rollback.order.id));
+    await expectCode(
+      () =>
+        approveReturnRequest(
+          rollbackRequest.id,
+          { items: [{ orderItemId: rollback.item.id, restock: false }] },
+          context,
+          { refund: { getProvider: () => provider().value } },
+        ),
+      40903,
+    );
+    const [rolledBackRequest] = await db
+      .select({
+        status: returnRequests.status,
+        reviewerId: returnRequests.reviewerId,
+        reviewRemark: returnRequests.reviewRemark,
+      })
+      .from(returnRequests)
+      .where(eq(returnRequests.id, rollbackRequest.id));
+    assert.equal(rolledBackRequest?.status, 'pending');
+    assert.equal(rolledBackRequest?.reviewerId, null);
+    assert.equal(rolledBackRequest?.reviewRemark, '退款尚未发起，请等待重新审核');
+
+    const rejected = await createOrder('REJECTED', userA, 'queued');
+    const rejectedRequest = await createReturnRequest(userA, {
+      orderNo: rejected.order.orderNo,
+      reasonCode: 'quality_issue',
+      reasonText: '渠道首次明确拒绝',
+      images: [],
+      items: [{ orderItemId: rejected.item.id, quantity: 1 }],
+    });
+    await expectCode(
+      () =>
+        approveReturnRequest(
+          rejectedRequest.id,
+          { items: [{ orderItemId: rejected.item.id, restock: false }] },
+          context,
+          { refund: { getProvider: () => provider({ rejected: true }).value } },
+        ),
+      40922,
+    );
+    const rejectedView = await getCustomerReturnRequest(
+      userA,
+      rejectedRequest.requestNo,
+    );
+    assert.equal(rejectedView.status, 'rejected');
+    assert.equal(
+      rejectedView.reviewRemark,
+      '退款未获支付渠道受理，本次申请已结束',
+    );
+    assert(!rejectedView.reviewRemark?.includes('ACQ.'));
+
+    const linkedVoid = await createOrder('LINKVOID', userA, 'queued');
+    const linkedVoidRequest = await createReturnRequest(userA, {
+      orderNo: linkedVoid.order.orderNo,
+      reasonCode: 'quality_issue',
+      reasonText: '作废必须联动申请状态',
+      images: [],
+      items: [{ orderItemId: linkedVoid.item.id, quantity: 1 }],
+    });
+    await expectCode(
+      () =>
+        approveReturnRequest(
+          linkedVoidRequest.id,
+          { items: [{ orderItemId: linkedVoid.item.id, restock: false }] },
+          context,
+          { refund: { getProvider: () => provider({ unknown: true }).value } },
+        ),
+      50001,
+    );
+    const linkedVoidPending = await getCustomerReturnRequest(
+      userA,
+      linkedVoidRequest.requestNo,
+    );
+    assert(linkedVoidPending.refundId);
+    await voidRefundAfterManualVerification(
+      linkedVoidPending.refundId,
+      '管理员内部核实结论不得展示给客户',
+      context,
+      { getProvider: () => provider({ queryStatus: 'not_found' }).value },
+    );
+    const linkedVoidView = await getCustomerReturnRequest(
+      userA,
+      linkedVoidRequest.requestNo,
+    );
+    assert.equal(linkedVoidView.status, 'rejected');
+    assert.equal(
+      linkedVoidView.reviewRemark,
+      '经核实渠道未出款，本次售后申请已结束',
+    );
+    assert(!linkedVoidView.reviewRemark?.includes('内部核实'));
+
+    const querySuccess = await createOrder('QUERYSUCC', userA, 'queued');
+    const querySuccessRequest = await createReturnRequest(userA, {
+      orderNo: querySuccess.order.orderNo,
+      reasonCode: 'quality_issue',
+      reasonText: '渠道查询成功时必须续记而非作废',
+      images: [],
+      items: [{ orderItemId: querySuccess.item.id, quantity: 1 }],
+    });
+    await expectCode(
+      () =>
+        approveReturnRequest(
+          querySuccessRequest.id,
+          { items: [{ orderItemId: querySuccess.item.id, restock: false }] },
+          context,
+          { refund: { getProvider: () => provider({ unknown: true }).value } },
+        ),
+      50001,
+    );
+    const querySuccessPending = await getCustomerReturnRequest(
+      userA,
+      querySuccessRequest.requestNo,
+    );
+    assert(querySuccessPending.refundId);
+    await expectCode(
+      () =>
+        voidRefundAfterManualVerification(
+          querySuccessPending.refundId!,
+          '错误的作废尝试',
+          context,
+          { getProvider: () => provider({ queryStatus: 'success' }).value },
+        ),
+      40917,
+    );
+    assert.equal(
+      (await getCustomerReturnRequest(userA, querySuccessRequest.requestNo)).status,
+      'completed',
+    );
+
+    const allocation = await createOrder('ALLOCATE', userA, 'queued');
+    await db
+      .update(orders)
+      .set({ discountAmount: '5.00', payableAmount: '15.00', paidAmount: '15.00' })
+      .where(eq(orders.id, allocation.order.id));
+    await db
+      .update(payments)
+      .set({ amount: '15.00' })
+      .where(eq(payments.orderId, allocation.order.id));
+    const allocationRequest = await createReturnRequest(userA, {
+      orderNo: allocation.order.orderNo,
+      reasonCode: 'quality_issue',
+      reasonText: '审核页金额必须使用退款分摊函数',
+      images: [],
+      items: [{ orderItemId: allocation.item.id, quantity: 1 }],
+    });
+    const allocationQueue = await listAdminReturnRequests({
+      status: 'pending',
+      page: 1,
+      pageSize: 100,
+    });
+    assert.equal(
+      allocationQueue.list.find((request) => request.id === allocationRequest.id)
+        ?.items[0]?.refundableAmount,
+      '15.00',
+    );
+
+    const referencedPath = `returns/${userA}/2026/09/referenced.png`;
+    const orphanPath = `returns/${userA}/2026/09/orphan.png`;
+    const evidenceUrl = (path: string) =>
+      `https://b3-storage.example.test/storage/v1/object/public/products/${path}`;
+    await db
+      .update(returnRequests)
+      .set({ images: [evidenceUrl(referencedPath)] })
+      .where(eq(returnRequests.id, allocationRequest.id));
+    const removedPaths: string[] = [];
+    const cleaned = await cleanupOrphanReturnEvidence(
+      new Date('2026-09-18T12:00:00Z'),
+      100,
+      {
+        listObjects: async () => [
+          { path: referencedPath, createdAt: new Date('2026-09-16T00:00:00Z') },
+          { path: orphanPath, createdAt: new Date('2026-09-16T00:00:00Z') },
+        ],
+        publicUrl: evidenceUrl,
+        removeObjects: async (paths) => {
+          removedPaths.push(...paths);
+        },
+      },
+    );
+    assert.equal(cleaned, 1);
+    assert.deepEqual(removedPaths, [orphanPath]);
+
     process.stdout.write(
-      'Return request integration passed: ownership, configurable admission, exception review, shared refund accounting, concurrency, and manual void verified.\n',
+      'Return request integration passed: ownership, evidence trust boundary, recovery state machine, shared refund accounting, concurrency, and manual void verified.\n',
     );
   } finally {
     if (adminId) {
@@ -622,6 +987,13 @@ async function main(): Promise<void> {
         });
     } else {
       await db.delete(settings).where(eq(settings.key, RETURN_RULES_SETTING_KEY));
+    }
+    if (previousSupabaseUrl === undefined) delete process.env.SUPABASE_URL;
+    else process.env.SUPABASE_URL = previousSupabaseUrl;
+    if (previousStorageBucket === undefined) {
+      delete process.env.SUPABASE_STORAGE_BUCKET;
+    } else {
+      process.env.SUPABASE_STORAGE_BUCKET = previousStorageBucket;
     }
     await closeDatabaseConnection();
   }

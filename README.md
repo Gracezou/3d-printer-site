@@ -87,7 +87,7 @@ pnpm security:audit  # 需要先有最新生产构建产物
 
 ## 定时任务
 
-`deploy/cron/` 提供 system crontab 模板、环境变量模板和包装脚本，覆盖每分钟释放过期订单、每日 03:00 自动完成订单和每日 09:00 低库存汇总。`CRON_SECRET` 只放在权限受限的环境文件中，禁止写入 crontab 命令行。
+`deploy/cron/` 提供 system crontab 模板、环境变量模板和包装脚本，覆盖每分钟释放过期订单、每日 03:00 自动完成订单、每日 04:30 清理超过 24 小时仍未关联申请的售后凭证，以及每日 09:00 低库存汇总。`CRON_SECRET` 只放在权限受限的环境文件中，禁止写入 crontab 命令行。
 
 服务器应用环境配置完成后，以 Root 身份执行 `deploy/cron/install.sh`。安装脚本会从应用 `.env` 读取站点地址与 `CRON_SECRET`，分别安装权限受限的 Cron 环境文件、执行脚本和 `/etc/cron.d/3d-printer-site` 调度配置。
 

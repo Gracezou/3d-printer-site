@@ -1,5 +1,4 @@
-import Decimal from 'decimal.js';
-import { and, count, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 
 import type { AdminIdentity } from '@/lib/auth/admin';
 import { getDb } from '@/lib/db/client';
@@ -17,6 +16,10 @@ import {
 import { BizError } from '@/lib/errors';
 import { maskEmail } from '@/lib/logger';
 import type { DbTransaction } from '@/lib/services/admin-log.service';
+import {
+  allocateRefund,
+  ZeroRefundAmountError,
+} from '@/lib/services/refund-allocation';
 import type { RefundDependencies } from '@/lib/services/refund.service';
 import { refundOrder } from '@/lib/services/refund.service';
 import {
@@ -24,6 +27,7 @@ import {
   getReturnRules,
   isReturnException,
 } from '@/lib/services/return-policy';
+import { assertReturnEvidenceUrls } from '@/lib/validators/return-request';
 import type {
   AdminReturnListQuery,
   ApproveReturnRequestInput,
@@ -64,6 +68,7 @@ async function loadRequestItems(
     .select({
       requestId: returnRequestItems.requestId,
       orderItemId: returnRequestItems.orderItemId,
+      orderId: orderItems.orderId,
       requestedQuantity: returnRequestItems.quantity,
       purchasedQuantity: orderItems.quantity,
       productName: orderItems.productName,
@@ -78,8 +83,19 @@ async function loadRequestItems(
     .leftJoin(printJobs, eq(printJobs.orderItemId, orderItems.id))
     .where(inArray(returnRequestItems.requestId, requestIds))
     .orderBy(orderItems.createdAt);
-  const orderItemIds = [...new Set(rows.map((row) => row.orderItemId))];
-  const refundedRows = orderItemIds.length
+  const orderIds = [...new Set(rows.map((row) => row.orderId))];
+  const allOrderItems = orderIds.length
+    ? await db
+        .select({
+          id: orderItems.id,
+          orderId: orderItems.orderId,
+          quantity: orderItems.quantity,
+          subtotal: orderItems.subtotal,
+        })
+        .from(orderItems)
+        .where(inArray(orderItems.orderId, orderIds))
+    : [];
+  const refundedRows = allOrderItems.length
     ? await db
         .select({
           orderItemId: refundItems.orderItemId,
@@ -90,17 +106,41 @@ async function loadRequestItems(
         .innerJoin(refunds, eq(refunds.id, refundItems.refundId))
         .where(
           and(
-            inArray(refundItems.orderItemId, orderItemIds),
+            inArray(
+              refundItems.orderItemId,
+              allOrderItems.map((item) => item.id),
+            ),
             eq(refunds.status, 'success'),
           ),
         )
         .groupBy(refundItems.orderItemId)
     : [];
+  const orderRows = orderIds.length
+    ? await db
+        .select({
+          id: orders.id,
+          itemsAmount: orders.itemsAmount,
+          discountAmount: orders.discountAmount,
+          shippingAmount: orders.shippingAmount,
+          paidAmount: orders.paidAmount,
+        })
+        .from(orders)
+        .where(inArray(orders.id, orderIds))
+    : [];
   const refundedByItem = new Map(
     refundedRows.map((row) => [row.orderItemId, row]),
   );
+  const orderById = new Map(orderRows.map((order) => [order.id, order]));
+  const itemsByOrder = new Map<string, typeof allOrderItems>();
+  for (const item of allOrderItems) {
+    const items = itemsByOrder.get(item.orderId) ?? [];
+    items.push(item);
+    itemsByOrder.set(item.orderId, items);
+  }
+  const orderIdByRequest = new Map<string, string>();
   const byRequest = new Map<string, ReturnItemDetail[]>();
   for (const row of rows) {
+    orderIdByRequest.set(row.requestId, row.orderId);
     const refunded = refundedByItem.get(row.orderItemId);
     const refundedQuantity = refunded?.quantity ?? 0;
     const refundedAmount = refunded?.amount ?? '0.00';
@@ -108,10 +148,6 @@ async function loadRequestItems(
       row.purchasedQuantity - refundedQuantity,
       0,
     );
-    const refundableAmount = Decimal.max(
-      new Decimal(row.subtotal).minus(refundedAmount),
-      0,
-    ).toFixed(2);
     const detail: ReturnItemDetail = {
       orderItemId: row.orderItemId,
       requestedQuantity: row.requestedQuantity,
@@ -125,11 +161,46 @@ async function loadRequestItems(
       refundedQuantity,
       refundableQuantity,
       refundedAmount,
-      refundableAmount,
+      refundableAmount: '0.00',
     };
     const items = byRequest.get(row.requestId) ?? [];
     items.push(detail);
     byRequest.set(row.requestId, items);
+  }
+  for (const [requestId, details] of byRequest) {
+    const orderId = orderIdByRequest.get(requestId);
+    const order = orderId ? orderById.get(orderId) : undefined;
+    const items = orderId ? itemsByOrder.get(orderId) ?? [] : [];
+    const requests = details
+      .filter((item) => item.refundableQuantity > 0)
+      .map((item) => ({
+        orderItemId: item.orderItemId,
+        quantity: item.refundableQuantity,
+      }));
+    if (!order || !items.length || !requests.length) continue;
+    try {
+      const allocation = allocateRefund({
+        itemsAmount: order.itemsAmount,
+        discountAmount: order.discountAmount,
+        shippingAmount: order.shippingAmount,
+        paidAmount: order.paidAmount,
+        items: items.map((item) => ({
+          orderItemId: item.id,
+          subtotal: item.subtotal,
+          quantity: item.quantity,
+          refundedQuantity: refundedByItem.get(item.id)?.quantity ?? 0,
+        })),
+        requests,
+      });
+      const amountByItem = new Map(
+        allocation.lines.map((line) => [line.orderItemId, line.amount]),
+      );
+      for (const detail of details) {
+        detail.refundableAmount = amountByItem.get(detail.orderItemId) ?? '0.00';
+      }
+    } catch (error: unknown) {
+      if (!(error instanceof ZeroRefundAmountError)) throw error;
+    }
   }
   return byRequest;
 }
@@ -154,6 +225,7 @@ export async function createReturnRequest(
   userId: string,
   input: CreateReturnRequestInput,
 ) {
+  assertReturnEvidenceUrls(input.images, userId);
   try {
     return await getDb().transaction(async (tx) => {
       const [order] = await tx
@@ -168,15 +240,22 @@ export async function createReturnRequest(
       const [existing] = await tx
         .select({ id: returnRequests.id })
         .from(returnRequests)
+        .leftJoin(refunds, eq(refunds.id, returnRequests.refundId))
         .where(
           and(
             eq(returnRequests.orderId, order.id),
-            eq(returnRequests.status, 'pending'),
+            or(
+              eq(returnRequests.status, 'pending'),
+              and(
+                eq(returnRequests.status, 'approved'),
+                or(isNull(returnRequests.refundId), eq(refunds.status, 'pending')),
+              ),
+            ),
           ),
         )
         .limit(1);
       if (existing) {
-        throw new BizError('RETURN_REQUEST_EXISTS', '该订单已有待审核申请');
+        throw new BizError('RETURN_REQUEST_EXISTS', '该订单已有处理中申请');
       }
 
       const itemRows = await tx
@@ -516,7 +595,7 @@ export async function approveReturnRequest(
       .set({
         status: 'approved',
         reviewerId: context.admin.sub,
-        reviewRemark: input.reviewRemark ?? null,
+        reviewRemark: '申请已通过审核，退款处理中',
         reviewedAt: now,
         updatedAt: now,
       })
@@ -533,6 +612,7 @@ export async function approveReturnRequest(
     await logReview(tx, context, 'return.review.approve', requestId, {
       reasonCode: request.reasonCode,
       items: input.items,
+      reviewRemark: input.reviewRemark ?? null,
     });
     return { ...request, items };
   });
@@ -542,7 +622,7 @@ export async function approveReturnRequest(
       claimed.orderId,
       {
         idempotencyKey: `return:${requestId}`,
-        reason: claimed.reasonText || `售后申请 ${requestId}`,
+        reason: `售后申请 ${requestId}`,
         items: claimed.items.map((item) => ({
           orderItemId: item.orderItemId,
           quantity: item.quantity,
@@ -569,11 +649,31 @@ export async function approveReturnRequest(
       if (refund) {
         await tx
           .update(returnRequests)
-          .set({ refundId: refund.id, updatedAt: new Date() })
+          .set({
+            refundId: refund.id,
+            ...(refund.status === 'pending'
+              ? { reviewRemark: '退款结果待确认，正在人工复核' }
+              : {}),
+            updatedAt: new Date(),
+          })
           .where(eq(returnRequests.id, requestId));
       }
       if (!refund || refund.status === 'failed') {
-        const status = refund?.status === 'failed' ? 'rejected' : 'pending';
+        const [otherPending] = !refund
+          ? await tx
+              .select({ id: returnRequests.id })
+              .from(returnRequests)
+              .where(
+                and(
+                  eq(returnRequests.orderId, claimed.orderId),
+                  eq(returnRequests.status, 'pending'),
+                  ne(returnRequests.id, requestId),
+                ),
+              )
+              .limit(1)
+          : [];
+        const status =
+          refund?.status === 'failed' || otherPending ? 'rejected' : 'pending';
         await tx
           .update(returnRequests)
           .set({
@@ -582,7 +682,9 @@ export async function approveReturnRequest(
               ? { reviewerId: null, reviewedAt: null }
               : {}),
             reviewRemark:
-              error instanceof Error ? `审核未完成：${error.message}` : '审核未完成',
+              status === 'pending'
+                ? '退款尚未发起，请等待重新审核'
+                : '退款未获支付渠道受理，本次申请已结束',
             updatedAt: new Date(),
           })
           .where(eq(returnRequests.id, requestId));
@@ -612,7 +714,7 @@ export async function rejectReturnRequest(
       .set({
         status: 'rejected',
         reviewerId: context.admin.sub,
-        reviewRemark,
+        reviewRemark: '申请未通过审核，请联系客户服务了解详情',
         reviewedAt: now,
         updatedAt: now,
       })

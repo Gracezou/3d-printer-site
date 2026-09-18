@@ -33,6 +33,7 @@ export const ERROR_DEFINITIONS = {
   ZERO_AMOUNT_REFUND: { code: 40921, httpStatus: 409 },
   REFUND_REJECTED: { code: 40922, httpStatus: 409 },
   REFUND_MANUAL_REVIEW_REQUIRED: { code: 40923, httpStatus: 409 },
+  RETURN_EVIDENCE_RATE_LIMITED: { code: 40924, httpStatus: 429 },
   INTERNAL_ERROR: { code: 50000, httpStatus: 500 },
   PAYMENT_PROVIDER_ERROR: { code: 50001, httpStatus: 502 },
 } as const;
