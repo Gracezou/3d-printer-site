@@ -239,6 +239,24 @@ export function OrderDetail({ orderNo }: { orderNo: string }) {
     }
   }
 
+  async function cancelReturnRequest(requestNo: string): Promise<void> {
+    if (!window.confirm('确认撤销这条待审核申请？')) return;
+    setBusy(true);
+    setError('');
+    try {
+      await apiRequest(
+        `/api/returns/${requestNo}/cancel`,
+        { method: 'POST' },
+        () => router.replace(`/auth/login?next=/account/orders/${orderNo}`),
+      );
+      await load();
+    } catch (caught: unknown) {
+      setError(caught instanceof Error ? caught.message : '撤销申请失败');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (loading && !order)
     return (
       <div className="grid min-h-[60vh] place-items-center text-stone-400">
@@ -505,6 +523,18 @@ export function OrderDetail({ orderNo }: { orderNo: string }) {
                       <p className="mt-2 text-xs text-rose-700">
                         审核说明：{request.reviewRemark}
                       </p>
+                    ) : null}
+                    {request.status === 'pending' ? (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() =>
+                          void cancelReturnRequest(request.requestNo)
+                        }
+                        className="mt-3 rounded-full border border-stone-300 px-3 py-1.5 text-xs font-semibold disabled:opacity-40"
+                      >
+                        撤销申请
+                      </button>
                     ) : null}
                   </div>
                 ))}
