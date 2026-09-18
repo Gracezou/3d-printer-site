@@ -11,6 +11,7 @@ import {
 } from 'drizzle-orm';
 
 import type { AdminIdentity } from '@/lib/auth/admin';
+import { assertPermission } from '@/lib/auth/permissions';
 import { getDb } from '@/lib/db/client';
 import {
   adminOperationLogs,
@@ -569,6 +570,8 @@ export async function approveReturnRequest(
   context: ReviewContext,
   dependencies: ReturnReviewDependencies = {},
 ) {
+  assertPermission(context.admin.permissions, 'return:review');
+  assertPermission(context.admin.permissions, 'order:refund');
   const claimed = await getDb().transaction(async (tx) => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${requestId}))`);
     const [request] = await tx
