@@ -49,6 +49,7 @@ function provider(
     unknown?: boolean;
     rejected?: boolean;
     queryStatus?: 'not_found' | 'pending' | 'success';
+    queryThrows?: boolean;
     beforeRefund?: () => Promise<void>;
   } = {},
 ) {
@@ -85,6 +86,7 @@ function provider(
       };
     },
     async queryRefund({ outRefundNo }) {
+      if (options.queryThrows) throw new Error('模拟渠道查询超时及内部参数');
       const status = options.queryStatus ?? (options.unknown ? 'pending' : 'not_found');
       return status === 'success'
         ? {
@@ -794,6 +796,20 @@ async function main(): Promise<void> {
     assert.equal(rolledBackRequest?.status, 'pending');
     assert.equal(rolledBackRequest?.reviewerId, null);
     assert.equal(rolledBackRequest?.reviewRemark, '退款尚未发起，请等待重新审核');
+    assert.equal(
+      (
+        await db
+          .select({ id: adminOperationLogs.id })
+          .from(adminOperationLogs)
+          .where(
+            and(
+              eq(adminOperationLogs.targetId, rollbackRequest.id),
+              eq(adminOperationLogs.action, 'return.review.refund_error'),
+            ),
+          )
+      ).length,
+      1,
+    );
 
     const rejected = await createOrder('REJECTED', userA, 'queued');
     const rejectedRequest = await createReturnRequest(userA, {
@@ -900,6 +916,67 @@ async function main(): Promise<void> {
     assert.equal(
       (await getCustomerReturnRequest(userA, querySuccessRequest.requestNo)).status,
       'completed',
+    );
+
+    const uncertainVoid = await createOrder('VOIDWAIT', userA, 'queued');
+    const uncertainVoidRequest = await createReturnRequest(userA, {
+      orderNo: uncertainVoid.order.orderNo,
+      reasonCode: 'quality_issue',
+      reasonText: '渠道查询不确定时必须继续人工复核',
+      images: [],
+      items: [{ orderItemId: uncertainVoid.item.id, quantity: 1 }],
+    });
+    await expectCode(
+      () =>
+        approveReturnRequest(
+          uncertainVoidRequest.id,
+          { items: [{ orderItemId: uncertainVoid.item.id, restock: false }] },
+          context,
+          { refund: { getProvider: () => provider({ unknown: true }).value } },
+        ),
+      50001,
+    );
+    const uncertainPending = await getCustomerReturnRequest(
+      userA,
+      uncertainVoidRequest.requestNo,
+    );
+    assert(uncertainPending.refundId);
+    await expectCode(
+      () =>
+        voidRefundAfterManualVerification(
+          uncertainPending.refundId!,
+          'pending 结果不得作废',
+          context,
+          { getProvider: () => provider({ queryStatus: 'pending' }).value },
+        ),
+      40923,
+    );
+    await expectCode(
+      () =>
+        voidRefundAfterManualVerification(
+          uncertainPending.refundId!,
+          '查询失败不得作废',
+          context,
+          { getProvider: () => provider({ queryThrows: true }).value },
+        ),
+      40923,
+    );
+    const [stillManual] = await db
+      .select({
+        status: refunds.status,
+        needsManualReview: refunds.needsManualReview,
+        processingToken: refunds.processingToken,
+      })
+      .from(refunds)
+      .where(eq(refunds.id, uncertainPending.refundId));
+    assert.equal(stillManual?.status, 'pending');
+    assert.equal(stillManual?.needsManualReview, true);
+    assert.equal(stillManual?.processingToken, null);
+    await voidRefundAfterManualVerification(
+      uncertainPending.refundId,
+      '后续明确未出款后允许结案',
+      context,
+      { getProvider: () => provider({ queryStatus: 'not_found' }).value },
     );
 
     const allocation = await createOrder('ALLOCATE', userA, 'queued');
