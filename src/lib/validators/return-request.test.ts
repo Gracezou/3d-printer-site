@@ -10,6 +10,7 @@ import {
 
 const userId = '11111111-1111-4111-8111-111111111111';
 const otherUserId = '22222222-2222-4222-8222-222222222222';
+const evidenceId = '33333333-3333-4333-8333-333333333333';
 
 describe('return evidence URLs', () => {
   beforeEach(() => {
@@ -22,7 +23,7 @@ describe('return evidence URLs', () => {
     expect(() =>
       assertReturnEvidenceUrls(
         [
-          `https://project.supabase.co/storage/v1/object/public/products/returns/${userId}/2026/09/evidence.png`,
+          `https://project.supabase.co/storage/v1/object/public/products/returns/${userId}/2026/09/${evidenceId}.png`,
         ],
         userId,
       ),
@@ -30,19 +31,37 @@ describe('return evidence URLs', () => {
     expect(
       normalizeReturnEvidencePaths(
         [
-          `https://project.supabase.co/storage/v1/object/public/products/returns/${userId}/2026/09/evidence.png`,
+          `https://project.supabase.co/storage/v1/object/public/products/returns/${userId}/2026/09/${evidenceId}.png`,
         ],
         userId,
       ),
-    ).toEqual([`returns/${userId}/2026/09/evidence.png`]);
+    ).toEqual([`returns/${userId}/2026/09/${evidenceId}.png`]);
   });
 
   it('extracts stable paths from legacy URLs after the storage origin changes', () => {
     expect(
       returnEvidencePathFromReference(
-        `https://old-project.supabase.co/storage/v1/object/public/products/returns/${userId}/2026/09/evidence.png`,
+        `https://old-project.supabase.co/storage/v1/object/public/products/returns/${userId}/2026/09/${evidenceId}.png`,
       ),
-    ).toBe(`returns/${userId}/2026/09/evidence.png`);
+    ).toBe(`returns/${userId}/2026/09/${evidenceId}.png`);
+  });
+
+  it.each([
+    ['encoded question mark', `${evidenceId}%3F.png`],
+    ['encoded hash', `${evidenceId}%23.png`],
+    ['tab-suffixed traversal token', '..%09.png'],
+    ['non-UUID filename', 'evidence.png'],
+    ['invalid month', `2026/13/${evidenceId}.png`],
+  ])('rejects %s outside the generated object shape', (_name, suffix) => {
+    const path = suffix.includes('/') ? suffix : `2026/09/${suffix}`;
+    expect(() =>
+      normalizeReturnEvidencePaths(
+        [
+          `https://project.supabase.co/storage/v1/object/public/products/returns/${userId}/${path}`,
+        ],
+        userId,
+      ),
+    ).toThrowError(expect.objectContaining<Partial<BizError>>({ code: 40001 }));
   });
 
   it.each([

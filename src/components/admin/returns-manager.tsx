@@ -34,6 +34,12 @@ interface ReturnRequest {
   images: string[];
   status: string;
   reviewRemark: string | null;
+  internalNotes: Array<{
+    action: 'approve' | 'reject' | 'void';
+    note: string;
+    adminName: string;
+    createdAt: string;
+  }>;
   refundId: string | null;
   isException: boolean;
   createdAt: string;
@@ -282,8 +288,26 @@ export function ReturnsManager() {
               </div>
               {request.reviewRemark ? (
                 <p className="mt-3 text-xs text-neutral-500">
-                  审核说明：{request.reviewRemark}
+                  客户可见状态：{request.reviewRemark}
                 </p>
+              ) : null}
+              {request.internalNotes.length ? (
+                <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
+                  <p className="font-semibold">内部处理记录（仅后台可见）</p>
+                  <ul className="mt-2 space-y-1.5">
+                    {request.internalNotes.map((note) => (
+                      <li key={`${note.action}:${note.createdAt}`}>
+                        {formatTime(note.createdAt)} · {note.adminName} ·{' '}
+                        {note.action === 'approve'
+                          ? '审核'
+                          : note.action === 'reject'
+                            ? '驳回'
+                            : '作废'}
+                        ：{note.note}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               ) : null}
               {request.status === 'pending' ? (
                 <div className="mt-4 flex gap-3">

@@ -13,6 +13,11 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 
 import { notifyAdminUnauthorized } from '@/lib/admin-session-client';
+import {
+  type RefundVoidStatus,
+  refundVoidErrorMessage,
+  refundVoidSuccessMessage,
+} from '@/lib/refund-void-result';
 import { orderStatusLabels as statusLabels } from '@/messages/zh-CN';
 
 interface BomItem {
@@ -338,14 +343,23 @@ export function OrderDetailManager({
     setBusy(`void:${refundId}`);
     setError('');
     try {
-      await apiRequest(`/api/admin/refunds/${refundId}/void`, {
-        method: 'POST',
-        body: JSON.stringify({ conclusion }),
-      });
-      setNotice('退款已作废，订单状态已恢复');
+      const result = await apiRequest<{ status: RefundVoidStatus }>(
+        `/api/admin/refunds/${refundId}/void`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ conclusion }),
+        },
+      );
+      setNotice(refundVoidSuccessMessage(result.status));
       await load();
     } catch (caught: unknown) {
-      setError(caught instanceof Error ? caught.message : '退款作废失败');
+      const fallback =
+        caught instanceof Error ? caught.message : '退款作废失败';
+      setError(
+        caught instanceof ApiRequestError
+          ? refundVoidErrorMessage(caught.code, fallback)
+          : fallback,
+      );
     } finally {
       setBusy('');
     }
@@ -539,7 +553,8 @@ export function OrderDetailManager({
                           )}
                           续记退款
                         </button>
-                        {refund.needsManualReview && !refund.providerConfirmedAt ? (
+                        {refund.needsManualReview &&
+                        !refund.providerConfirmedAt ? (
                           <button
                             type="button"
                             disabled={Boolean(busy)}

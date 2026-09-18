@@ -115,6 +115,17 @@ function storageBucket(): string {
   return process.env.SUPABASE_STORAGE_BUCKET ?? 'products';
 }
 
+const UUID_PATTERN =
+  '[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}';
+const EVIDENCE_REMAINDER_PATTERN = new RegExp(
+  `^\\d{4}/(?:0[1-9]|1[0-2])/${UUID_PATTERN}\\.(?:jpg|png|webp)$`,
+  'i',
+);
+const EVIDENCE_OBJECT_PATH_PATTERN = new RegExp(
+  `^returns/${UUID_PATTERN}/\\d{4}/(?:0[1-9]|1[0-2])/${UUID_PATTERN}\\.(?:jpg|png|webp)$`,
+  'i',
+);
+
 function canonicalEvidencePath(remainder: string): string | null {
   let decodedSegments: string[];
   try {
@@ -146,7 +157,9 @@ function canonicalEvidencePath(remainder: string): string | null {
 export function returnEvidencePathFromReference(value: string): string | null {
   if (value.startsWith('returns/')) {
     const canonical = canonicalEvidencePath(value);
-    return canonical?.startsWith('returns/') ? canonical : null;
+    return canonical && EVIDENCE_OBJECT_PATH_PATTERN.test(canonical)
+      ? canonical
+      : null;
   }
   let candidate: URL;
   try {
@@ -161,7 +174,9 @@ export function returnEvidencePathFromReference(value: string): string | null {
   const canonical = canonicalEvidencePath(
     candidate.pathname.slice(markerIndex + marker.length),
   );
-  return canonical?.startsWith('returns/') ? canonical : null;
+  return canonical && EVIDENCE_OBJECT_PATH_PATTERN.test(canonical)
+    ? canonical
+    : null;
 }
 
 export function normalizeReturnEvidencePaths(
@@ -203,7 +218,8 @@ export function normalizeReturnEvidencePaths(
       candidate.password !== '' ||
       candidate.search !== '' ||
       candidate.hash !== '' ||
-      !canonical
+      !canonical ||
+      !EVIDENCE_REMAINDER_PATTERN.test(canonical)
     ) {
       throw new BizError(
         'PARAM_INVALID',

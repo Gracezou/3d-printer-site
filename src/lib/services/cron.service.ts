@@ -170,7 +170,22 @@ export async function collectLowStockAlert(now = new Date()) {
 
 interface ReturnEvidenceCleanupDependencies {
   listObjects?: () => Promise<ReturnEvidenceObject[]>;
+  loadReferencedPaths?: () => Promise<Set<string>>;
   removeObjects?: (paths: string[]) => Promise<void>;
+}
+
+async function loadReferencedReturnEvidencePaths(): Promise<Set<string>> {
+  const referencedRows = await getDb()
+    .select({ images: returnRequests.images })
+    .from(returnRequests);
+  return new Set(
+    referencedRows.flatMap((row) =>
+      row.images.flatMap((reference) => {
+        const path = returnEvidencePathFromReference(reference);
+        return path ? [path] : [];
+      }),
+    ),
+  );
 }
 
 export async function cleanupOrphanReturnEvidence(
@@ -180,6 +195,8 @@ export async function cleanupOrphanReturnEvidence(
 ): Promise<number> {
   const limit = Math.min(positiveInteger(batchSize, DEFAULT_BATCH_SIZE), 100);
   const listObjects = dependencies.listObjects ?? listReturnEvidenceObjects;
+  const loadReferencedPaths =
+    dependencies.loadReferencedPaths ?? loadReferencedReturnEvidencePaths;
   const removeObjects =
     dependencies.removeObjects ?? removeReturnEvidenceObjects;
   const cutoff = now.getTime() - RETURN_EVIDENCE_ORPHAN_GRACE_MS;
@@ -188,21 +205,20 @@ export async function cleanupOrphanReturnEvidence(
   );
   if (!candidates.length) return 0;
 
-  const referencedRows = await getDb()
-    .select({ images: returnRequests.images })
-    .from(returnRequests);
-  const referenced = new Set(
-    referencedRows.flatMap((row) =>
-      row.images.flatMap((reference) => {
-        const path = returnEvidencePathFromReference(reference);
-        return path ? [path] : [];
-      }),
-    ),
-  );
-  const orphanPaths = candidates
+  const referenced = await loadReferencedPaths();
+  const orphanCandidates = candidates
     .filter((object) => !referenced.has(object.path))
     .slice(0, limit)
     .map((object) => object.path);
+  if (!orphanCandidates.length) return 0;
+
+  // An upload may become associated with a request while the Storage listing
+  // is being scanned. Re-read references immediately before deletion so that
+  // this common race preserves the newly attached evidence.
+  const latestReferenced = await loadReferencedPaths();
+  const orphanPaths = orphanCandidates.filter(
+    (path) => !latestReferenced.has(path),
+  );
   await removeObjects(orphanPaths);
   logger.info(
     { scanned: candidates.length, removed: orphanPaths.length },

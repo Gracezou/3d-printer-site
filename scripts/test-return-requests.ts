@@ -36,6 +36,7 @@ import {
   getCustomerReturnRequest,
   listAdminReturnRequests,
   listCustomerReturnRequests,
+  rejectReturnRequest,
 } from '@/lib/services/return-request.service';
 import {
   DEFAULT_RETURN_RULES,
@@ -666,7 +667,7 @@ async function main(): Promise<void> {
         40001,
       );
     }
-    const storedEvidencePath = `returns/${userA}/2026/09/normalized.png`;
+    const storedEvidencePath = `returns/${userA}/2026/09/${crypto.randomUUID()}.png`;
     const storedEvidenceUrl = `https://b3-storage.example.test/storage/v1/object/public/products/${storedEvidencePath}`;
     const evidenceRequest = await createReturnRequest(userA, {
       orderNo: evidence.order.orderNo,
@@ -715,6 +716,25 @@ async function main(): Promise<void> {
     assert.equal(
       longCustomerView.reviewRemark,
       '退款已完成，请留意原支付渠道到账情况',
+    );
+
+    const internalReject = await createOrder('INTREJECT', userA, 'queued');
+    const internalRejectRequest = await createReturnRequest(userA, {
+      orderNo: internalReject.order.orderNo,
+      reasonCode: 'quality_issue',
+      reasonText: '客户不应看到运营驳回原因',
+      images: [],
+      items: [{ orderItemId: internalReject.item.id, quantity: 1 }],
+    });
+    await rejectReturnRequest(
+      internalRejectRequest.id,
+      '内部驳回说明不得展示给客户',
+      context,
+    );
+    assert.equal(
+      (await getCustomerReturnRequest(userA, internalRejectRequest.requestNo))
+        .reviewRemark,
+      '申请未通过审核，请联系客户服务了解详情',
     );
 
     const recovery = await createOrder('RECOVERY', userA, 'queued');
@@ -920,6 +940,31 @@ async function main(): Promise<void> {
       '经核实渠道未出款，本次售后申请已结束',
     );
     assert(!linkedVoidView.reviewRemark?.includes('内部核实'));
+    const internalReviewQueue = await listAdminReturnRequests({
+      page: 1,
+      pageSize: 100,
+    });
+    assert(
+      internalReviewQueue.list
+        .find((request) => request.id === longRequest.id)
+        ?.internalNotes.some(
+          (note) => note.note === '内部审核说明不得展示给客户',
+        ),
+    );
+    assert(
+      internalReviewQueue.list
+        .find((request) => request.id === internalRejectRequest.id)
+        ?.internalNotes.some(
+          (note) => note.note === '内部驳回说明不得展示给客户',
+        ),
+    );
+    assert(
+      internalReviewQueue.list
+        .find((request) => request.id === linkedVoidRequest.id)
+        ?.internalNotes.some(
+          (note) => note.note === '管理员内部核实结论不得展示给客户',
+        ),
+    );
 
     const querySuccess = await createOrder('QUERYSUCC', userA, 'queued');
     const querySuccessRequest = await createReturnRequest(userA, {
@@ -1038,6 +1083,56 @@ async function main(): Promise<void> {
       { getProvider: () => provider({ queryStatus: 'not_found' }).value },
     );
 
+    const providerFactory = await createOrder('FACTORY', userA, 'queued');
+    const providerFactoryRequest = await createReturnRequest(userA, {
+      orderNo: providerFactory.order.orderNo,
+      reasonCode: 'quality_issue',
+      reasonText: '渠道实例创建失败应进入有说明的冷却期',
+      images: [],
+      items: [{ orderItemId: providerFactory.item.id, quantity: 1 }],
+    });
+    await expectCode(
+      () =>
+        approveReturnRequest(
+          providerFactoryRequest.id,
+          { items: [{ orderItemId: providerFactory.item.id, restock: false }] },
+          context,
+          { refund: { getProvider: () => provider({ unknown: true }).value } },
+        ),
+      50001,
+    );
+    const providerFactoryPending = await getCustomerReturnRequest(
+      userA,
+      providerFactoryRequest.requestNo,
+    );
+    assert(providerFactoryPending.refundId);
+    await db
+      .update(refunds)
+      .set({ processingUntil: new Date(Date.now() - 1_000) })
+      .where(eq(refunds.id, providerFactoryPending.refundId));
+    await expectCode(
+      () =>
+        voidRefundAfterManualVerification(
+          providerFactoryPending.refundId!,
+          '渠道工厂异常不得占用短租约卡死',
+          context,
+          {
+            getProvider: () => {
+              throw new Error('模拟渠道配置缺失');
+            },
+          },
+        ),
+      40923,
+    );
+    const [providerFactoryCooled] = await db
+      .select({ processingUntil: refunds.processingUntil })
+      .from(refunds)
+      .where(eq(refunds.id, providerFactoryPending.refundId));
+    assert(
+      providerFactoryCooled?.processingUntil &&
+        providerFactoryCooled.processingUntil.getTime() - Date.now() > 150_000,
+    );
+
     const allocation = await createOrder('ALLOCATE', userA, 'queued');
     await db
       .update(orders)
@@ -1089,8 +1184,8 @@ async function main(): Promise<void> {
       null,
     );
 
-    const referencedPath = `returns/${userA}/2026/09/referenced.png`;
-    const orphanPath = `returns/${userA}/2026/09/orphan.png`;
+    const referencedPath = `returns/${userA}/2026/09/${crypto.randomUUID()}.png`;
+    const orphanPath = `returns/${userA}/2026/09/${crypto.randomUUID()}.png`;
     const legacyEvidenceUrl = (path: string) =>
       `https://old-storage.example.test/storage/v1/object/public/products/${path}`;
     await db
@@ -1116,9 +1211,9 @@ async function main(): Promise<void> {
 
     const referencedPage = Array.from(
       { length: 101 },
-      (_, index) => `returns/${userA}/2026/09/referenced-${index}.png`,
+      () => `returns/${userA}/2026/09/${crypto.randomUUID()}.png`,
     );
-    const lateOrphanPath = `returns/${userA}/2026/09/late-orphan.png`;
+    const lateOrphanPath = `returns/${userA}/2026/09/${crypto.randomUUID()}.png`;
     await db
       .update(returnRequests)
       .set({ images: referencedPage })
@@ -1145,6 +1240,29 @@ async function main(): Promise<void> {
     );
     assert.equal(pagedCleanup, 1);
     assert.deepEqual(pagedRemovals, [lateOrphanPath]);
+
+    const racingPath = `returns/${userA}/2026/09/${crypto.randomUUID()}.png`;
+    let referenceChecks = 0;
+    const raceRemovals: string[] = [];
+    const raceCleanup = await cleanupOrphanReturnEvidence(
+      new Date('2026-09-18T12:00:00Z'),
+      100,
+      {
+        listObjects: async () => [
+          { path: racingPath, createdAt: new Date('2026-09-16T00:00:00Z') },
+        ],
+        loadReferencedPaths: async () => {
+          referenceChecks += 1;
+          return referenceChecks === 1 ? new Set() : new Set([racingPath]);
+        },
+        removeObjects: async (paths) => {
+          raceRemovals.push(...paths);
+        },
+      },
+    );
+    assert.equal(referenceChecks, 2);
+    assert.equal(raceCleanup, 0);
+    assert.deepEqual(raceRemovals, []);
 
     process.stdout.write(
       'Return request integration passed: ownership, evidence trust boundary, recovery state machine, shared refund accounting, concurrency, and manual void verified.\n',

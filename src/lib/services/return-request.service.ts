@@ -245,6 +245,100 @@ interface ReturnItemDetail {
   refundableAmount: string | null;
 }
 
+interface ReturnInternalNote {
+  action: 'approve' | 'reject' | 'void';
+  note: string;
+  adminName: string;
+  createdAt: Date;
+}
+
+async function loadInternalNotes(
+  db: ReturnType<typeof getDb>,
+  requests: Array<{ id: string; orderId: string }>,
+): Promise<Map<string, ReturnInternalNote[]>> {
+  const notes = new Map<string, ReturnInternalNote[]>();
+  if (!requests.length) return notes;
+  const requestIds = requests.map((request) => request.id);
+  const orderIds = [...new Set(requests.map((request) => request.orderId))];
+  const [reviewLogs, voidLogs] = await Promise.all([
+    db
+      .select({
+        targetId: adminOperationLogs.targetId,
+        action: adminOperationLogs.action,
+        payload: adminOperationLogs.payload,
+        adminName: adminOperationLogs.adminName,
+        createdAt: adminOperationLogs.createdAt,
+      })
+      .from(adminOperationLogs)
+      .where(
+        and(
+          eq(adminOperationLogs.targetType, 'return_request'),
+          inArray(adminOperationLogs.targetId, requestIds),
+          inArray(adminOperationLogs.action, [
+            'return.review.approve',
+            'return.review.reject',
+          ]),
+        ),
+      ),
+    db
+      .select({
+        payload: adminOperationLogs.payload,
+        adminName: adminOperationLogs.adminName,
+        createdAt: adminOperationLogs.createdAt,
+      })
+      .from(adminOperationLogs)
+      .where(
+        and(
+          eq(adminOperationLogs.targetType, 'order'),
+          inArray(adminOperationLogs.targetId, orderIds),
+          eq(adminOperationLogs.action, 'order.refund.void_manual'),
+        ),
+      ),
+  ]);
+  for (const log of reviewLogs) {
+    const note = log.payload?.reviewRemark;
+    if (!log.targetId || typeof note !== 'string' || !note.trim()) continue;
+    const current = notes.get(log.targetId) ?? [];
+    current.push({
+      action: log.action === 'return.review.reject' ? 'reject' : 'approve',
+      note,
+      adminName: log.adminName,
+      createdAt: log.createdAt,
+    });
+    notes.set(log.targetId, current);
+  }
+  for (const log of voidLogs) {
+    const note = log.payload?.conclusion;
+    const linkedRequestIds = log.payload?.returnRequestIds;
+    if (
+      typeof note !== 'string' ||
+      !note.trim() ||
+      !Array.isArray(linkedRequestIds)
+    ) {
+      continue;
+    }
+    for (const requestId of linkedRequestIds) {
+      if (typeof requestId !== 'string' || !requestIds.includes(requestId)) {
+        continue;
+      }
+      const current = notes.get(requestId) ?? [];
+      current.push({
+        action: 'void',
+        note,
+        adminName: log.adminName,
+        createdAt: log.createdAt,
+      });
+      notes.set(requestId, current);
+    }
+  }
+  for (const current of notes.values()) {
+    current.sort(
+      (left, right) => right.createdAt.getTime() - left.createdAt.getTime(),
+    );
+  }
+  return notes;
+}
+
 export async function createReturnRequest(
   userId: string,
   input: CreateReturnRequestInput,
@@ -531,6 +625,7 @@ export async function listAdminReturnRequests(query: AdminReturnListQuery) {
     db,
     rows.map((row) => row.id),
   );
+  const internalNotes = await loadInternalNotes(db, rows);
   const rules = await getReturnRules(db);
   return {
     list: rows.map((row) => ({
@@ -538,6 +633,7 @@ export async function listAdminReturnRequests(query: AdminReturnListQuery) {
       images: resolveReturnEvidenceUrls(row.images),
       userEmail: maskEmail(row.userEmail),
       isException: isReturnException(row.reasonCode, rules),
+      internalNotes: internalNotes.get(row.id) ?? [],
       items: items.get(row.id) ?? [],
     })),
     total: totals[0]?.total ?? 0,
