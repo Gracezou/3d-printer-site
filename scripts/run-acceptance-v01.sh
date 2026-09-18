@@ -18,7 +18,7 @@ run test:customer-orders
 run test:admin-orders
 run test:production
 run test:admin-access
-run test:devices
 run test:model-requests
+run test:devices
 
 printf '\nAll acceptance checks passed.\n'

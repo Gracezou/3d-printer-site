@@ -4,7 +4,7 @@ import { count, eq, inArray } from 'drizzle-orm';
 
 import { POST } from '@/app/api/model-requests/route';
 import { closeDatabaseConnection, getDb } from '@/lib/db/client';
-import { deviceModels, modelRequests } from '@/lib/db/schema';
+import { deviceBrands, deviceModels, modelRequests } from '@/lib/db/schema';
 import { BizError } from '@/lib/errors';
 import { resetModelRequestRateLimitForTests } from '@/lib/model-request-rate-limit';
 import { createModelRequest } from '@/lib/services/device.service';
@@ -27,16 +27,34 @@ async function main(): Promise<void> {
   const db = getDb();
   const suffix = crypto.randomUUID().replaceAll('-', '').slice(0, 10);
   const emails: string[] = [];
+  let brandId = '';
+  let deviceModelId = '';
   resetModelRequestRateLimitForTests();
 
   try {
+    const [brand] = await db
+      .insert(deviceBrands)
+      .values({
+        name: `机型申请验收品牌 ${suffix}`,
+        slug: `model-request-${suffix}`,
+        isVisible: true,
+      })
+      .returning({ id: deviceBrands.id });
+    assert(brand);
+    brandId = brand.id;
+
     const [device] = await db
-      .select({ id: deviceModels.id })
-      .from(deviceModels)
-      .where(eq(deviceModels.isVisible, true))
-      .limit(1);
-    assert(device, '验收环境至少需要一条可见机型');
-    const baseline = await modelRequestCount(device.id);
+      .insert(deviceModels)
+      .values({
+        brandId,
+        name: `机型申请验收设备 ${suffix}`,
+        slug: `request-device-${suffix}`,
+        isVisible: true,
+      })
+      .returning({ id: deviceModels.id });
+    assert(device);
+    deviceModelId = device.id;
+    const baseline = await modelRequestCount(deviceModelId);
 
     const duplicateEmail = `duplicate-${suffix}@example.com`;
     emails.push(duplicateEmail);
@@ -105,6 +123,10 @@ async function main(): Promise<void> {
       await db
         .delete(modelRequests)
         .where(inArray(modelRequests.email, emails));
+    if (deviceModelId)
+      await db.delete(deviceModels).where(eq(deviceModels.id, deviceModelId));
+    if (brandId)
+      await db.delete(deviceBrands).where(eq(deviceBrands.id, brandId));
     resetModelRequestRateLimitForTests();
     await closeDatabaseConnection();
   }

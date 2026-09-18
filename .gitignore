@@ -8,6 +8,7 @@ coverage/
 .env.*
 .env.*.local
 !.env.example
+!.env.sandbox.example
 !deploy/.env.production.example
 *.tsbuildinfo
 .DS_Store
