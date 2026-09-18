@@ -223,7 +223,7 @@ v0.2.3（境内迁移与延迟验证）的剩余任务大部分依赖服务器�
 | `POST /api/returns/[requestNo]/cancel` | 撤销 `pending` 申请 |
 | `POST /api/returns/upload` | 登录用户上传售后凭证，复用既有图片安全校验 |
 | `GET /api/admin/returns` | 审核队列，需 `return:review` |
-| `POST /api/admin/returns/[id]/approve` | 审核通过并发起退款，需 `return:review` |
+| `POST /api/admin/returns/[id]/approve` | 审核通过并发起退款，需同时具备 `return:review` 与 `order:refund`（待 Grace 确认） |
 | `POST /api/admin/returns/[id]/reject` | 驳回，需 `return:review` |
 | `POST /api/admin/refunds/[id]/void` | 人工核实渠道未出款后作废待复核退款，需 `order:refund` |
 | `POST /api/admin/orders/[id]/refund` | **改为接受商品明细**（破坏性变更，后台前端需同步） |

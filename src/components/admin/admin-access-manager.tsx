@@ -88,7 +88,7 @@ const permissionLabels: Record<string, string> = {
   'order:refund': '退款',
   'order:remark': '订单备注',
   'order:export': '导出订单',
-  'return:review': '审核售后申请',
+  'return:review': '查看/驳回售后（批准还需退款权限）',
   'production:view': '查看生产',
   'production:update': '更新生产',
   'product:view': '查看商品',
