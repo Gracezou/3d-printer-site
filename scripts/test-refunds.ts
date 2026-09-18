@@ -998,6 +998,17 @@ async function main(): Promise<void> {
         resumeRefund(resumeRejectedPending.id, context, {
           getProvider: () => resumeRejectedProvider,
         }),
+      (error: unknown) => error instanceof BizError && error.code === 40920,
+    );
+    await db
+      .update(refunds)
+      .set({ processingUntil: new Date(Date.now() - 1_000) })
+      .where(eq(refunds.id, resumeRejectedPending.id));
+    await assert.rejects(
+      () =>
+        resumeRefund(resumeRejectedPending.id, context, {
+          getProvider: () => resumeRejectedProvider,
+        }),
       (error: unknown) => error instanceof BizError && error.code === 40923,
     );
     const [resumeRejectedRecord] = await db
@@ -1074,6 +1085,17 @@ async function main(): Promise<void> {
     assert.equal(unknownPending.needsManualReview, true);
     assert.equal(unknownRefundCalls, 2);
     channelConfirmed = true;
+    await assert.rejects(
+      () =>
+        resumeRefund(unknownPending.id, context, {
+          getProvider: () => unknownProvider,
+        }),
+      (error: unknown) => error instanceof BizError && error.code === 40920,
+    );
+    await db
+      .update(refunds)
+      .set({ processingUntil: new Date(Date.now() - 1_000) })
+      .where(eq(refunds.id, unknownPending.id));
     const unknownRecovered = await resumeRefund(unknownPending.id, context, {
       getProvider: () => unknownProvider,
     });
@@ -1138,6 +1160,17 @@ async function main(): Promise<void> {
       wasteRate: '0.0000',
     });
     materialIds.push(missingMaterialId);
+    await assert.rejects(
+      () =>
+        resumeRefund(pendingRecovery.id, context, {
+          getProvider: () => recoveryProvider.provider,
+        }),
+      (error: unknown) => error instanceof BizError && error.code === 40920,
+    );
+    await db
+      .update(refunds)
+      .set({ processingUntil: new Date(Date.now() - 1_000) })
+      .where(eq(refunds.id, pendingRecovery.id));
     const recovered = await resumeRefund(pendingRecovery.id, context, {
       getProvider: () => recoveryProvider.provider,
     });
