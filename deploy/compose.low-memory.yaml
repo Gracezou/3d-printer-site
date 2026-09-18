@@ -1,0 +1,12 @@
+services:
+  web:
+    init: true
+    environment:
+      NODE_OPTIONS: --max-old-space-size=512
+    mem_limit: 768m
+    mem_reservation: 384m
+    cpus: 1.5
+    pids_limit: 256
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777

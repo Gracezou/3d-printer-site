@@ -8,8 +8,11 @@ coverage/
 .env.*
 .env.*.local
 !.env.example
+!.env.stage.example
 !.env.sandbox.example
 !deploy/.env.production.example
+deploy/targets/*.env
+!deploy/targets/*.env.example
 *.tsbuildinfo
 .DS_Store
 *.log
