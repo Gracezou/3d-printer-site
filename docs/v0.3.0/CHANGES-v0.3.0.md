@@ -128,7 +128,7 @@ v0.2.3（境内迁移与延迟验证）的剩余任务大部分依赖服务器�
 - **准入规则实现为可配置**（D6），不得硬编码
 - 同一订单同时只允许一条 `pending` 申请（部分唯一索引）
 - **申请单本身不动库存、不动金额**，仅记录诉求
-- 凭证图片复用既有 `upload.service`（沿用其权限、扩展名、体积与 magic number 校验）
+- 凭证图片复用既有 `upload.service`（沿用其权限、扩展名、体积与 magic number 校验）；仅接受当前用户 `returns/<user_id>/` 路径，每用户每小时最多上传 20 次，超过 24 小时仍未关联申请的文件由 cron 清理
 - **验收**：`printing` 状态的商品申请被拒（40916）；重复申请被拒（40915）
 
 #### T207 尺寸不符例外情形
@@ -222,11 +222,12 @@ v0.2.3（境内迁移与延迟验证）的剩余任务大部分依赖服务器�
 | `GET /api/returns` | 用户申请列表 |
 | `GET /api/returns/[requestNo]` | 申请详情（必须带 `user_id` 条件查询） |
 | `POST /api/returns/[requestNo]/cancel` | 撤销 `pending` 申请 |
-| `POST /api/returns/upload` | 登录用户上传售后凭证，复用既有图片安全校验 |
+| `POST /api/returns/upload` | 登录用户上传售后凭证，复用既有图片安全校验；每用户每小时最多 20 次 |
+| `GET /api/cron/cleanup-return-evidence` | 删除超过 24 小时且未关联申请的孤儿售后凭证，需 `CRON_SECRET` |
 | `GET /api/admin/returns` | 审核队列，需 `return:review` |
 | `POST /api/admin/returns/[id]/approve` | 审核通过并发起退款，需同时具备 `return:review` 与 `order:refund`（待 Grace 确认） |
 | `POST /api/admin/returns/[id]/reject` | 驳回，需 `return:review` |
-| `POST /api/admin/refunds/[id]/void` | 人工核实渠道未出款后作废待复核退款，需 `order:refund` |
+| `POST /api/admin/refunds/[id]/void` | 人工核实且实时渠道查询为 `not_found` 后作废待复核退款，需 `order:refund` |
 | `POST /api/admin/orders/[id]/refund` | **改为接受商品明细**（破坏性变更，后台前端需同步） |
 
 订单详情响应新增：每件商品的可退款状态与对应 `print_job` 状态。
@@ -248,6 +249,7 @@ v0.2.3（境内迁移与延迟验证）的剩余任务大部分依赖服务器�
 | 40921 | `ZERO_AMOUNT_REFUND` | 409 | 退款明细计算结果为 0，拒绝发起渠道退款 |
 | 40922 | `REFUND_REJECTED` | 409 | 支付渠道已明确拒绝退款，可修正后重新发起 |
 | 40923 | `REFUND_MANUAL_REVIEW_REQUIRED` | 409 | 重试或续记收到拒绝，但历史渠道结果不确定，必须人工复核 |
+| 40924 | `RETURN_EVIDENCE_RATE_LIMITED` | 429 | 同一用户一小时内售后凭证上传超过 20 次 |
 
 ---
 
@@ -280,6 +282,7 @@ v0.2.3（境内迁移与延迟验证）的剩余任务大部分依赖服务器�
 | **分摊算法的分位差** | 逐项四舍五入会导致全额退款对不上实付金额。验收项 1 是本版本的红线，不可放宽 |
 | **会重写已修复的缺陷** | T205 触及 `96126c5 fix: preserve order state for partial refunds`。必须保留语义并补回归测试 |
 | **审核通过后用户收不到通知** | 本期无邮件能力，结果只在站内订单中心可见。归 v0.3.1，页面文案需明示「请在订单中心查看处理结果」 |
+| **售后凭证仍使用公开 URL** | 本批已限制 URL 来源、用户路径、上传频率并清理孤儿文件；私有桶与短时签名 URL 留待后续版本实施，公开链接一旦外泄仍可能被访问 |
 | 沙箱与生产的退款差异 | 生产退款行为可能与沙箱不同（v0.1 T071）。商户号批复后需以真实小额订单复验本版本全部退款路径 |
 | 七天无理由退货 | 产品方决定不提供（§J4）。切换企业主体后消费者可通过支付宝与 12315 投诉，承担方为公司。**这是准入规则必须可配置的原因** |
 | 跨境延迟对事务的影响 | 退款同样在事务内执行多次数据库往返。若 v0.2.3 的 L1 结论显示延迟偏高，本版本的事务耗时需一并观察 |
