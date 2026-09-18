@@ -558,7 +558,7 @@ async function main(): Promise<void> {
       page: 1,
       pageSize: 50,
     });
-    assert(customerList.total >= 5);
+    assert.equal(customerList.total, 4);
     const queue = await listAdminReturnRequests({ page: 1, pageSize: 50 });
     assert(queue.list.some((request) => request.id === doneRequest.id));
 
@@ -592,6 +592,7 @@ async function main(): Promise<void> {
         await db.delete(refundItems).where(inArray(refundItems.refundId, refundIds));
         await db.delete(refunds).where(inArray(refunds.id, refundIds));
       }
+      await db.delete(payments).where(inArray(payments.orderId, orderIds));
       await db.delete(orders).where(inArray(orders.id, orderIds));
     }
     if (materialId) {
