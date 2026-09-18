@@ -6,6 +6,9 @@ import {
   orders,
   payments,
   printJobs,
+  refundItems,
+  refunds,
+  returnRequests,
   shipments,
 } from '@/lib/db/schema';
 import { BizError } from '@/lib/errors';
@@ -16,6 +19,10 @@ import {
 } from '@/messages/zh-CN';
 import type { DbTransaction } from '@/lib/services/admin-log.service';
 import { releaseDiscount } from '@/lib/services/promotion.service';
+import {
+  canCustomerRequestReturn,
+  getReturnRules,
+} from '@/lib/services/return-policy';
 import type { CustomerOrderListQuery } from '@/lib/validators/order';
 
 function statusFilter(
@@ -67,8 +74,9 @@ export async function listCustomerOrders(
     db.select({ total: count() }).from(orders).where(where),
   ]);
   const orderIds = rows.map((order) => order.id);
-  const itemRows = orderIds.length
-    ? await db
+  const [itemRows, returnRows] = orderIds.length
+    ? await Promise.all([
+        db
         .select({
           orderId: orderItems.orderId,
           productName: orderItems.productName,
@@ -78,18 +86,47 @@ export async function listCustomerOrders(
         })
         .from(orderItems)
         .where(inArray(orderItems.orderId, orderIds))
-        .orderBy(orderItems.createdAt)
-    : [];
+        .orderBy(orderItems.createdAt),
+        db
+          .select({
+            orderId: returnRequests.orderId,
+            requestNo: returnRequests.requestNo,
+            status: returnRequests.status,
+            createdAt: returnRequests.createdAt,
+          })
+          .from(returnRequests)
+          .where(
+            and(
+              eq(returnRequests.userId, userId),
+              inArray(returnRequests.orderId, orderIds),
+            ),
+          )
+          .orderBy(desc(returnRequests.createdAt)),
+      ])
+    : [[], []];
   const itemsByOrder = new Map<string, typeof itemRows>();
   for (const item of itemRows) {
     const items = itemsByOrder.get(item.orderId) ?? [];
     items.push(item);
     itemsByOrder.set(item.orderId, items);
   }
+  const latestReturnByOrder = new Map<
+    string,
+    { requestNo: string; status: string }
+  >();
+  for (const request of returnRows) {
+    if (!latestReturnByOrder.has(request.orderId)) {
+      latestReturnByOrder.set(request.orderId, {
+        requestNo: request.requestNo,
+        status: request.status,
+      });
+    }
+  }
   return {
     list: rows.map(({ id, ...order }) => ({
       ...order,
       statusText: orderStatusLabels[order.status] ?? order.status,
+      latestReturn: latestReturnByOrder.get(id) ?? null,
       items: (itemsByOrder.get(id) ?? []).map((item) => ({
         productName: item.productName,
         variantName: item.variantName,
@@ -138,7 +175,8 @@ export async function getCustomerOrderDetail(userId: string, orderNo: string) {
     .limit(1);
   if (!order) throw new BizError('NOT_FOUND', '订单不存在');
 
-  const [items, shipmentRows] = await Promise.all([
+  const [items, shipmentRows, refundedRows, requestRows, rules] =
+    await Promise.all([
     db
       .select({
         id: orderItems.id,
@@ -168,7 +206,39 @@ export async function getCustomerOrderDetail(userId: string, orderNo: string) {
       .where(eq(shipments.orderId, order.id))
       .orderBy(desc(shipments.shippedAt))
       .limit(1),
+    db
+      .select({
+        orderItemId: refundItems.orderItemId,
+        quantity: sql<number>`sum(${refundItems.quantity})::int`,
+      })
+      .from(refundItems)
+      .innerJoin(refunds, eq(refunds.id, refundItems.refundId))
+      .where(and(eq(refunds.orderId, order.id), eq(refunds.status, 'success')))
+      .groupBy(refundItems.orderItemId),
+    db
+      .select({
+        requestNo: returnRequests.requestNo,
+        reasonCode: returnRequests.reasonCode,
+        reasonText: returnRequests.reasonText,
+        status: returnRequests.status,
+        reviewRemark: returnRequests.reviewRemark,
+        createdAt: returnRequests.createdAt,
+        reviewedAt: returnRequests.reviewedAt,
+      })
+      .from(returnRequests)
+      .where(
+        and(
+          eq(returnRequests.orderId, order.id),
+          eq(returnRequests.userId, userId),
+        ),
+      )
+      .orderBy(desc(returnRequests.createdAt)),
+    getReturnRules(db),
   ]);
+  const refundedByItem = new Map(
+    refundedRows.map((item) => [item.orderItemId, item.quantity]),
+  );
+  const hasPendingReturn = requestRows.some((request) => request.status === 'pending');
 
   return {
     orderNo: order.orderNo,
@@ -202,10 +272,22 @@ export async function getCustomerOrderDetail(userId: string, orderNo: string) {
     },
     items: items.map((item) => ({
       ...item,
+      refundedQuantity: refundedByItem.get(item.id) ?? 0,
+      refundableQuantity: Math.max(
+        item.quantity - (refundedByItem.get(item.id) ?? 0),
+        0,
+      ),
+      ordinaryReturnAllowed:
+        !hasPendingReturn &&
+        canCustomerRequestReturn(item.printStatus, 'other', rules),
+      exceptionReturnAllowed:
+        !hasPendingReturn &&
+        canCustomerRequestReturn(item.printStatus, 'size_mismatch', rules),
       printStatusText: item.printStatus
         ? (printStatusLabels[item.printStatus] ?? item.printStatus)
         : null,
     })),
+    returnRequests: requestRows,
     shipment: shipmentRows[0] ?? null,
   };
 }

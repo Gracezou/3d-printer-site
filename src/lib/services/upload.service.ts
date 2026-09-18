@@ -26,6 +26,27 @@ function storagePath(type: UploadType, extension: string): string {
   return `${directory}/${year}/${month}/${crypto.randomUUID()}.${extension}`;
 }
 
+function returnEvidencePath(userId: string, extension: string): string {
+  const now = new Date();
+  const year = String(now.getUTCFullYear());
+  const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+  return `returns/${userId}/${year}/${month}/${crypto.randomUUID()}.${extension}`;
+}
+
+export async function uploadReturnEvidence(
+  file: UploadFileLike,
+  userId: string,
+): Promise<{ url: string }> {
+  const validated = await validateUploadFile(file, 'image');
+  const bucket = process.env.SUPABASE_STORAGE_BUCKET ?? 'products';
+  const path = returnEvidencePath(userId, validated.extension);
+  await upload(bucket, path, validated.bytes, {
+    contentType: validated.contentType,
+    upsert: false,
+  });
+  return { url: getPublicUrl(bucket, path) };
+}
+
 export async function uploadAdminAsset(
   file: UploadFileLike,
   type: UploadType,

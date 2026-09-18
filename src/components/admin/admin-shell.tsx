@@ -3,6 +3,7 @@
 import {
   BadgePercent,
   Boxes,
+  ClipboardCheck,
   Cpu,
   ChevronRight,
   FolderTree,
@@ -58,6 +59,12 @@ const navigation = [
     href: '/admin/orders',
     label: '订单管理',
     icon: PackageSearch,
+    enabled: true,
+  },
+  {
+    href: '/admin/returns',
+    label: '售后审核',
+    icon: ClipboardCheck,
     enabled: true,
   },
   {

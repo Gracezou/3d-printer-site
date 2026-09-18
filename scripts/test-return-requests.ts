@@ -1,0 +1,634 @@
+import assert from 'node:assert/strict';
+
+import { and, eq, inArray } from 'drizzle-orm';
+
+import type { AdminIdentity } from '@/lib/auth/admin';
+import { closeDatabaseConnection, getDb } from '@/lib/db/client';
+import {
+  adminOperationLogs,
+  adminRoles,
+  adminUsers,
+  materialStockMovements,
+  materials,
+  orderItems,
+  orders,
+  payments,
+  printJobs,
+  refundItems,
+  refunds,
+  returnRequestItems,
+  returnRequests,
+  settings,
+  userProfiles,
+} from '@/lib/db/schema';
+import { BizError } from '@/lib/errors';
+import type { PaymentProvider } from '@/lib/services/payment/provider.interface';
+import {
+  refundOrder,
+  voidRefundAfterManualVerification,
+} from '@/lib/services/refund.service';
+import {
+  approveReturnRequest,
+  cancelCustomerReturnRequest,
+  createReturnRequest,
+  getCustomerReturnRequest,
+  listAdminReturnRequests,
+  listCustomerReturnRequests,
+} from '@/lib/services/return-request.service';
+import {
+  DEFAULT_RETURN_RULES,
+  RETURN_RULES_SETTING_KEY,
+} from '@/lib/services/return-policy';
+import { assertLocalDatabaseUrl } from './assert-local-database';
+
+function provider(options: { delayMs?: number; unknown?: boolean } = {}) {
+  let refundCalls = 0;
+  const value: PaymentProvider = {
+    code: 'mock',
+    async createPayment() {
+      return { payUrl: 'http://localhost/mock' };
+    },
+    async queryPayment() {
+      return { status: 'success' as const };
+    },
+    async verifyNotify() {
+      return { valid: false, raw: {} };
+    },
+    async refund({ outRefundNo }) {
+      refundCalls += 1;
+      if (options.delayMs) {
+        await new Promise((resolve) => setTimeout(resolve, options.delayMs));
+      }
+      if (options.unknown) {
+        return { status: 'unknown' as const, message: '模拟渠道结果未知' };
+      }
+      return {
+        status: 'success' as const,
+        providerRefundId: `MOCK-${outRefundNo}`,
+      };
+    },
+    async queryRefund() {
+      return options.unknown
+        ? { status: 'pending' as const }
+        : { status: 'not_found' as const };
+    },
+  };
+  return { value, calls: () => refundCalls };
+}
+
+async function expectCode(operation: () => Promise<unknown>, code: number) {
+  await assert.rejects(operation, (error: unknown) => {
+    assert(error instanceof BizError);
+    assert.equal(error.code, code);
+    return true;
+  });
+}
+
+async function main(): Promise<void> {
+  assertLocalDatabaseUrl();
+  const db = getDb();
+  const suffix = crypto.randomUUID().replaceAll('-', '').slice(0, 8);
+  const userA = crypto.randomUUID();
+  const userB = crypto.randomUUID();
+  const orderIds: string[] = [];
+  const [previousRules] = await db
+    .select({ value: settings.value, remark: settings.remark })
+    .from(settings)
+    .where(eq(settings.key, RETURN_RULES_SETTING_KEY))
+    .limit(1);
+  let materialId: string | undefined;
+  let adminId: string | undefined;
+  let roleId: string | undefined;
+
+  try {
+    await db.insert(userProfiles).values([
+      { id: userA, email: `b3-a-${suffix}@example.test` },
+      { id: userB, email: `b3-b-${suffix}@example.test` },
+    ]);
+    const [role] = await db
+      .insert(adminRoles)
+      .values({
+        code: `b3-review-${suffix}`,
+        name: 'B3 售后审核测试',
+        permissions: ['return:review', 'order:refund'],
+      })
+      .returning({ id: adminRoles.id });
+    assert(role);
+    roleId = role.id;
+    const [adminRow] = await db
+      .insert(adminUsers)
+      .values({
+        username: `b3-review-${suffix}`,
+        passwordHash: 'integration-test-only',
+        name: 'B3 审核员',
+        roleId: role.id,
+      })
+      .returning({ id: adminUsers.id });
+    assert(adminRow);
+    adminId = adminRow.id;
+    const admin: AdminIdentity = {
+      sub: adminRow.id,
+      username: `b3-review-${suffix}`,
+      name: 'B3 审核员',
+      roleCode: `b3-review-${suffix}`,
+      permissions: ['return:review', 'order:refund'],
+    };
+    const context = { admin, ip: '127.0.0.1' };
+    const [material] = await db
+      .insert(materials)
+      .values({
+        code: `B3-${suffix}`,
+        name: `B3 售后耗材 ${suffix}`,
+        materialType: 'PLA',
+        stockGrams: '100.00',
+        reservedGrams: '0.00',
+        safetyGrams: '0.00',
+        wasteRate: '0.0000',
+      })
+      .returning({ id: materials.id, name: materials.name });
+    assert(material);
+    materialId = material.id;
+
+    async function createOrder(
+      tag: string,
+      userId: string,
+      printStatus: string,
+      status = printStatus === 'done' ? 'completed' : 'paid',
+    ) {
+      const [order] = await db
+        .insert(orders)
+        .values({
+          orderNo: `B3${tag}${suffix}`.slice(0, 32),
+          userId,
+          status,
+          itemsAmount: '20.00',
+          payableAmount: '20.00',
+          paidAmount: '20.00',
+          receiverName: 'B3 测试用户',
+          receiverPhone: '13800138000',
+          receiverProvince: '广东省',
+          receiverCity: '深圳市',
+          receiverDistrict: '南山区',
+          receiverDetail: '测试路 3 号',
+          paidAt: new Date(),
+          ...(status === 'completed' ? { completedAt: new Date() } : {}),
+        })
+        .returning({ id: orders.id, orderNo: orders.orderNo });
+      assert(order);
+      orderIds.push(order.id);
+      const [item] = await db
+        .insert(orderItems)
+        .values({
+          orderId: order.id,
+          productName: `B3 商品 ${tag}`,
+          variantName: '标准款',
+          skuCode: `B3-${tag}-${suffix}`,
+          unitPrice: '20.00',
+          quantity: 1,
+          subtotal: '20.00',
+          bomSnapshot: [
+            {
+              material_id: material.id,
+              material_name: material.name,
+              grams: '10.00',
+              waste_rate: '0.0000',
+              required_grams: '10.00',
+            },
+          ],
+        })
+        .returning({ id: orderItems.id });
+      assert(item);
+      const [job] = await db
+        .insert(printJobs)
+        .values({
+          orderId: order.id,
+          orderItemId: item.id,
+          quantity: 1,
+          status: printStatus,
+        })
+        .returning({ id: printJobs.id });
+      assert(job);
+      await db.insert(payments).values({
+        orderId: order.id,
+        outTradeNo: `B3-${tag}-${suffix}`,
+        provider: 'mock',
+        amount: '20.00',
+        status: 'success',
+        paidAt: new Date(),
+      });
+      return { order, item, job };
+    }
+
+    const printing = await createOrder('PRINT', userA, 'printing');
+    await expectCode(
+      () =>
+        createReturnRequest(userA, {
+          orderNo: printing.order.orderNo,
+          reasonCode: 'quality_issue',
+          reasonText: '普通原因不能越过 printing',
+          images: [],
+          items: [{ orderItemId: printing.item.id, quantity: 1 }],
+        }),
+      40916,
+    );
+    await db
+      .insert(settings)
+      .values({
+        key: RETURN_RULES_SETTING_KEY,
+        value: {
+          ...DEFAULT_RETURN_RULES,
+          ordinaryAllowedPrintStatuses: ['queued', 'printing'],
+        },
+        remark: 'B3 integration override',
+      })
+      .onConflictDoUpdate({
+        target: settings.key,
+        set: {
+          value: {
+            ...DEFAULT_RETURN_RULES,
+            ordinaryAllowedPrintStatuses: ['queued', 'printing'],
+          },
+          updatedAt: new Date(),
+        },
+      });
+    const configurable = await createReturnRequest(userA, {
+      orderNo: printing.order.orderNo,
+      reasonCode: 'quality_issue',
+      reasonText: '配置允许 printing 后无需改代码即可提交',
+      images: [],
+      items: [{ orderItemId: printing.item.id, quantity: 1 }],
+    });
+    await expectCode(
+      () =>
+        createReturnRequest(userA, {
+          orderNo: printing.order.orderNo,
+          reasonCode: 'other',
+          reasonText: '重复申请',
+          images: [],
+          items: [{ orderItemId: printing.item.id, quantity: 1 }],
+        }),
+      40915,
+    );
+    await expectCode(
+      () => getCustomerReturnRequest(userB, configurable.requestNo),
+      40401,
+    );
+    await expectCode(
+      () => cancelCustomerReturnRequest(userB, configurable.requestNo),
+      40401,
+    );
+    assert.equal(
+      (await getCustomerReturnRequest(userA, configurable.requestNo)).status,
+      'pending',
+    );
+    await cancelCustomerReturnRequest(userA, configurable.requestNo);
+    await expectCode(
+      () =>
+        approveReturnRequest(
+          configurable.id,
+          {
+            items: [{ orderItemId: printing.item.id, restock: false }],
+          },
+          context,
+          { refund: { getProvider: () => provider().value } },
+        ),
+      40917,
+    );
+    if (previousRules) {
+      await db
+        .update(settings)
+        .set({
+          value: previousRules.value,
+          remark: previousRules.remark,
+          updatedAt: new Date(),
+        })
+        .where(eq(settings.key, RETURN_RULES_SETTING_KEY));
+    } else {
+      await db.delete(settings).where(eq(settings.key, RETURN_RULES_SETTING_KEY));
+    }
+
+    const done = await createOrder('DONE', userA, 'done');
+    const doneRequest = await createReturnRequest(userA, {
+      orderNo: done.order.orderNo,
+      reasonCode: 'size_mismatch',
+      reasonText: '成品尺寸与模型标注不符',
+      images: [],
+      items: [{ orderItemId: done.item.id, quantity: 1 }],
+    });
+    const doneProvider = provider();
+    await approveReturnRequest(
+      doneRequest.id,
+      { items: [{ orderItemId: done.item.id, restock: false }] },
+      context,
+      { refund: { getProvider: () => doneProvider.value } },
+    );
+    assert.equal(
+      (await getCustomerReturnRequest(userA, doneRequest.requestNo)).status,
+      'completed',
+    );
+    assert.equal(doneProvider.calls(), 1);
+
+    const direct = await createOrder('DIRECT', userA, 'queued');
+    const applied = await createOrder('APPLY', userA, 'queued');
+    const stockBeforeApplication = (
+      await db
+        .select({ stock: materials.stockGrams })
+        .from(materials)
+        .where(eq(materials.id, material.id))
+    )[0]!.stock;
+    const refundsBeforeApplication = (
+      await db.select({ id: refunds.id }).from(refunds)
+    ).length;
+    const application = await createReturnRequest(userA, {
+      orderNo: applied.order.orderNo,
+      reasonCode: 'quality_issue',
+      reasonText: '审核通过后复用退款引擎',
+      images: [],
+      items: [{ orderItemId: applied.item.id, quantity: 1 }],
+    });
+    assert.equal(
+      (
+        await db
+          .select({ stock: materials.stockGrams })
+          .from(materials)
+          .where(eq(materials.id, material.id))
+      )[0]!.stock,
+      stockBeforeApplication,
+      'creating an application must not mutate stock',
+    );
+    assert.equal(
+      (await db.select({ id: refunds.id }).from(refunds)).length,
+      refundsBeforeApplication,
+      'creating an application must not create a refund',
+    );
+    const directProvider = provider();
+    const directResult = await refundOrder(
+      direct.order.id,
+      {
+        idempotencyKey: `b3:direct:${suffix}`,
+        reason: '审核通过后复用退款引擎',
+        items: [
+          { orderItemId: direct.item.id, quantity: 1, restock: true },
+        ],
+      },
+      context,
+      { getProvider: () => directProvider.value },
+    );
+    const applicationProvider = provider();
+    const applicationResult = await approveReturnRequest(
+      application.id,
+      { items: [{ orderItemId: applied.item.id, restock: true }] },
+      context,
+      { refund: { getProvider: () => applicationProvider.value } },
+    );
+    assert.equal(applicationResult.amount, directResult.amount);
+    assert.deepEqual(
+      applicationResult.items.map((item) => ({
+        quantity: item.quantity,
+        itemsAmount: item.itemsAmount,
+        discountShare: item.discountShare,
+        shippingShare: item.shippingShare,
+        amount: item.amount,
+        restock: item.restock,
+      })),
+      directResult.items.map((item) => ({
+        quantity: item.quantity,
+        itemsAmount: item.itemsAmount,
+        discountShare: item.discountShare,
+        shippingShare: item.shippingShare,
+        amount: item.amount,
+        restock: item.restock,
+      })),
+      'direct and reviewed refunds must persist identical line accounting',
+    );
+    for (const result of [directResult, applicationResult]) {
+      const movementRows = await db
+        .select({ id: materialStockMovements.id })
+        .from(materialStockMovements)
+        .where(
+          and(
+            eq(materialStockMovements.refType, 'refund_item'),
+            inArray(
+              materialStockMovements.refId,
+              result.items.map((item) => item.id),
+            ),
+          ),
+        );
+      assert.equal(movementRows.length, 1);
+    }
+    const auditShape = async (orderId: string) =>
+      (
+        await db
+          .select({ action: adminOperationLogs.action, payload: adminOperationLogs.payload })
+          .from(adminOperationLogs)
+          .where(
+            and(
+              eq(adminOperationLogs.targetType, 'order'),
+              eq(adminOperationLogs.targetId, orderId),
+              inArray(adminOperationLogs.action, [
+                'order.refund.request',
+                'order.refund.success',
+              ]),
+            ),
+          )
+          .orderBy(adminOperationLogs.createdAt)
+      ).map((log) => ({
+        action: log.action,
+        amount: log.payload?.amount,
+        isFullRefund: log.payload?.isFullRefund,
+        items: Array.isArray(log.payload?.items)
+          ? log.payload.items.map((item: Record<string, unknown>) => ({
+              quantity: item.quantity,
+              amount: item.amount,
+              restock: item.restock,
+              printJobStatus: item.printJobStatus,
+            }))
+          : [],
+      }));
+    assert.deepEqual(
+      await auditShape(applied.order.id),
+      await auditShape(direct.order.id),
+      'direct and reviewed refunds must emit equivalent refund audit entries',
+    );
+
+    const concurrent = await createOrder('CONCUR', userA, 'queued');
+    const concurrentRequest = await createReturnRequest(userA, {
+      orderNo: concurrent.order.orderNo,
+      reasonCode: 'other',
+      reasonText: '并发审核只能触发一次退款',
+      images: [],
+      items: [{ orderItemId: concurrent.item.id, quantity: 1 }],
+    });
+    const slowProvider = provider({ delayMs: 40 });
+    const approvals = await Promise.allSettled([
+      approveReturnRequest(
+        concurrentRequest.id,
+        { items: [{ orderItemId: concurrent.item.id, restock: false }] },
+        context,
+        { refund: { getProvider: () => slowProvider.value } },
+      ),
+      approveReturnRequest(
+        concurrentRequest.id,
+        { items: [{ orderItemId: concurrent.item.id, restock: false }] },
+        context,
+        { refund: { getProvider: () => slowProvider.value } },
+      ),
+    ]);
+    assert.equal(approvals.filter((result) => result.status === 'fulfilled').length, 1);
+    assert.equal(approvals.filter((result) => result.status === 'rejected').length, 1);
+    assert.equal(slowProvider.calls(), 1);
+
+    const unknown = await createOrder('UNKNOWN', userA, 'queued');
+    const unknownProvider = provider({ unknown: true });
+    await expectCode(
+      () =>
+        refundOrder(
+          unknown.order.id,
+          {
+            idempotencyKey: `b3:unknown:${suffix}`,
+            reason: '模拟渠道结果未知',
+            items: [
+              { orderItemId: unknown.item.id, quantity: 1, restock: false },
+            ],
+          },
+          context,
+          { getProvider: () => unknownProvider.value },
+        ),
+      50001,
+    );
+    const [unknownRefund] = await db
+      .select({ id: refunds.id })
+      .from(refunds)
+      .where(eq(refunds.orderId, unknown.order.id));
+    assert(unknownRefund);
+    const voided = await voidRefundAfterManualVerification(
+      unknownRefund.id,
+      '支付宝商家中心与资金账单均确认未出款',
+      context,
+    );
+    assert.equal(voided.status, 'failed');
+    assert.equal(voided.orderStatus, 'paid');
+    assert.equal(
+      (
+        await db
+          .select({ status: orders.status })
+          .from(orders)
+          .where(eq(orders.id, unknown.order.id))
+      )[0]!.status,
+      'paid',
+    );
+
+    const confirmed = await createOrder('CONFIRM', userA, 'queued');
+    await db
+      .update(orders)
+      .set({ status: 'refunding' })
+      .where(eq(orders.id, confirmed.order.id));
+    const [confirmedRefund] = await db
+      .insert(refunds)
+      .values({
+        orderId: confirmed.order.id,
+        paymentId: (
+          await db
+            .select({ id: payments.id })
+            .from(payments)
+            .where(eq(payments.orderId, confirmed.order.id))
+        )[0]!.id,
+        outRefundNo: `B3-CONFIRMED-${suffix}`,
+        idempotencyKey: `b3:confirmed:${suffix}`,
+        providerConfirmedAt: new Date(),
+        needsManualReview: true,
+        previousOrderStatus: 'paid',
+        amount: '1.00',
+        isFullRefund: false,
+        reason: '渠道已确认',
+      })
+      .returning({ id: refunds.id });
+    assert(confirmedRefund);
+    await expectCode(
+      () =>
+        voidRefundAfterManualVerification(
+          confirmedRefund.id,
+          '不得作废已确认退款',
+          context,
+        ),
+      40917,
+    );
+
+    const customerList = await listCustomerReturnRequests(userA, {
+      page: 1,
+      pageSize: 50,
+    });
+    assert(customerList.total >= 5);
+    const queue = await listAdminReturnRequests({ page: 1, pageSize: 50 });
+    assert(queue.list.some((request) => request.id === doneRequest.id));
+
+    process.stdout.write(
+      'Return request integration passed: ownership, configurable admission, exception review, shared refund accounting, concurrency, and manual void verified.\n',
+    );
+  } finally {
+    if (adminId) {
+      await db.delete(adminOperationLogs).where(eq(adminOperationLogs.adminId, adminId));
+    }
+    if (orderIds.length) {
+      const requestRows = await db
+        .select({ id: returnRequests.id })
+        .from(returnRequests)
+        .where(inArray(returnRequests.orderId, orderIds));
+      const requestIds = requestRows.map((request) => request.id);
+      if (requestIds.length) {
+        await db
+          .delete(returnRequestItems)
+          .where(inArray(returnRequestItems.requestId, requestIds));
+        await db
+          .delete(returnRequests)
+          .where(inArray(returnRequests.id, requestIds));
+      }
+      const refundRows = await db
+        .select({ id: refunds.id })
+        .from(refunds)
+        .where(inArray(refunds.orderId, orderIds));
+      const refundIds = refundRows.map((refund) => refund.id);
+      if (refundIds.length) {
+        await db.delete(refundItems).where(inArray(refundItems.refundId, refundIds));
+        await db.delete(refunds).where(inArray(refunds.id, refundIds));
+      }
+      await db.delete(orders).where(inArray(orders.id, orderIds));
+    }
+    if (materialId) {
+      await db
+        .delete(materialStockMovements)
+        .where(eq(materialStockMovements.materialId, materialId));
+      await db.delete(materials).where(eq(materials.id, materialId));
+    }
+    if (adminId) await db.delete(adminUsers).where(eq(adminUsers.id, adminId));
+    if (roleId) await db.delete(adminRoles).where(eq(adminRoles.id, roleId));
+    await db.delete(userProfiles).where(inArray(userProfiles.id, [userA, userB]));
+    if (previousRules) {
+      await db
+        .insert(settings)
+        .values({
+          key: RETURN_RULES_SETTING_KEY,
+          value: previousRules.value,
+          remark: previousRules.remark,
+        })
+        .onConflictDoUpdate({
+          target: settings.key,
+          set: {
+            value: previousRules.value,
+            remark: previousRules.remark,
+            updatedAt: new Date(),
+          },
+        });
+    } else {
+      await db.delete(settings).where(eq(settings.key, RETURN_RULES_SETTING_KEY));
+    }
+    await closeDatabaseConnection();
+  }
+}
+
+void main().catch((error: unknown) => {
+  process.stderr.write(
+    `${error instanceof Error ? error.stack || error.message : String(error)}\n`,
+  );
+  process.exitCode = 1;
+});

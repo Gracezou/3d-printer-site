@@ -8,6 +8,7 @@ export const PERMISSIONS = [
   'order:refund',
   'order:remark',
   'order:export',
+  'return:review',
   'production:view',
   'production:update',
   'product:view',

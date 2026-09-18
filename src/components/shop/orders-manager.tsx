@@ -27,6 +27,7 @@ interface OrderSummary {
   payableAmount: string;
   paidAmount: string;
   refundedAmount: string;
+  latestReturn: { requestNo: string; status: string } | null;
   reservedUntil: string | null;
   createdAt: string;
   items: OrderItemSummary[];
@@ -199,9 +200,16 @@ export function OrdersManager() {
                     {formatDate(order.createdAt)}
                   </p>
                 </div>
-                <span className="bg-store-success-soft text-store-success-ink rounded-full px-3 py-1.5 text-xs font-semibold">
-                  {order.statusText}
-                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  {order.latestReturn ? (
+                    <span className="rounded-full bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-800">
+                      售后 {order.latestReturn.status}
+                    </span>
+                  ) : null}
+                  <span className="bg-store-success-soft text-store-success-ink rounded-full px-3 py-1.5 text-xs font-semibold">
+                    {order.statusText}
+                  </span>
+                </div>
               </div>
               <div className="divide-y divide-stone-900/6 px-5 sm:px-6">
                 {order.items.slice(0, 3).map((item, index) => (

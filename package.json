@@ -52,6 +52,7 @@
     "test:payments": "dotenv -e .env.dev -- tsx scripts/test-payments.ts",
     "test:refunds": "dotenv -e .env.dev -- tsx scripts/test-refunds.ts",
     "test:refund-items": "dotenv -e .env.dev -- tsx scripts/test-refund-items.ts",
+    "test:return-requests": "dotenv -e .env.dev -- tsx scripts/test-return-requests.ts",
     "test:production": "dotenv -e .env.dev -- tsx scripts/test-production-dashboard.ts",
     "test:discount-codes": "dotenv -e .env.dev -- tsx scripts/test-discount-codes.ts",
     "test:customer-orders": "dotenv -e .env.dev -- tsx scripts/test-customer-orders.ts",

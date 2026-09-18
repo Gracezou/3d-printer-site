@@ -28,6 +28,20 @@ interface OrderItem {
   printStatus: string | null;
   printStatusText: string | null;
   printerName: string | null;
+  refundedQuantity: number;
+  refundableQuantity: number;
+  ordinaryReturnAllowed: boolean;
+  exceptionReturnAllowed: boolean;
+}
+
+interface ReturnRequestSummary {
+  requestNo: string;
+  reasonCode: string;
+  reasonText: string | null;
+  status: string;
+  reviewRemark: string | null;
+  createdAt: string;
+  reviewedAt: string | null;
 }
 
 interface OrderDetailData {
@@ -50,6 +64,7 @@ interface OrderDetailData {
   createdAt: string;
   receiver: { name: string; phone: string; address: string };
   items: OrderItem[];
+  returnRequests: ReturnRequestSummary[];
   shipment: {
     carrierName: string;
     trackingNo: string;
@@ -92,7 +107,14 @@ async function apiRequest<T>(
   init: RequestInit | undefined,
   onUnauthorized: () => void,
 ): Promise<T> {
-  const response = await fetch(url, { ...init, cache: 'no-store' });
+  const response = await fetch(url, {
+    ...init,
+    headers:
+      typeof init?.body === 'string'
+        ? { 'Content-Type': 'application/json', ...init.headers }
+        : init?.headers,
+    cache: 'no-store',
+  });
   const body = (await response.json()) as ApiEnvelope<T>;
   if (response.status === 401) {
     onUnauthorized();
@@ -109,6 +131,10 @@ export function OrderDetail({ orderNo }: { orderNo: string }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [returnReason, setReturnReason] = useState('quality_issue');
+  const [returnReasonText, setReturnReasonText] = useState('');
+  const [returnItems, setReturnItems] = useState<Record<string, number>>({});
+  const [evidenceFiles, setEvidenceFiles] = useState<File[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -165,6 +191,54 @@ export function OrderDetail({ orderNo }: { orderNo: string }) {
     }
   }
 
+  async function submitReturnRequest(): Promise<void> {
+    if (!order) return;
+    const items = Object.entries(returnItems)
+      .filter(([, quantity]) => quantity > 0)
+      .map(([orderItemId, quantity]) => ({ orderItemId, quantity }));
+    if (!items.length) {
+      setError('请至少选择一件商品');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      const images: string[] = [];
+      for (const file of evidenceFiles) {
+        const form = new FormData();
+        form.set('file', file);
+        const uploaded = await apiRequest<{ url: string }>(
+          '/api/returns/upload',
+          { method: 'POST', body: form },
+          () => router.replace(`/auth/login?next=/account/orders/${orderNo}`),
+        );
+        images.push(uploaded.url);
+      }
+      await apiRequest(
+        '/api/returns',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            orderNo: order.orderNo,
+            reasonCode: returnReason,
+            reasonText: returnReasonText,
+            images,
+            items,
+          }),
+        },
+        () => router.replace(`/auth/login?next=/account/orders/${orderNo}`),
+      );
+      setReturnItems({});
+      setReturnReasonText('');
+      setEvidenceFiles([]);
+      await load();
+    } catch (caught: unknown) {
+      setError(caught instanceof Error ? caught.message : '退款申请提交失败');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (loading && !order)
     return (
       <div className="grid min-h-[60vh] place-items-center text-stone-400">
@@ -183,6 +257,14 @@ export function OrderDetail({ orderNo }: { orderNo: string }) {
   const terminated = ['cancelled', 'refunding', 'refunded'].includes(
     order.status,
   );
+  const exceptionReason = ['size_mismatch', 'assembly_issue'].includes(
+    returnReason,
+  );
+  const canRequest = (item: OrderItem) =>
+    item.refundableQuantity > 0 &&
+    (exceptionReason
+      ? item.exceptionReturnAllowed
+      : item.ordinaryReturnAllowed);
 
   return (
     <main className="mx-auto min-h-[70vh] max-w-6xl px-5 py-10 sm:px-8 sm:py-14">
@@ -296,11 +378,139 @@ export function OrderDetail({ orderNo }: { orderNo: string }) {
                         {item.printerName ? ` · ${item.printerName}` : ''}
                       </div>
                     ) : null}
+                    <div className="mt-3 flex items-center justify-between gap-3 text-xs">
+                      <span className="text-stone-500">
+                        已退 {item.refundedQuantity} 件 · 可申请{' '}
+                        {item.refundableQuantity} 件
+                      </span>
+                      {canRequest(item) ? (
+                        <label className="flex items-center gap-2 font-medium text-stone-700">
+                          <input
+                            type="checkbox"
+                            checked={(returnItems[item.id] ?? 0) > 0}
+                            onChange={(event) =>
+                              setReturnItems((current) => ({
+                                ...current,
+                                [item.id]: event.target.checked ? 1 : 0,
+                              }))
+                            }
+                          />
+                          申请退款
+                        </label>
+                      ) : null}
+                    </div>
+                    {(returnItems[item.id] ?? 0) > 0 ? (
+                      <label className="mt-3 block text-xs text-stone-600">
+                        申请数量
+                        <input
+                          type="number"
+                          min={1}
+                          max={item.refundableQuantity}
+                          value={returnItems[item.id]}
+                          onChange={(event) =>
+                            setReturnItems((current) => ({
+                              ...current,
+                              [item.id]: Math.min(
+                                item.refundableQuantity,
+                                Math.max(1, Number(event.target.value) || 1),
+                              ),
+                            }))
+                          }
+                          className="ml-2 h-8 w-20 rounded-lg border border-stone-200 px-2"
+                        />
+                      </label>
+                    ) : null}
                   </div>
                 </div>
               ))}
             </div>
+            {order.items.some((item) => item.refundableQuantity > 0) ? (
+              <div className="mt-5 border-t border-stone-900/8 pt-5">
+                <h3 className="text-sm font-semibold">提交售后申请</h3>
+                <p className="mt-1 text-xs leading-5 text-stone-500">
+                  普通原因仅支持尚未开印的商品；尺寸不符或装配问题可提交人工审核。
+                  审核结果请在订单中心查看，本期不发送邮件。
+                </p>
+                <select
+                  value={returnReason}
+                  onChange={(event) => {
+                    setReturnReason(event.target.value);
+                    setReturnItems({});
+                  }}
+                  className="mt-4 h-10 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm"
+                >
+                  <option value="quality_issue">质量问题</option>
+                  <option value="wrong_item">商品不符</option>
+                  <option value="size_mismatch">尺寸不符（例外审核）</option>
+                  <option value="assembly_issue">装配问题（例外审核）</option>
+                  <option value="other">其他原因</option>
+                </select>
+                <textarea
+                  value={returnReasonText}
+                  onChange={(event) => setReturnReasonText(event.target.value)}
+                  maxLength={500}
+                  rows={3}
+                  placeholder="请说明具体问题"
+                  className="mt-3 w-full resize-none rounded-xl border border-stone-200 p-3 text-sm"
+                />
+                <label className="mt-3 block text-xs text-stone-500">
+                  凭证图片（最多 5 张，单张不超过 5MB）
+                  <input
+                    type="file"
+                    accept=".jpg,.jpeg,.png,.webp"
+                    multiple
+                    onChange={(event) =>
+                      setEvidenceFiles(
+                        Array.from(event.target.files ?? []).slice(0, 5),
+                      )
+                    }
+                    className="mt-2 block w-full text-xs"
+                  />
+                </label>
+                <button
+                  type="button"
+                  disabled={
+                    busy ||
+                    !returnReasonText.trim() ||
+                    !Object.values(returnItems).some((quantity) => quantity > 0)
+                  }
+                  onClick={() => void submitReturnRequest()}
+                  className="bg-store-ink mt-4 h-10 w-full rounded-full text-sm font-semibold text-white disabled:opacity-40"
+                >
+                  {busy ? '提交中…' : '提交申请'}
+                </button>
+              </div>
+            ) : null}
           </section>
+
+          {order.returnRequests.length ? (
+            <section className="rounded-3xl border border-stone-900/8 bg-white p-6">
+              <h2 className="text-lg font-semibold">售后处理记录</h2>
+              <div className="mt-4 space-y-3">
+                {order.returnRequests.map((request) => (
+                  <div
+                    key={request.requestNo}
+                    className="rounded-2xl bg-stone-50 p-4 text-sm"
+                  >
+                    <div className="flex justify-between gap-3">
+                      <span className="font-medium">{request.requestNo}</span>
+                      <span className="rounded-full bg-stone-200 px-2.5 py-1 text-xs">
+                        {request.status}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-xs leading-5 text-stone-500">
+                      {request.reasonText || request.reasonCode}
+                    </p>
+                    {request.reviewRemark ? (
+                      <p className="mt-2 text-xs text-rose-700">
+                        审核说明：{request.reviewRemark}
+                      </p>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
 
           {order.shipment ? (
             <section className="rounded-3xl border border-stone-900/8 bg-white p-6">

@@ -10,6 +10,7 @@ const OPERATOR_PERMISSIONS = [
   'order:view',
   'order:ship',
   'order:remark',
+  'return:review',
   'production:view',
   'production:update',
   'product:view',
