@@ -1,13 +1,13 @@
 # 层光造物
 
-Next.js 15 + PostgreSQL/Supabase 实现的 3D 打印成品商城，包含商品、多耗材 BOM、实时可售库存、购物车、订单、优惠、支付、生产、物流、退款和权限化管理后台。
+Next.js 15 + PostgreSQL/Supabase 实现的 3D 打印成品商城，包含商品、多耗材 BOM、实时可售库存、购物车、订单、优惠、支付、生产、物流、商品级退款、客户售后申请和权限化管理后台。
 
 > [!WARNING]
 > v0.2.1 当前用于境外预生产 Beta 验证，只允许受邀测试者和支付宝沙箱交易。测试者应使用专用邮箱与虚构手机号、收货地址；真实用户与真实资金接入须等数据库迁回境内并完成个人信息与备案合规工作。
 
 ## 本地启动
 
-需要 Node.js 20+、pnpm 11+ 和一个可用的 Supabase 项目。本地端口固定为 `5003`。
+需要 Node.js 20+、pnpm 11+、本地 PostgreSQL 和一个用于 Auth/Storage 的 Supabase 项目。本地端口固定为 `5003`。
 
 ```bash
 cp .env.example .env.dev
@@ -18,7 +18,7 @@ pnpm dev
 ```
 
 1. 在 Supabase 中创建 public Storage bucket `products`，启用 Email Auth，并将 Magic Link 邮件模板改为包含 `{{ .Token }}` 的验证码模板。应用接受 Supabase 可配置的 6 至 10 位 OTP；对外验证时应配置自定义 SMTP。
-2. 将 `.env.dev` 的必填项填好后执行迁移。空库会按顺序执行 `src/lib/db/migrations/` 中的 Drizzle 迁移。
+2. 将 `.env.dev` 的必填项填好后执行迁移。空库会按顺序执行 `src/lib/db/migrations/` 中的 Drizzle 迁移。`pnpm db:migrate` 与直接调用 drizzle-kit 默认只接受 `localhost`/`127.0.0.1`。
 3. `pnpm db:seed` 会创建系统角色、默认运费和 `admin` 超级管理员；首次执行时终端会输出随机临时密码，登录后应立即修改。若 `admin` 已存在，重复播种不会改密码。
 4. 访问 `http://localhost:5003`，后台地址为 `http://localhost:5003/admin`。
 
@@ -57,6 +57,8 @@ pnpm exec dotenv -e .env.dev -- tsx scripts/seed.ts --credential-file=.local/adm
 | `DEMO_ADMIN_PASSWORD` | 可选，固定演示运营员密码；不设则播种时随机生成 |
 | `ALLOW_DEMO_DATA` | 仅隔离验证环境可设 `true`，用于明确允许生产模式写入演示数据 |
 | `CONFIRM_PREPROD_RESET` | 预生产数据重置的一次性确认值，日常留空 |
+| `ALLOW_REMOTE_DATABASE_MIGRATION` | 仅经批准的正式远程迁移临时设为 `true`；日常不得设置 |
+| `CONFIRM_REMOTE_DATABASE_HOST` | 远程迁移的第二重确认，必须精确等于 `DATABASE_URL` 的 hostname |
 
 服务器配置使用脱敏的 [`deploy/.env.production.example`](./deploy/.env.production.example) 作为模板；复制成 `/opt/3d-printer-site/.env` 后必须设置权限为 `0600`，真实密钥不得提交。
 
@@ -68,7 +70,7 @@ pnpm exec dotenv -e .env.dev -- tsx scripts/seed.ts --credential-file=.local/adm
 pnpm demo:seed       # 重建并输出 demo_operator 的随机密码
 pnpm demo:check      # 校验外键、库存、金额、BOM 与状态覆盖
 pnpm demo:reset      # 仅删除 v0.1 固定 ID 数据并恢复原站点配置
-pnpm test:acceptance # 顺序执行 v0.1 的 14 项全链路验收
+pnpm test:acceptance # v0.1 的 14 组 + v0.3 的退款、返库、售后验收
 ```
 
 其他质量检查：
@@ -83,7 +85,9 @@ pnpm security:audit  # 需要先有最新生产构建产物
 
 `pnpm dev`、`pnpm build` 和 `pnpm start` 在本地都会自动读取 `.env.dev`。CI 与生产容器中不存在该文件，配置仍通过流水线构建参数或服务器运行时环境变量注入。
 
-验收与安全结果见 [v0.1.0 验收记录](./docs/v0.1.0/ACCEPTANCE.md) 和 [v0.1.0 安全自查](./docs/v0.1.0/SECURITY.md)。
+`test:acceptance` 会先校验 `DATABASE_URL` 必须指向本机，再重建本地 demo 基线；禁止对共用或生产数据库运行。远程正式迁移需要同时设置 `ALLOW_REMOTE_DATABASE_MIGRATION=true` 与精确的 `CONFIRM_REMOTE_DATABASE_HOST`，并在执行前双人核对终端打印的 host。详见 [v0.3.0 迁移与回滚](./docs/v0.3.0/MIGRATION-ROLLBACK-v0.3.0.md)。
+
+验收与安全结果见 [v0.1.0 验收记录](./docs/v0.1.0/ACCEPTANCE.md)、[v0.1.0 安全自查](./docs/v0.1.0/SECURITY.md) 和 [v0.3.0 自动化验收记录](./docs/v0.3.0/ACCEPTANCE-v0.3.0.md)。
 
 ## 定时任务
 
@@ -137,6 +141,9 @@ v0.2.1 预生产目标是华为云新加坡主机 + Nginx + Next.js，Supabase �
 - [v0.2.2 品牌文案定稿清单](./docs/v0.2.2/BRAND-COPY.md)
 - [Playwright 快速上手](./docs/guides/PLAYWRIGHT-GETTING-STARTED.md)
 - [v0.3.0 增量变更（初稿）](./docs/v0.3.0/CHANGES-v0.3.0.md)
+- [v0.3.0 自动化验收记录](./docs/v0.3.0/ACCEPTANCE-v0.3.0.md)
+- [v0.3.0 支付宝沙箱退款回归手册](./docs/v0.3.0/ALIPAY-SANDBOX-REFUND-RUNBOOK.md)
+- [v0.3.0 数据库迁移与回滚](./docs/v0.3.0/MIGRATION-ROLLBACK-v0.3.0.md)
 
 ## License
 

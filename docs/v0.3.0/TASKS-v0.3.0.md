@@ -1,6 +1,6 @@
 # v0.3.0 执行任务清单 — 商品级退款与客户售后申请
 
-> 状态：开发中（2026-09-18；B0–B3 已完成，B4 待做）
+> 状态：开发中（2026-09-18；B0–B3 已完成，B4 自动化与文档已完成，沙箱实测待 Grace）
 >
 > 需求基线：[CHANGES-v0.3.0.md](./CHANGES-v0.3.0.md)（2026-09-15 定稿）
 >
@@ -113,10 +113,11 @@ B3 收尾记录（2026-09-18）：渠道未知结果转人工复核时保留 3 �
 
 ## B4 · 回归与交付（T210）
 
-- [ ] 新增 `test:refund-items`、`test:return-requests` 并接入 `test:acceptance`；覆盖需求文档 §8 的 13 项验收，特别是金额尾差、运费、部分返库、旧状态回归、例外准入、RBAC 与并发幂等。
-- [ ] 保持现有 `test:refunds` 与支付、订单、库存测试通过；完成一次支付宝沙箱的“付款 → 部分退款 → 退剩余金额”回归，对账金额与库存流水。
-- [ ] 同步 README、退款 API 契约、迁移/回滚说明和验收记录；明确生产发布与 v0.2.3 迁移的独立性。
-- [ ] 运行 `pnpm typecheck`、`pnpm lint`、`pnpm test`、`pnpm build`、`pnpm security:audit`、`pnpm test:acceptance`；仅在结果通过且生产迁移恢复点确认后进入发布决策。
+- [x] 新增 `test:refund-items`、`test:return-requests` 并接入 `test:acceptance`；覆盖需求文档 §8 的 13 项验收，特别是金额尾差、运费、部分返库、旧状态回归、例外准入、RBAC 与并发幂等。
+- [x] 保持现有 `test:refunds` 与支付、订单、库存自动化测试通过。
+- [ ] 由 Grace 完成一次支付宝沙箱的“付款 → 部分退款 → 退剩余金额”回归，对账金额、库存流水及退款后 ≥10 秒的 `refund_status=REFUND_SUCCESS`；执行手册与只读对账脚本已就绪。
+- [x] 同步 README、退款 API 契约、迁移/回滚说明和验收记录；明确生产发布与 v0.2.3 迁移的独立性。
+- [x] 运行 `pnpm typecheck`、`pnpm lint`、`pnpm test`、`pnpm build`、`pnpm security:audit`、`pnpm test:acceptance`；全部通过，生产迁移恢复点与沙箱实测仍须在发布决策前单独确认。
 
 ## 发布边界
 

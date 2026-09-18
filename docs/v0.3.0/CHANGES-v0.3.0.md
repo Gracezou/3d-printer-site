@@ -1,6 +1,6 @@
 # 变更说明 v0.3.0 — 退款引擎商品级重构
 
-- 状态：**需求已定稿，待执行**
+- 状态：**开发与本地自动化验收完成；支付宝沙箱回归待 Grace 执行**
 - 定稿日期：2026-09-15（**全文重写**。前一版基于旧定位与旧范围，已作废）
 - 分支：`release-v0.3.0`
 - 基线：v0.2.2（线上运行版本）
@@ -128,8 +128,8 @@ v0.2.3（境内迁移与延迟验证）的剩余任务大部分依赖服务器�
 - **准入规则实现为可配置**（D6），不得硬编码
 - 同一订单同时只允许一条 `pending` 申请（部分唯一索引）
 - **申请单本身不动库存、不动金额**，仅记录诉求
-- 凭证图片复用既有 `upload.service`（沿用其权限、扩展名、体积与 magic number 校验）；仅接受当前用户 `returns/<user_id>/` 路径，数据库只保存规范化对象路径（兼容读取历史完整 URL），展示时按当前 Storage 配置生成 URL；每用户每小时最多上传 20 次，超过 24 小时仍未关联申请的文件由 cron 分页扫描并按对象路径清理
-- **部署注意**：生产 crontab 只能在确认部署版本已包含“对象路径持久化 + 完整分页扫描”修复后启用 `cleanup-return-evidence`；`f0cc80d` 及更早版本不得启用该 cron
+- 凭证图片复用既有 `upload.service`（沿用其权限、扩展名、体积与 magic number 校验）；仅接受当前用户 `returns/<user_id>/<年>/<月>/<uuid>.(jpg|png|webp)` 路径，数据库只保存规范化对象路径（兼容读取历史完整 URL），展示时按当前 Storage 配置生成 URL；每用户每小时最多上传 20 次，超过 24 小时仍未关联申请的文件由 cron 分页扫描并按对象路径清理，删除前再次查询引用关系以关闭申请创建竞态
+- **部署注意**：生产 crontab 只能在确认部署版本包含提交 `861b490`（对象路径持久化 + 完整分页扫描）或其等价后续版本后启用 `cleanup-return-evidence`；该提交之前的版本不得启用该 cron
 - **验收**：`printing` 状态的商品申请被拒（40916）；重复申请被拒（40915）
 
 #### T207 尺寸不符例外情形
@@ -154,6 +154,8 @@ v0.2.3（境内迁移与延迟验证）的剩余任务大部分依赖服务器�
 - 新增 `test:refund-items`、`test:return-requests`，纳入 `test:acceptance`
 - **必须补齐针对 `96126c5` 修复语义的回归测试**
 - README 与 API 文档同步
+- 自动化验收入口只允许本地 PostgreSQL；支付宝沙箱由 Grace 使用独立 `.env.sandbox` 与只读对账脚本执行
+- v0.3.0 的生产发布/数据库迁移与 v0.2.3 的境内迁移、备案和切流相互独立，须分别审批、备份、验收和回滚
 
 ---
 
@@ -232,6 +234,32 @@ v0.2.3（境内迁移与延迟验证）的剩余任务大部分依赖服务器�
 | `POST /api/admin/orders/[id]/refund` | **改为接受商品明细**（破坏性变更，后台前端需同步） |
 
 订单详情响应新增：每件商品的可退款状态与对应 `print_job` 状态。
+
+### 6.1 通用响应与鉴权
+
+- 成功：`{ "code": 0, "data": <结果>, "message": "" }`。
+- 失败：`{ "code": <业务码>, "data": null, "message": "<安全文案>" }`；参数格式错误为 40001，未登录/无权限沿用 401/403 业务码。
+- 客户接口从登录会话取 `user_id`，请求体不接受代填用户 ID；详情与撤销的数据库查询同时匹配 `request_no + user_id`。
+- 管理端列表/驳回要求 `return:review`；批准同时要求 `return:review` 与 `order:refund`；退款续记、作废、直接退款要求 `order:refund`。
+
+### 6.2 请求与响应摘要
+
+| 接口 | 请求 | `data` 关键字段 | 主要业务错误 |
+|---|---|---|---|
+| `POST /api/returns` | JSON：`orderNo`、`reasonCode`、`reasonText`（1–500 字）、`images`（最多 5 个本站上传 URL）、`items[{orderItemId,quantity}]` | 201：`id, requestNo, status, createdAt`；只创建诉求，不动钱和库存 | 40001、40401、40915、40916、40918、40919 |
+| `GET /api/returns?page=&pageSize=` | `page>=1`，`pageSize<=50` | `list, total, page, pageSize`；每条含申请状态、客户安全备注、图片 URL 与商品余额 | 401/40401 |
+| `GET /api/returns/[requestNo]` | 无 body | 当前用户申请详情；他人单号按不存在处理 | 401/40401 |
+| `POST /api/returns/[requestNo]/cancel` | 无 body | `id, requestNo, status=cancelled` | 40401、40917 |
+| `POST /api/returns/upload` | `multipart/form-data`，字段 `file` | 201：`url`；实际对象路径由服务端生成 | 40001、40924 |
+| `GET /api/admin/returns?status=&page=&pageSize=` | 可选状态；`pageSize<=100` | 审核列表，含打印状态、已退/可退余额、异常标记、仅后台可见 `internalNotes` | 40301 |
+| `POST /api/admin/returns/[id]/approve` | JSON：`reviewRemark?`、与申请商品完全一致的 `items[{orderItemId,restock}]` | 共用退款引擎结果：`id,outRefundNo,amount,isFullRefund,status,items` | 40001、40301、40917–40923 |
+| `POST /api/admin/returns/[id]/reject` | JSON：`reviewRemark`（1–1000 字） | `id,status=rejected`；原始说明只进后台审计，客户看到固定文案 | 40301、40401、40917 |
+| `POST /api/admin/orders/[id]/refund` | JSON：`idempotencyKey`（8–64，禁用 `return:` 前缀）、`reason`、`items[{orderItemId,quantity,restock}]` | 与审核批准相同的共用退款结果 | 40001、40301、40918、40920–40923 |
+| `POST /api/admin/refunds/[id]/resume` | 无 body；服务端读取原幂等键/退款号 | 成功退款结果；不会接受客户端替换幂等键 | 40301、40401、40917、40920、40923 |
+| `POST /api/admin/refunds/[id]/void` | JSON：`conclusion`（5–1000 字） | 渠道 `not_found`：`status=failed,orderStatus`；渠道确认成功：返回正常 `status=success` 退款结果 | 40301、40401、40917、40920、40923 |
+| `GET /api/cron/cleanup-return-evidence` | `Authorization: Bearer <CRON_SECRET>` | 扫描/删除数量；仅删超过 24 小时且两次引用检查都未命中的对象路径 | 401/403 |
+
+`reasonCode` 可选：`quality_issue`、`wrong_item`、`size_mismatch`、`assembly_issue`、`other`。申请状态：`pending`、`approved`、`rejected`、`completed`、`cancelled`。40920 表示租约或人工复核冷却中；40923 表示渠道结果仍不确定，二者都不得提示用户换新幂等键。
 
 ---
 
