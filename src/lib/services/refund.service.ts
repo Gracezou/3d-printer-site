@@ -11,6 +11,7 @@ import {
   printJobs,
   refundItems,
   refunds,
+  returnRequests,
 } from '@/lib/db/schema';
 import { BizError, ERROR_DEFINITIONS } from '@/lib/errors';
 import { logger } from '@/lib/logger';
@@ -33,12 +34,14 @@ import { isOrderProductionReady } from '@/lib/services/production.service';
 import { releaseDiscount } from '@/lib/services/promotion.service';
 import type { AdminOrderRefundInput } from '@/lib/validators/admin-order';
 
-interface RefundContext {
+export interface RefundContext {
   admin: AdminIdentity;
   ip: string;
+  returnRequestId?: string;
 }
 
 interface PendingRefund {
+  orderId: string;
   refundId: string;
   paymentId: string;
   provider: PaymentProviderCode;
@@ -205,6 +208,7 @@ async function prepareRefund(
         throw new BizError('INTERNAL_ERROR', '退款记录缺少订单恢复状态');
       }
       return {
+        orderId,
         refundId: sameKey.id,
         paymentId: sameKey.paymentId,
         provider: paymentProviderCode(sameKey.paymentProvider),
@@ -418,6 +422,22 @@ async function prepareRefund(
       })
       .returning({ id: refunds.id });
     if (!record) throw new BizError('INTERNAL_ERROR', '创建退款记录失败');
+    if (context.returnRequestId) {
+      const [linkedRequest] = await tx
+        .update(returnRequests)
+        .set({ refundId: record.id, updatedAt: new Date() })
+        .where(
+          and(
+            eq(returnRequests.id, context.returnRequestId),
+            eq(returnRequests.orderId, orderId),
+            eq(returnRequests.status, 'approved'),
+          ),
+        )
+        .returning({ id: returnRequests.id });
+      if (!linkedRequest) {
+        throw new BizError('RETURN_STATUS_INVALID', '售后申请状态不允许发起退款');
+      }
+    }
 
     await tx.insert(refundItems).values(
       allocation.lines.map((line) => ({
@@ -453,6 +473,7 @@ async function prepareRefund(
       ip: context.ip,
     });
     return {
+      orderId,
       refundId: record.id,
       paymentId: payment.id,
       provider: paymentProviderCode(payment.provider),
@@ -626,7 +647,7 @@ async function rejectRefund(
     throw new BizError('REFUND_REJECTED', message || '支付渠道明确拒绝退款');
   }
   throw new BizError(
-    'PAYMENT_PROVIDER_ERROR',
+    'REFUND_MANUAL_REVIEW_REQUIRED',
     '支付渠道在重试或续记时返回拒绝，退款可能已生效，请人工复核',
   );
 }
@@ -902,6 +923,31 @@ async function finalizeRefund(
       },
       ip: context.ip,
     });
+    if (context.returnRequestId) {
+      const [completedRequest] = await tx
+        .update(returnRequests)
+        .set({ status: 'completed', updatedAt: new Date() })
+        .where(
+          and(
+            eq(returnRequests.id, context.returnRequestId),
+            eq(returnRequests.refundId, pending.refundId),
+            eq(returnRequests.status, 'approved'),
+          ),
+        )
+        .returning({ id: returnRequests.id });
+      if (!completedRequest) {
+        throw new BizError('RETURN_STATUS_INVALID', '售后申请无法完成退款落账');
+      }
+      await tx.insert(adminOperationLogs).values({
+        adminId: context.admin.sub,
+        adminName: context.admin.name,
+        action: 'return.review.completed',
+        targetType: 'return_request',
+        targetId: context.returnRequestId,
+        payload: { refundId: pending.refundId },
+        ip: context.ip,
+      });
+    }
     return {
       id: pending.refundId,
       outRefundNo: record.outRefundNo,
@@ -952,6 +998,9 @@ async function markRefundFailed(
   reason?: string,
 ): Promise<void> {
   await getDb().transaction(async (tx) => {
+    await tx.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtext(${pending.orderId}))`,
+    );
     const [failed] = await tx
       .update(refunds)
       .set({
@@ -977,9 +1026,6 @@ async function markRefundFailed(
       );
       return;
     }
-    await tx.execute(
-      sql`SELECT pg_advisory_xact_lock(hashtext(${failed.orderId}))`,
-    );
     let nextStatus = pending.previousStatus;
     if (
       pending.previousStatus === 'in_production' &&
@@ -994,6 +1040,117 @@ async function markRefundFailed(
         and(eq(orders.id, failed.orderId), eq(orders.status, 'refunding')),
       );
     logger.warn({ refundId: pending.refundId, reason }, '支付渠道明确拒绝退款');
+  });
+}
+
+export async function voidRefundAfterManualVerification(
+  refundId: string,
+  conclusion: string,
+  context: RefundContext,
+): Promise<{ id: string; status: 'failed'; orderStatus: string }> {
+  const [target] = await getDb()
+    .select({ orderId: refunds.orderId })
+    .from(refunds)
+    .where(eq(refunds.id, refundId))
+    .limit(1);
+  if (!target) throw new BizError('NOT_FOUND', '退款记录不存在');
+
+  return getDb().transaction(async (tx) => {
+    await tx.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtext(${target.orderId}))`,
+    );
+    const [record] = await tx
+      .select({
+        id: refunds.id,
+        orderId: refunds.orderId,
+        status: refunds.status,
+        needsManualReview: refunds.needsManualReview,
+        providerConfirmedAt: refunds.providerConfirmedAt,
+        previousStatus: refunds.previousOrderStatus,
+      })
+      .from(refunds)
+      .where(eq(refunds.id, refundId))
+      .limit(1)
+      .for('update');
+    if (!record) throw new BizError('NOT_FOUND', '退款记录不存在');
+    if (record.providerConfirmedAt) {
+      throw new BizError(
+        'RETURN_STATUS_INVALID',
+        '渠道已确认退款成功，只能续记本地账务，不能人工作废',
+      );
+    }
+    if (record.status !== 'pending' || !record.needsManualReview) {
+      throw new BizError(
+        'RETURN_STATUS_INVALID',
+        '只有待人工复核且渠道未确认的退款可以作废',
+      );
+    }
+    if (!record.previousStatus) {
+      throw new BizError('RETURN_STATUS_INVALID', '退款记录缺少订单恢复状态');
+    }
+    const [failed] = await tx
+      .update(refunds)
+      .set({
+        status: 'failed',
+        needsManualReview: false,
+        processingToken: null,
+        processingUntil: null,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(refunds.id, refundId),
+          eq(refunds.status, 'pending'),
+          eq(refunds.needsManualReview, true),
+          sql`${refunds.providerConfirmedAt} IS NULL`,
+        ),
+      )
+      .returning({ id: refunds.id });
+    if (!failed) {
+      throw new BizError('RETURN_STATUS_INVALID', '退款状态已变化，请刷新后重试');
+    }
+    let orderStatus = record.previousStatus;
+    if (
+      record.previousStatus === 'in_production' &&
+      (await isOrderProductionReady(tx, record.orderId))
+    ) {
+      orderStatus = 'pending_shipment';
+    }
+    await tx
+      .update(orders)
+      .set({ status: orderStatus, updatedAt: new Date() })
+      .where(
+        and(eq(orders.id, record.orderId), eq(orders.status, 'refunding')),
+      );
+    const rejectedRequests = await tx
+      .update(returnRequests)
+      .set({
+        status: 'rejected',
+        reviewRemark: conclusion,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(returnRequests.refundId, refundId),
+          eq(returnRequests.status, 'approved'),
+        ),
+      )
+      .returning({ id: returnRequests.id });
+    await tx.insert(adminOperationLogs).values({
+      adminId: context.admin.sub,
+      adminName: context.admin.name,
+      action: 'order.refund.void_manual',
+      targetType: 'order',
+      targetId: record.orderId,
+      payload: {
+        refundId,
+        conclusion,
+        restoredOrderStatus: orderStatus,
+        returnRequestIds: rejectedRequests.map((request) => request.id),
+      },
+      ip: context.ip,
+    });
+    return { id: refundId, status: 'failed', orderStatus };
   });
 }
 
@@ -1028,6 +1185,16 @@ export async function resumeRefund(
   if (!lines.length) {
     throw new BizError('RETURN_STATUS_INVALID', '退款记录缺少商品明细');
   }
+  const [linkedRequest] = await getDb()
+    .select({ id: returnRequests.id })
+    .from(returnRequests)
+    .where(
+      and(
+        eq(returnRequests.refundId, refundId),
+        eq(returnRequests.status, 'approved'),
+      ),
+    )
+    .limit(1);
   await getDb()
     .insert(adminOperationLogs)
     .values({
@@ -1054,7 +1221,7 @@ export async function resumeRefund(
         restock: line.restock,
       })),
     },
-    context,
+    linkedRequest ? { ...context, returnRequestId: linkedRequest.id } : context,
     dependencies,
   );
 }

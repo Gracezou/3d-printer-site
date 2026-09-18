@@ -918,7 +918,7 @@ async function main(): Promise<void> {
           context,
           { getProvider: () => retryRejectedProvider },
         ),
-      (error: unknown) => error instanceof BizError && error.code === 50001,
+      (error: unknown) => error instanceof BizError && error.code === 40923,
     );
     const [retryRejectedRecord] = await db
       .select({
@@ -998,7 +998,7 @@ async function main(): Promise<void> {
         resumeRefund(resumeRejectedPending.id, context, {
           getProvider: () => resumeRejectedProvider,
         }),
-      (error: unknown) => error instanceof BizError && error.code === 50001,
+      (error: unknown) => error instanceof BizError && error.code === 40923,
     );
     const [resumeRejectedRecord] = await db
       .select({

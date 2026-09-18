@@ -18,7 +18,6 @@ export const LOGGER_REDACT_PATHS = [
   'err.privateKey',
   'err.responseDataRaw',
   'err.responseHttpHeaders',
-  'err.traceId',
   'err.links',
   'err.response.config',
   'err.response.request',

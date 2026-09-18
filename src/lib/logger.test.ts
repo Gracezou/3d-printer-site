@@ -29,7 +29,7 @@ describe('logger redaction', () => {
     expect(output).not.toContain('buyer@example.com');
     expect(output).not.toContain('secret-sign');
     expect(output).not.toContain('secret-cookie');
-    expect(output).not.toContain('sensitive-trace-id');
+    expect(output).toContain('sensitive-trace-id');
     expect(output).not.toContain('private-request');
   });
 });

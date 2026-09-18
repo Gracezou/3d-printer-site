@@ -330,6 +330,27 @@ export function OrderDetailManager({
     }
   }
 
+  async function voidRefund(refundId: string): Promise<void> {
+    const conclusion = window.prompt(
+      '请填写渠道未出款的核实结论（该操作会作废退款并恢复订单状态）',
+    );
+    if (!conclusion?.trim()) return;
+    setBusy(`void:${refundId}`);
+    setError('');
+    try {
+      await apiRequest(`/api/admin/refunds/${refundId}/void`, {
+        method: 'POST',
+        body: JSON.stringify({ conclusion }),
+      });
+      setNotice('退款已作废，订单状态已恢复');
+      await load();
+    } catch (caught: unknown) {
+      setError(caught instanceof Error ? caught.message : '退款作废失败');
+    } finally {
+      setBusy('');
+    }
+  }
+
   if (loading && !order)
     return (
       <div className="grid min-h-[60vh] place-items-center text-sm text-neutral-400">
@@ -504,19 +525,31 @@ export function OrderDetailManager({
                       </p>
                     ) : null}
                     {permissions.refund && refund.status === 'pending' ? (
-                      <button
-                        type="button"
-                        disabled={Boolean(busy)}
-                        onClick={() => void resumeRefund(refund.id)}
-                        className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-black/10 bg-white px-3 py-1.5 text-xs font-semibold hover:bg-neutral-100 disabled:opacity-50"
-                      >
-                        {busy === `resume:${refund.id}` ? (
-                          <LoaderCircle className="size-3.5 animate-spin" />
-                        ) : (
-                          <RotateCcw className="size-3.5" />
-                        )}
-                        续记退款
-                      </button>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          disabled={Boolean(busy)}
+                          onClick={() => void resumeRefund(refund.id)}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-black/10 bg-white px-3 py-1.5 text-xs font-semibold hover:bg-neutral-100 disabled:opacity-50"
+                        >
+                          {busy === `resume:${refund.id}` ? (
+                            <LoaderCircle className="size-3.5 animate-spin" />
+                          ) : (
+                            <RotateCcw className="size-3.5" />
+                          )}
+                          续记退款
+                        </button>
+                        {refund.needsManualReview && !refund.providerConfirmedAt ? (
+                          <button
+                            type="button"
+                            disabled={Boolean(busy)}
+                            onClick={() => void voidRefund(refund.id)}
+                            className="rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 disabled:opacity-50"
+                          >
+                            人工核实未出款并作废
+                          </button>
+                        ) : null}
+                      </div>
                     ) : null}
                   </div>
                 ))}
