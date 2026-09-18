@@ -197,6 +197,18 @@ export function loadTargetConfig(
     'APP_RUNTIME_ENV_FILE',
   );
   assertPrivateFile(runtimeEnv, '应用运行配置');
+  const runtimeValues = parseEnvText(readFileSync(runtimeEnv, 'utf8'));
+  if (!runtimeValues.DATABASE_URL) {
+    fail('应用运行配置缺少 DATABASE_URL');
+  }
+  for (const reservedKey of [
+    'ALLOW_REMOTE_DATABASE_MIGRATION',
+    'CONFIRM_REMOTE_DATABASE_HOST',
+  ]) {
+    if (reservedKey in runtimeValues) {
+      fail(`应用运行配置不得设置发布脚本保留键：${reservedKey}`);
+    }
+  }
   config.APP_RUNTIME_ENV_FILE = runtimeEnv;
 
   if (config.SSH_AUTH === 'key') {
@@ -357,6 +369,7 @@ function checkPendingMigrations(config: TargetConfig): boolean {
       'dotenv',
       '-e',
       config.APP_RUNTIME_ENV_FILE,
+      '--override',
       '--',
       'tsx',
       'scripts/check-pending-migrations.ts',
@@ -385,6 +398,7 @@ function runMigrations(config: TargetConfig): void {
       'dotenv',
       '-e',
       config.APP_RUNTIME_ENV_FILE,
+      '--override',
       '--',
       'pnpm',
       'db:migrate',
