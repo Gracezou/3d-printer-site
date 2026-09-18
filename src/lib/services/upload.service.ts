@@ -14,6 +14,7 @@ import {
   type UploadType,
   validateUploadFile,
 } from '@/lib/validators/upload';
+import { returnEvidencePathFromReference } from '@/lib/validators/return-request';
 
 interface UploadContext {
   admin: AdminIdentity;
@@ -54,17 +55,18 @@ export interface ReturnEvidenceObject {
   createdAt: Date | null;
 }
 
-export async function listReturnEvidenceObjects(
-  maxFiles = 100,
-): Promise<ReturnEvidenceObject[]> {
+export async function listReturnEvidenceObjects(): Promise<
+  ReturnEvidenceObject[]
+> {
   const bucket = process.env.SUPABASE_STORAGE_BUCKET ?? 'products';
   const queue = ['returns'];
   const files: ReturnEvidenceObject[] = [];
-  let scannedDirectories = 0;
 
-  while (queue.length && files.length < maxFiles && scannedDirectories < 1_000) {
+  // Walk every page and directory. The cleanup job limits deletions separately;
+  // stopping the scan at that limit would let referenced objects permanently
+  // hide later orphaned evidence.
+  while (queue.length) {
     const prefix = queue.shift()!;
-    scannedDirectories += 1;
     let offset = 0;
     for (;;) {
       const entries = await listStorageObjects(bucket, prefix, 100, offset);
@@ -76,7 +78,6 @@ export async function listReturnEvidenceObjects(
             path,
             createdAt: entry.createdAt ? new Date(entry.createdAt) : null,
           });
-          if (files.length >= maxFiles) return files;
         }
       }
       if (entries.length < 100) break;
@@ -91,7 +92,16 @@ export function getReturnEvidencePublicUrl(path: string): string {
   return getPublicUrl(bucket, path);
 }
 
-export async function removeReturnEvidenceObjects(paths: string[]): Promise<void> {
+export function resolveReturnEvidenceUrls(references: string[]): string[] {
+  return references.flatMap((reference) => {
+    const path = returnEvidencePathFromReference(reference);
+    return path ? [getReturnEvidencePublicUrl(path)] : [];
+  });
+}
+
+export async function removeReturnEvidenceObjects(
+  paths: string[],
+): Promise<void> {
   const bucket = process.env.SUPABASE_STORAGE_BUCKET ?? 'products';
   await removeStorageObjects(bucket, paths);
 }

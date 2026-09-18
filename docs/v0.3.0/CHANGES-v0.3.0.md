@@ -128,7 +128,8 @@ v0.2.3（境内迁移与延迟验证）的剩余任务大部分依赖服务器�
 - **准入规则实现为可配置**（D6），不得硬编码
 - 同一订单同时只允许一条 `pending` 申请（部分唯一索引）
 - **申请单本身不动库存、不动金额**，仅记录诉求
-- 凭证图片复用既有 `upload.service`（沿用其权限、扩展名、体积与 magic number 校验）；仅接受当前用户 `returns/<user_id>/` 路径，每用户每小时最多上传 20 次，超过 24 小时仍未关联申请的文件由 cron 清理
+- 凭证图片复用既有 `upload.service`（沿用其权限、扩展名、体积与 magic number 校验）；仅接受当前用户 `returns/<user_id>/` 路径，数据库只保存规范化对象路径（兼容读取历史完整 URL），展示时按当前 Storage 配置生成 URL；每用户每小时最多上传 20 次，超过 24 小时仍未关联申请的文件由 cron 分页扫描并按对象路径清理
+- **部署注意**：生产 crontab 只能在确认部署版本已包含“对象路径持久化 + 完整分页扫描”修复后启用 `cleanup-return-evidence`；`f0cc80d` 及更早版本不得启用该 cron
 - **验收**：`printing` 状态的商品申请被拒（40916）；重复申请被拒（40915）
 
 #### T207 尺寸不符例外情形
@@ -187,7 +188,7 @@ v0.2.3（境内迁移与延迟验证）的剩余任务大部分依赖服务器�
 | `user_id` | uuid FK → user_profiles | 查询必须同时带 `user_id` 条件（§5-3 约束） |
 | `reason_code` | varchar(30) | 含尺寸不符 / 装配问题（D5） |
 | `reason_text` | varchar(500) | |
-| `images` | jsonb | 凭证图片 |
+| `images` | jsonb | 规范化 Storage 对象路径；读取时兼容历史完整 URL |
 | `status` | varchar(20) | `pending` / `approved` / `rejected` / `completed` / `cancelled` |
 | `reviewer_id` | uuid FK → admin_users | |
 | `review_remark` | text | |

@@ -85,6 +85,11 @@ function processingLeaseUntil() {
   return sql`now() + interval '60 seconds'`;
 }
 
+// Alipay recommends delaying refund queries after submission (at least about
+// 10 seconds). Keep a wider server-side cooldown so operators cannot void or
+// resume a refund while the provider may still be converging.
+const MANUAL_REVIEW_COOLDOWN = sql`now() + interval '3 minutes'`;
+
 const refundableOrderStatuses = [
   'paid',
   'in_production',
@@ -435,7 +440,10 @@ async function prepareRefund(
         )
         .returning({ id: returnRequests.id });
       if (!linkedRequest) {
-        throw new BizError('RETURN_STATUS_INVALID', '售后申请状态不允许发起退款');
+        throw new BizError(
+          'RETURN_STATUS_INVALID',
+          '售后申请状态不允许发起退款',
+        );
       }
     }
 
@@ -574,8 +582,7 @@ async function markManualReview(pending: PendingRefund): Promise<void> {
     .update(refunds)
     .set({
       needsManualReview: true,
-      processingToken: null,
-      processingUntil: null,
+      processingUntil: MANUAL_REVIEW_COOLDOWN,
       updatedAt: new Date(),
     })
     .where(
@@ -1052,7 +1059,9 @@ export async function voidRefundAfterManualVerification(
   conclusion: string,
   context: RefundContext,
   dependencies: RefundDependencies = {},
-): Promise<{ id: string; status: 'failed'; orderStatus: string }> {
+): Promise<
+  RefundResult | { id: string; status: 'failed'; orderStatus: string }
+> {
   const [target] = await getDb()
     .select({
       orderId: refunds.orderId,
@@ -1126,11 +1135,11 @@ export async function voidRefundAfterManualVerification(
     attemptToken,
     created: false,
   };
-  const provider =
-    dependencies.getProvider?.(pending.provider) ??
-    getPaymentProvider(pending.provider);
   let queryResult: Awaited<ReturnType<PaymentProvider['queryRefund']>>;
   try {
+    const provider =
+      dependencies.getProvider?.(pending.provider) ??
+      getPaymentProvider(pending.provider);
     queryResult = await queryProviderRefund(pending, provider);
   } catch (error: unknown) {
     await markManualReview(pending);
@@ -1164,7 +1173,7 @@ export async function voidRefundAfterManualVerification(
       )
       .limit(1);
     try {
-      await finalizeRefund(
+      return await finalizeRefund(
         pending.orderId,
         pending,
         linkedRequest
@@ -1179,10 +1188,6 @@ export async function voidRefundAfterManualVerification(
       await markManualReview(pending);
       throw error;
     }
-    throw new BizError(
-      'RETURN_STATUS_INVALID',
-      '渠道已确认退款成功，已续记本地账务，不能人工作废',
-    );
   }
 
   return getDb().transaction(async (tx) => {
@@ -1209,7 +1214,10 @@ export async function voidRefundAfterManualVerification(
       )
       .returning({ id: refunds.id });
     if (!failed) {
-      throw new BizError('REFUND_IN_PROGRESS', '退款处理权已变化，不能人工作废');
+      throw new BizError(
+        'REFUND_IN_PROGRESS',
+        '退款处理权已变化，不能人工作废',
+      );
     }
     let orderStatus = pending.previousStatus;
     if (

@@ -1,6 +1,11 @@
 'use client';
 
-import { CircleAlert, LoaderCircle, RefreshCw, ShieldAlert } from 'lucide-react';
+import {
+  CircleAlert,
+  LoaderCircle,
+  RefreshCw,
+  ShieldAlert,
+} from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
 import { notifyAdminUnauthorized } from '@/lib/admin-session-client';
@@ -15,7 +20,7 @@ interface ReturnItem {
   refundedQuantity: number;
   refundableQuantity: number;
   refundedAmount: string;
-  refundableAmount: string;
+  refundableAmount: string | null;
 }
 
 interface ReturnRequest {
@@ -142,9 +147,13 @@ export function ReturnsManager() {
     <div className="p-5 sm:p-8">
       <div className="flex items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-bold tracking-[0.2em] text-neutral-400">AFTER SALES</p>
+          <p className="text-xs font-bold tracking-[0.2em] text-neutral-400">
+            AFTER SALES
+          </p>
           <h1 className="mt-2 text-2xl font-semibold">售后审核</h1>
-          <p className="mt-2 text-sm text-neutral-500">按件核对打印状态、可退余额与返库选择。</p>
+          <p className="mt-2 text-sm text-neutral-500">
+            按件核对打印状态、可退余额与返库选择。
+          </p>
         </div>
         <button
           type="button"
@@ -181,11 +190,16 @@ export function ReturnsManager() {
       ) : null}
 
       {loading && !result ? (
-        <div className="grid min-h-80 place-items-center"><LoaderCircle className="size-6 animate-spin" /></div>
+        <div className="grid min-h-80 place-items-center">
+          <LoaderCircle className="size-6 animate-spin" />
+        </div>
       ) : result?.list.length ? (
         <div className="mt-6 space-y-4">
           {result.list.map((request) => (
-            <article key={request.id} className="rounded-2xl border border-black/6 bg-white p-5 shadow-sm">
+            <article
+              key={request.id}
+              className="rounded-2xl border border-black/6 bg-white p-5 shadow-sm"
+            >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2">
@@ -197,10 +211,13 @@ export function ReturnsManager() {
                     ) : null}
                   </div>
                   <p className="mt-1 text-xs text-neutral-500">
-                    订单 {request.orderNo} · {request.userEmail} · {formatTime(request.createdAt)}
+                    订单 {request.orderNo} · {request.userEmail} ·{' '}
+                    {formatTime(request.createdAt)}
                   </p>
                 </div>
-                <span className="rounded-full bg-neutral-100 px-3 py-1.5 text-xs font-semibold">{request.status}</span>
+                <span className="rounded-full bg-neutral-100 px-3 py-1.5 text-xs font-semibold">
+                  {request.status}
+                </span>
               </div>
               <p className="mt-4 rounded-xl bg-neutral-50 p-3 text-sm leading-6">
                 {request.reasonCode}：{request.reasonText || '未填写说明'}
@@ -224,20 +241,37 @@ export function ReturnsManager() {
                 {request.items.map((item) => {
                   const key = `${request.id}:${item.orderItemId}`;
                   return (
-                    <div key={item.orderItemId} className="rounded-xl border border-black/6 p-3 text-sm">
+                    <div
+                      key={item.orderItemId}
+                      className="rounded-xl border border-black/6 p-3 text-sm"
+                    >
                       <div className="flex flex-wrap justify-between gap-2">
-                        <span className="font-medium">{item.productName} · {item.variantName}</span>
-                        <span className="text-xs text-neutral-500">打印：{item.printStatus ?? '无任务'}</span>
+                        <span className="font-medium">
+                          {item.productName} · {item.variantName}
+                        </span>
+                        <span className="text-xs text-neutral-500">
+                          打印：{item.printStatus ?? '无任务'}
+                        </span>
                       </div>
                       <p className="mt-2 text-xs text-neutral-500">
-                        申请 {item.requestedQuantity} 件 · 已退 {item.refundedQuantity} 件 / ¥{item.refundedAmount} · 可退 {item.refundableQuantity} 件 / ¥{item.refundableAmount}
+                        申请 {item.requestedQuantity} 件 · 已退{' '}
+                        {item.refundedQuantity} 件 / ¥{item.refundedAmount} ·
+                        可退 {item.refundableQuantity} 件 /{' '}
+                        {item.refundableAmount === null
+                          ? '—'
+                          : `¥${item.refundableAmount}`}
                       </p>
                       {request.status === 'pending' ? (
                         <label className="mt-3 flex items-center gap-2 text-xs font-medium">
                           <input
                             type="checkbox"
                             checked={restock[key] ?? false}
-                            onChange={(event) => setRestock((current) => ({ ...current, [key]: event.target.checked }))}
+                            onChange={(event) =>
+                              setRestock((current) => ({
+                                ...current,
+                                [key]: event.target.checked,
+                              }))
+                            }
                           />
                           退款成功后返还该商品耗材库存
                         </label>
@@ -247,7 +281,9 @@ export function ReturnsManager() {
                 })}
               </div>
               {request.reviewRemark ? (
-                <p className="mt-3 text-xs text-neutral-500">审核说明：{request.reviewRemark}</p>
+                <p className="mt-3 text-xs text-neutral-500">
+                  审核说明：{request.reviewRemark}
+                </p>
               ) : null}
               {request.status === 'pending' ? (
                 <div className="mt-4 flex gap-3">
@@ -271,7 +307,9 @@ export function ReturnsManager() {
           ))}
         </div>
       ) : (
-        <div className="mt-6 rounded-2xl bg-white p-12 text-center text-sm text-neutral-400">暂无售后申请</div>
+        <div className="mt-6 rounded-2xl bg-white p-12 text-center text-sm text-neutral-400">
+          暂无售后申请
+        </div>
       )}
     </div>
   );

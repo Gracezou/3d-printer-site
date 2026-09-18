@@ -87,7 +87,8 @@ function provider(
     },
     async queryRefund({ outRefundNo }) {
       if (options.queryThrows) throw new Error('模拟渠道查询超时及内部参数');
-      const status = options.queryStatus ?? (options.unknown ? 'pending' : 'not_found');
+      const status =
+        options.queryStatus ?? (options.unknown ? 'pending' : 'not_found');
       return status === 'success'
         ? {
             status: 'success' as const,
@@ -331,7 +332,9 @@ async function main(): Promise<void> {
         })
         .where(eq(settings.key, RETURN_RULES_SETTING_KEY));
     } else {
-      await db.delete(settings).where(eq(settings.key, RETURN_RULES_SETTING_KEY));
+      await db
+        .delete(settings)
+        .where(eq(settings.key, RETURN_RULES_SETTING_KEY));
     }
 
     const done = await createOrder('DONE', userA, 'done');
@@ -374,12 +377,8 @@ async function main(): Promise<void> {
       { refund: { getProvider: () => provider().value } },
     );
     assert.equal(
-      (
-        await getCustomerReturnRequest(
-          userA,
-          changedStatusRequest.requestNo,
-        )
-      ).status,
+      (await getCustomerReturnRequest(userA, changedStatusRequest.requestNo))
+        .status,
       'completed',
     );
 
@@ -422,9 +421,7 @@ async function main(): Promise<void> {
       {
         idempotencyKey: `b3:direct:${suffix}`,
         reason: '审核通过后复用退款引擎',
-        items: [
-          { orderItemId: direct.item.id, quantity: 1, restock: true },
-        ],
+        items: [{ orderItemId: direct.item.id, quantity: 1, restock: true }],
       },
       context,
       { getProvider: () => directProvider.value },
@@ -474,7 +471,10 @@ async function main(): Promise<void> {
     const auditShape = async (orderId: string) =>
       (
         await db
-          .select({ action: adminOperationLogs.action, payload: adminOperationLogs.payload })
+          .select({
+            action: adminOperationLogs.action,
+            payload: adminOperationLogs.payload,
+          })
           .from(adminOperationLogs)
           .where(
             and(
@@ -529,8 +529,14 @@ async function main(): Promise<void> {
         { refund: { getProvider: () => slowProvider.value } },
       ),
     ]);
-    assert.equal(approvals.filter((result) => result.status === 'fulfilled').length, 1);
-    assert.equal(approvals.filter((result) => result.status === 'rejected').length, 1);
+    assert.equal(
+      approvals.filter((result) => result.status === 'fulfilled').length,
+      1,
+    );
+    assert.equal(
+      approvals.filter((result) => result.status === 'rejected').length,
+      1,
+    );
     assert.equal(slowProvider.calls(), 1);
 
     const unknown = await createOrder('UNKNOWN', userA, 'queued');
@@ -552,29 +558,31 @@ async function main(): Promise<void> {
       50001,
     );
     const [unknownRefund] = await db
-      .select({ id: refunds.id })
+      .select({
+        id: refunds.id,
+        processingUntil: refunds.processingUntil,
+      })
       .from(refunds)
       .where(eq(refunds.orderId, unknown.order.id));
     assert(unknownRefund);
-    await db
-      .update(refunds)
-      .set({
-        processingToken: crypto.randomUUID(),
-        processingUntil: new Date(Date.now() + 60_000),
-      })
-      .where(eq(refunds.id, unknownRefund.id));
+    assert(
+      unknownRefund.processingUntil &&
+        unknownRefund.processingUntil > new Date(),
+      'unknown refund must retain a cooldown lease before manual operations',
+    );
     await expectCode(
       () =>
         voidRefundAfterManualVerification(
           unknownRefund.id,
-          '续记仍持有处理租约时不得作废',
+          '未知结果后冷却期内不得作废',
           context,
+          { getProvider: () => provider({ queryStatus: 'not_found' }).value },
         ),
       40920,
     );
     await db
       .update(refunds)
-      .set({ processingToken: null, processingUntil: null })
+      .set({ processingUntil: new Date(Date.now() - 1_000) })
       .where(eq(refunds.id, unknownRefund.id));
     const voided = await voidRefundAfterManualVerification(
       unknownRefund.id,
@@ -658,6 +666,24 @@ async function main(): Promise<void> {
         40001,
       );
     }
+    const storedEvidencePath = `returns/${userA}/2026/09/normalized.png`;
+    const storedEvidenceUrl = `https://b3-storage.example.test/storage/v1/object/public/products/${storedEvidencePath}`;
+    const evidenceRequest = await createReturnRequest(userA, {
+      orderNo: evidence.order.orderNo,
+      reasonCode: 'quality_issue',
+      reasonText: '凭证应以稳定对象路径持久化',
+      images: [storedEvidenceUrl],
+      items: [{ orderItemId: evidence.item.id, quantity: 1 }],
+    });
+    const [storedEvidence] = await db
+      .select({ images: returnRequests.images })
+      .from(returnRequests)
+      .where(eq(returnRequests.id, evidenceRequest.id));
+    assert.deepEqual(storedEvidence?.images, [storedEvidencePath]);
+    assert.deepEqual(
+      (await getCustomerReturnRequest(userA, evidenceRequest.requestNo)).images,
+      [storedEvidenceUrl],
+    );
 
     const longReason = await createOrder('LONG', userA, 'queued');
     const longRequest = await createReturnRequest(userA, {
@@ -680,7 +706,7 @@ async function main(): Promise<void> {
       .select({ reason: refunds.reason })
       .from(refunds)
       .where(eq(refunds.orderId, longReason.order.id));
-    assert.equal(longRefund?.reason, `售后申请 ${longRequest.id}`);
+    assert.equal(longRefund?.reason, `售后申请 ${longRequest.requestNo}`);
     const longCustomerView = await getCustomerReturnRequest(
       userA,
       longRequest.requestNo,
@@ -727,6 +753,14 @@ async function main(): Promise<void> {
         }),
       40915,
     );
+    await expectCode(
+      () => resumeRefund(recoveryPending.refundId!, context),
+      40920,
+    );
+    await db
+      .update(refunds)
+      .set({ processingUntil: new Date(Date.now() - 1_000) })
+      .where(eq(refunds.id, recoveryPending.refundId));
     let signalRefundStarted!: () => void;
     const refundStarted = new Promise<void>((resolve) => {
       signalRefundStarted = resolve;
@@ -795,7 +829,10 @@ async function main(): Promise<void> {
       .where(eq(returnRequests.id, rollbackRequest.id));
     assert.equal(rolledBackRequest?.status, 'pending');
     assert.equal(rolledBackRequest?.reviewerId, null);
-    assert.equal(rolledBackRequest?.reviewRemark, '退款尚未发起，请等待重新审核');
+    assert.equal(
+      rolledBackRequest?.reviewRemark,
+      '退款尚未发起，请等待重新审核',
+    );
     assert.equal(
       (
         await db
@@ -863,6 +900,10 @@ async function main(): Promise<void> {
       linkedVoidRequest.requestNo,
     );
     assert(linkedVoidPending.refundId);
+    await db
+      .update(refunds)
+      .set({ processingUntil: new Date(Date.now() - 1_000) })
+      .where(eq(refunds.id, linkedVoidPending.refundId));
     await voidRefundAfterManualVerification(
       linkedVoidPending.refundId,
       '管理员内部核实结论不得展示给客户',
@@ -903,18 +944,20 @@ async function main(): Promise<void> {
       querySuccessRequest.requestNo,
     );
     assert(querySuccessPending.refundId);
-    await expectCode(
-      () =>
-        voidRefundAfterManualVerification(
-          querySuccessPending.refundId!,
-          '错误的作废尝试',
-          context,
-          { getProvider: () => provider({ queryStatus: 'success' }).value },
-        ),
-      40917,
+    await db
+      .update(refunds)
+      .set({ processingUntil: new Date(Date.now() - 1_000) })
+      .where(eq(refunds.id, querySuccessPending.refundId));
+    const continued = await voidRefundAfterManualVerification(
+      querySuccessPending.refundId,
+      '查询确认成功时转续记',
+      context,
+      { getProvider: () => provider({ queryStatus: 'success' }).value },
     );
+    assert.equal(continued.status, 'success');
     assert.equal(
-      (await getCustomerReturnRequest(userA, querySuccessRequest.requestNo)).status,
+      (await getCustomerReturnRequest(userA, querySuccessRequest.requestNo))
+        .status,
       'completed',
     );
 
@@ -941,6 +984,10 @@ async function main(): Promise<void> {
       uncertainVoidRequest.requestNo,
     );
     assert(uncertainPending.refundId);
+    await db
+      .update(refunds)
+      .set({ processingUntil: new Date(Date.now() - 1_000) })
+      .where(eq(refunds.id, uncertainPending.refundId));
     await expectCode(
       () =>
         voidRefundAfterManualVerification(
@@ -951,6 +998,10 @@ async function main(): Promise<void> {
         ),
       40923,
     );
+    await db
+      .update(refunds)
+      .set({ processingUntil: new Date(Date.now() - 1_000) })
+      .where(eq(refunds.id, uncertainPending.refundId));
     await expectCode(
       () =>
         voidRefundAfterManualVerification(
@@ -966,12 +1017,20 @@ async function main(): Promise<void> {
         status: refunds.status,
         needsManualReview: refunds.needsManualReview,
         processingToken: refunds.processingToken,
+        processingUntil: refunds.processingUntil,
       })
       .from(refunds)
       .where(eq(refunds.id, uncertainPending.refundId));
     assert.equal(stillManual?.status, 'pending');
     assert.equal(stillManual?.needsManualReview, true);
-    assert.equal(stillManual?.processingToken, null);
+    assert(stillManual?.processingToken);
+    assert(
+      stillManual?.processingUntil && stillManual.processingUntil > new Date(),
+    );
+    await db
+      .update(refunds)
+      .set({ processingUntil: new Date(Date.now() - 1_000) })
+      .where(eq(refunds.id, uncertainPending.refundId));
     await voidRefundAfterManualVerification(
       uncertainPending.refundId,
       '后续明确未出款后允许结案',
@@ -982,7 +1041,11 @@ async function main(): Promise<void> {
     const allocation = await createOrder('ALLOCATE', userA, 'queued');
     await db
       .update(orders)
-      .set({ discountAmount: '5.00', payableAmount: '15.00', paidAmount: '15.00' })
+      .set({
+        discountAmount: '5.00',
+        payableAmount: '15.00',
+        paidAmount: '15.00',
+      })
       .where(eq(orders.id, allocation.order.id));
     await db
       .update(payments)
@@ -1001,18 +1064,38 @@ async function main(): Promise<void> {
       pageSize: 100,
     });
     assert.equal(
-      allocationQueue.list.find((request) => request.id === allocationRequest.id)
-        ?.items[0]?.refundableAmount,
+      allocationQueue.list.find(
+        (request) => request.id === allocationRequest.id,
+      )?.items[0]?.refundableAmount,
       '15.00',
+    );
+    await db
+      .update(orders)
+      .set({ paidAmount: '14.00' })
+      .where(eq(orders.id, allocation.order.id));
+    const malformedAdminView = await listAdminReturnRequests({
+      page: 1,
+      pageSize: 100,
+    });
+    assert.equal(
+      malformedAdminView.list.find(
+        (request) => request.id === allocationRequest.id,
+      )?.items[0]?.refundableAmount,
+      null,
+    );
+    assert.equal(
+      (await getCustomerReturnRequest(userA, allocationRequest.requestNo))
+        .items[0]?.refundableAmount,
+      null,
     );
 
     const referencedPath = `returns/${userA}/2026/09/referenced.png`;
     const orphanPath = `returns/${userA}/2026/09/orphan.png`;
-    const evidenceUrl = (path: string) =>
-      `https://b3-storage.example.test/storage/v1/object/public/products/${path}`;
+    const legacyEvidenceUrl = (path: string) =>
+      `https://old-storage.example.test/storage/v1/object/public/products/${path}`;
     await db
       .update(returnRequests)
-      .set({ images: [evidenceUrl(referencedPath)] })
+      .set({ images: [legacyEvidenceUrl(referencedPath)] })
       .where(eq(returnRequests.id, allocationRequest.id));
     const removedPaths: string[] = [];
     const cleaned = await cleanupOrphanReturnEvidence(
@@ -1023,7 +1106,6 @@ async function main(): Promise<void> {
           { path: referencedPath, createdAt: new Date('2026-09-16T00:00:00Z') },
           { path: orphanPath, createdAt: new Date('2026-09-16T00:00:00Z') },
         ],
-        publicUrl: evidenceUrl,
         removeObjects: async (paths) => {
           removedPaths.push(...paths);
         },
@@ -1032,12 +1114,46 @@ async function main(): Promise<void> {
     assert.equal(cleaned, 1);
     assert.deepEqual(removedPaths, [orphanPath]);
 
+    const referencedPage = Array.from(
+      { length: 101 },
+      (_, index) => `returns/${userA}/2026/09/referenced-${index}.png`,
+    );
+    const lateOrphanPath = `returns/${userA}/2026/09/late-orphan.png`;
+    await db
+      .update(returnRequests)
+      .set({ images: referencedPage })
+      .where(eq(returnRequests.id, allocationRequest.id));
+    const pagedRemovals: string[] = [];
+    const pagedCleanup = await cleanupOrphanReturnEvidence(
+      new Date('2026-09-18T12:00:00Z'),
+      100,
+      {
+        listObjects: async () => [
+          ...referencedPage.map((path) => ({
+            path,
+            createdAt: new Date('2026-09-16T00:00:00Z'),
+          })),
+          {
+            path: lateOrphanPath,
+            createdAt: new Date('2026-09-16T00:00:00Z'),
+          },
+        ],
+        removeObjects: async (paths) => {
+          pagedRemovals.push(...paths);
+        },
+      },
+    );
+    assert.equal(pagedCleanup, 1);
+    assert.deepEqual(pagedRemovals, [lateOrphanPath]);
+
     process.stdout.write(
       'Return request integration passed: ownership, evidence trust boundary, recovery state machine, shared refund accounting, concurrency, and manual void verified.\n',
     );
   } finally {
     if (adminId) {
-      await db.delete(adminOperationLogs).where(eq(adminOperationLogs.adminId, adminId));
+      await db
+        .delete(adminOperationLogs)
+        .where(eq(adminOperationLogs.adminId, adminId));
     }
     if (orderIds.length) {
       const requestRows = await db
@@ -1059,7 +1175,9 @@ async function main(): Promise<void> {
         .where(inArray(refunds.orderId, orderIds));
       const refundIds = refundRows.map((refund) => refund.id);
       if (refundIds.length) {
-        await db.delete(refundItems).where(inArray(refundItems.refundId, refundIds));
+        await db
+          .delete(refundItems)
+          .where(inArray(refundItems.refundId, refundIds));
         await db.delete(refunds).where(inArray(refunds.id, refundIds));
       }
       await db.delete(payments).where(inArray(payments.orderId, orderIds));
@@ -1073,7 +1191,9 @@ async function main(): Promise<void> {
     }
     if (adminId) await db.delete(adminUsers).where(eq(adminUsers.id, adminId));
     if (roleId) await db.delete(adminRoles).where(eq(adminRoles.id, roleId));
-    await db.delete(userProfiles).where(inArray(userProfiles.id, [userA, userB]));
+    await db
+      .delete(userProfiles)
+      .where(inArray(userProfiles.id, [userA, userB]));
     if (previousRules) {
       await db
         .insert(settings)
@@ -1091,7 +1211,9 @@ async function main(): Promise<void> {
           },
         });
     } else {
-      await db.delete(settings).where(eq(settings.key, RETURN_RULES_SETTING_KEY));
+      await db
+        .delete(settings)
+        .where(eq(settings.key, RETURN_RULES_SETTING_KEY));
     }
     if (previousSupabaseUrl === undefined) delete process.env.SUPABASE_URL;
     else process.env.SUPABASE_URL = previousSupabaseUrl;

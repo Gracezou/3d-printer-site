@@ -11,11 +11,11 @@ import {
 import { logger } from '@/lib/logger';
 import { releaseDiscount } from '@/lib/services/promotion.service';
 import {
-  getReturnEvidencePublicUrl,
   listReturnEvidenceObjects,
   removeReturnEvidenceObjects,
   type ReturnEvidenceObject,
 } from '@/lib/services/upload.service';
+import { returnEvidencePathFromReference } from '@/lib/validators/return-request';
 
 const DEFAULT_BATCH_SIZE = 100;
 const DEFAULT_AUTO_COMPLETE_DAYS = 15;
@@ -169,8 +169,7 @@ export async function collectLowStockAlert(now = new Date()) {
 }
 
 interface ReturnEvidenceCleanupDependencies {
-  listObjects?: (maxFiles: number) => Promise<ReturnEvidenceObject[]>;
-  publicUrl?: (path: string) => string;
+  listObjects?: () => Promise<ReturnEvidenceObject[]>;
   removeObjects?: (paths: string[]) => Promise<void>;
 }
 
@@ -181,33 +180,28 @@ export async function cleanupOrphanReturnEvidence(
 ): Promise<number> {
   const limit = Math.min(positiveInteger(batchSize, DEFAULT_BATCH_SIZE), 100);
   const listObjects = dependencies.listObjects ?? listReturnEvidenceObjects;
-  const publicUrl = dependencies.publicUrl ?? getReturnEvidencePublicUrl;
-  const removeObjects = dependencies.removeObjects ?? removeReturnEvidenceObjects;
+  const removeObjects =
+    dependencies.removeObjects ?? removeReturnEvidenceObjects;
   const cutoff = now.getTime() - RETURN_EVIDENCE_ORPHAN_GRACE_MS;
-  const candidates = (await listObjects(limit)).filter(
+  const candidates = (await listObjects()).filter(
     (object) => object.createdAt && object.createdAt.getTime() < cutoff,
   );
   if (!candidates.length) return 0;
 
-  const urlByPath = new Map(
-    candidates.map((object) => [object.path, publicUrl(object.path)]),
-  );
-  const candidateUrls = new Set(urlByPath.values());
-  const candidateUrlSql = sql.join(
-    [...candidateUrls].map((url) => sql`${url}`),
-    sql`, `,
-  );
   const referencedRows = await getDb()
     .select({ images: returnRequests.images })
-    .from(returnRequests)
-    .where(sql`${returnRequests.images} ?| ARRAY[${candidateUrlSql}]::text[]`);
+    .from(returnRequests);
   const referenced = new Set(
     referencedRows.flatMap((row) =>
-      row.images.filter((url) => candidateUrls.has(url)),
+      row.images.flatMap((reference) => {
+        const path = returnEvidencePathFromReference(reference);
+        return path ? [path] : [];
+      }),
     ),
   );
   const orphanPaths = candidates
-    .filter((object) => !referenced.has(urlByPath.get(object.path)!))
+    .filter((object) => !referenced.has(object.path))
+    .slice(0, limit)
     .map((object) => object.path);
   await removeObjects(orphanPaths);
   logger.info(

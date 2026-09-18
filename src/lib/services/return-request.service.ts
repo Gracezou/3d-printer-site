@@ -1,4 +1,14 @@
-import { and, count, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
+import {
+  and,
+  count,
+  desc,
+  eq,
+  inArray,
+  isNull,
+  ne,
+  or,
+  sql,
+} from 'drizzle-orm';
 
 import type { AdminIdentity } from '@/lib/auth/admin';
 import { getDb } from '@/lib/db/client';
@@ -14,7 +24,7 @@ import {
   userProfiles,
 } from '@/lib/db/schema';
 import { BizError } from '@/lib/errors';
-import { maskEmail } from '@/lib/logger';
+import { logger, maskEmail } from '@/lib/logger';
 import type { DbTransaction } from '@/lib/services/admin-log.service';
 import {
   allocateRefund,
@@ -27,7 +37,8 @@ import {
   getReturnRules,
   isReturnException,
 } from '@/lib/services/return-policy';
-import { assertReturnEvidenceUrls } from '@/lib/validators/return-request';
+import { resolveReturnEvidenceUrls } from '@/lib/services/upload.service';
+import { normalizeReturnEvidencePaths } from '@/lib/validators/return-request';
 import type {
   AdminReturnListQuery,
   ApproveReturnRequestInput,
@@ -47,15 +58,19 @@ export interface ReturnReviewDependencies {
 function isUniqueViolation(error: unknown): boolean {
   return Boolean(
     error &&
-      typeof error === 'object' &&
-      'code' in error &&
-      error.code === '23505',
+    typeof error === 'object' &&
+    'code' in error &&
+    error.code === '23505',
   );
 }
 
 function newRequestNo(): string {
   const time = Date.now().toString(36).toUpperCase();
-  const nonce = crypto.randomUUID().replaceAll('-', '').slice(0, 10).toUpperCase();
+  const nonce = crypto
+    .randomUUID()
+    .replaceAll('-', '')
+    .slice(0, 10)
+    .toUpperCase();
   return `RR${time}${nonce}`;
 }
 
@@ -161,7 +176,7 @@ async function loadRequestItems(
       refundedQuantity,
       refundableQuantity,
       refundedAmount,
-      refundableAmount: '0.00',
+      refundableAmount: null,
     };
     const items = byRequest.get(row.requestId) ?? [];
     items.push(detail);
@@ -170,7 +185,7 @@ async function loadRequestItems(
   for (const [requestId, details] of byRequest) {
     const orderId = orderIdByRequest.get(requestId);
     const order = orderId ? orderById.get(orderId) : undefined;
-    const items = orderId ? itemsByOrder.get(orderId) ?? [] : [];
+    const items = orderId ? (itemsByOrder.get(orderId) ?? []) : [];
     const requests = details
       .filter((item) => item.refundableQuantity > 0)
       .map((item) => ({
@@ -196,10 +211,18 @@ async function loadRequestItems(
         allocation.lines.map((line) => [line.orderItemId, line.amount]),
       );
       for (const detail of details) {
-        detail.refundableAmount = amountByItem.get(detail.orderItemId) ?? '0.00';
+        detail.refundableAmount =
+          amountByItem.get(detail.orderItemId) ?? '0.00';
       }
     } catch (error: unknown) {
-      if (!(error instanceof ZeroRefundAmountError)) throw error;
+      if (error instanceof ZeroRefundAmountError) {
+        for (const detail of details) detail.refundableAmount = '0.00';
+        continue;
+      }
+      logger.error(
+        { err: error, requestId, orderId },
+        'Failed to calculate refundable amount for return request',
+      );
     }
   }
   return byRequest;
@@ -218,20 +241,22 @@ interface ReturnItemDetail {
   refundedQuantity: number;
   refundableQuantity: number;
   refundedAmount: string;
-  refundableAmount: string;
+  refundableAmount: string | null;
 }
 
 export async function createReturnRequest(
   userId: string,
   input: CreateReturnRequestInput,
 ) {
-  assertReturnEvidenceUrls(input.images, userId);
+  const evidencePaths = normalizeReturnEvidencePaths(input.images, userId);
   try {
     return await getDb().transaction(async (tx) => {
       const [order] = await tx
         .select({ id: orders.id, orderNo: orders.orderNo })
         .from(orders)
-        .where(and(eq(orders.orderNo, input.orderNo), eq(orders.userId, userId)))
+        .where(
+          and(eq(orders.orderNo, input.orderNo), eq(orders.userId, userId)),
+        )
         .limit(1);
       if (!order) throw new BizError('NOT_FOUND', '订单不存在');
       await tx.execute(
@@ -248,7 +273,10 @@ export async function createReturnRequest(
               eq(returnRequests.status, 'pending'),
               and(
                 eq(returnRequests.status, 'approved'),
-                or(isNull(returnRequests.refundId), eq(refunds.status, 'pending')),
+                or(
+                  isNull(returnRequests.refundId),
+                  eq(refunds.status, 'pending'),
+                ),
               ),
             ),
           ),
@@ -275,7 +303,9 @@ export async function createReturnRequest(
         })
         .from(refundItems)
         .innerJoin(refunds, eq(refunds.id, refundItems.refundId))
-        .where(and(eq(refunds.orderId, order.id), eq(refunds.status, 'success')))
+        .where(
+          and(eq(refunds.orderId, order.id), eq(refunds.status, 'success')),
+        )
         .groupBy(refundItems.orderItemId);
       const refundedByItem = new Map(
         refundedRows.map((item) => [item.orderItemId, item.quantity]),
@@ -299,11 +329,7 @@ export async function createReturnRequest(
           );
         }
         if (
-          !canCustomerRequestReturn(
-            item.printStatus,
-            input.reasonCode,
-            rules,
-          )
+          !canCustomerRequestReturn(item.printStatus, input.reasonCode, rules)
         ) {
           throw new BizError(
             'RETURN_NOT_ALLOWED',
@@ -320,7 +346,7 @@ export async function createReturnRequest(
           userId,
           reasonCode: input.reasonCode,
           reasonText: input.reasonText,
-          images: input.images,
+          images: evidencePaths,
         })
         .returning({
           id: returnRequests.id,
@@ -381,7 +407,11 @@ export async function listCustomerReturnRequests(
     rows.map((row) => row.id),
   );
   return {
-    list: rows.map((row) => ({ ...row, items: items.get(row.id) ?? [] })),
+    list: rows.map((row) => ({
+      ...row,
+      images: resolveReturnEvidenceUrls(row.images),
+      items: items.get(row.id) ?? [],
+    })),
     total: totals[0]?.total ?? 0,
     page: query.page,
     pageSize: query.pageSize,
@@ -419,7 +449,11 @@ export async function getCustomerReturnRequest(
     .limit(1);
   if (!record) throw new BizError('NOT_FOUND', '退款申请不存在');
   const items = await loadRequestItems(db, [record.id]);
-  return { ...record, items: items.get(record.id) ?? [] };
+  return {
+    ...record,
+    images: resolveReturnEvidenceUrls(record.images),
+    items: items.get(record.id) ?? [],
+  };
 }
 
 export async function cancelCustomerReturnRequest(
@@ -500,6 +534,7 @@ export async function listAdminReturnRequests(query: AdminReturnListQuery) {
   return {
     list: rows.map((row) => ({
       ...row,
+      images: resolveReturnEvidenceUrls(row.images),
       userEmail: maskEmail(row.userEmail),
       isException: isReturnException(row.reasonCode, rules),
       items: items.get(row.id) ?? [],
@@ -535,12 +570,11 @@ export async function approveReturnRequest(
   dependencies: ReturnReviewDependencies = {},
 ) {
   const claimed = await getDb().transaction(async (tx) => {
-    await tx.execute(
-      sql`SELECT pg_advisory_xact_lock(hashtext(${requestId}))`,
-    );
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${requestId}))`);
     const [request] = await tx
       .select({
         id: returnRequests.id,
+        requestNo: returnRequests.requestNo,
         orderId: returnRequests.orderId,
         reasonCode: returnRequests.reasonCode,
         reasonText: returnRequests.reasonText,
@@ -607,7 +641,7 @@ export async function approveReturnRequest(
       claimed.orderId,
       {
         idempotencyKey: `return:${requestId}`,
-        reason: `售后申请 ${requestId}`,
+        reason: `售后申请 ${claimed.requestNo}`,
         items: claimed.items.map((item) => ({
           orderItemId: item.orderItemId,
           quantity: item.quantity,
@@ -690,9 +724,7 @@ export async function rejectReturnRequest(
   context: ReviewContext,
 ) {
   return getDb().transaction(async (tx) => {
-    await tx.execute(
-      sql`SELECT pg_advisory_xact_lock(hashtext(${requestId}))`,
-    );
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${requestId}))`);
     const now = new Date();
     const [updated] = await tx
       .update(returnRequests)

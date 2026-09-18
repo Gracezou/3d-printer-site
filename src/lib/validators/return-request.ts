@@ -106,17 +106,72 @@ export const rejectReturnRequestSchema = z
   .strict();
 
 export const voidRefundSchema = z
-  .object({ conclusion: z.string().trim().min(5, '核实结论至少 5 个字符').max(1000) })
+  .object({
+    conclusion: z.string().trim().min(5, '核实结论至少 5 个字符').max(1000),
+  })
   .strict();
 
-export function assertReturnEvidenceUrls(
+function storageBucket(): string {
+  return process.env.SUPABASE_STORAGE_BUCKET ?? 'products';
+}
+
+function canonicalEvidencePath(remainder: string): string | null {
+  let decodedSegments: string[];
+  try {
+    decodedSegments = remainder.split('/').map(decodeURIComponent);
+  } catch {
+    return null;
+  }
+  if (
+    !remainder ||
+    decodedSegments.some(
+      (segment) =>
+        !segment ||
+        segment === '.' ||
+        segment === '..' ||
+        segment.includes('/') ||
+        segment.includes('\\'),
+    )
+  ) {
+    return null;
+  }
+  return decodedSegments.join('/');
+}
+
+/**
+ * Converts both the new path-only format and legacy public URLs to the stable
+ * Storage object path. Legacy URLs intentionally do not require the current
+ * hostname so referenced evidence survives a Storage origin migration.
+ */
+export function returnEvidencePathFromReference(value: string): string | null {
+  if (value.startsWith('returns/')) {
+    const canonical = canonicalEvidencePath(value);
+    return canonical?.startsWith('returns/') ? canonical : null;
+  }
+  let candidate: URL;
+  try {
+    candidate = new URL(value);
+  } catch {
+    return null;
+  }
+  if (!['http:', 'https:'].includes(candidate.protocol)) return null;
+  const marker = `/storage/v1/object/public/${storageBucket()}/`;
+  const markerIndex = candidate.pathname.indexOf(marker);
+  if (markerIndex < 0) return null;
+  const canonical = canonicalEvidencePath(
+    candidate.pathname.slice(markerIndex + marker.length),
+  );
+  return canonical?.startsWith('returns/') ? canonical : null;
+}
+
+export function normalizeReturnEvidencePaths(
   images: string[],
   userId: string,
-): void {
-  if (!images.length) return;
+): string[] {
+  if (!images.length) return [];
   const storageOrigin =
     process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const bucket = process.env.SUPABASE_STORAGE_BUCKET ?? 'products';
+  const bucket = storageBucket();
   if (!storageOrigin) {
     throw new BizError('PARAM_INVALID', '凭证存储地址未配置');
   }
@@ -131,7 +186,7 @@ export function assertReturnEvidenceUrls(
     throw new BizError('PARAM_INVALID', '凭证存储地址配置无效');
   }
 
-  for (const value of images) {
+  return images.map((value) => {
     let candidate: URL;
     try {
       candidate = new URL(value);
@@ -139,12 +194,7 @@ export function assertReturnEvidenceUrls(
       throw new BizError('PARAM_INVALID', '凭证图片地址无效');
     }
     const remainder = candidate.pathname.slice(expected.pathname.length);
-    let decodedSegments: string[];
-    try {
-      decodedSegments = remainder.split('/').map(decodeURIComponent);
-    } catch {
-      throw new BizError('PARAM_INVALID', '凭证图片地址无效');
-    }
+    const canonical = canonicalEvidencePath(remainder);
     if (
       !['http:', 'https:'].includes(candidate.protocol) ||
       candidate.origin !== expected.origin ||
@@ -153,22 +203,22 @@ export function assertReturnEvidenceUrls(
       candidate.password !== '' ||
       candidate.search !== '' ||
       candidate.hash !== '' ||
-      !remainder ||
-      decodedSegments.some(
-        (segment) =>
-          !segment ||
-          segment === '.' ||
-          segment === '..' ||
-          segment.includes('/') ||
-          segment.includes('\\'),
-      )
+      !canonical
     ) {
       throw new BizError(
         'PARAM_INVALID',
         '凭证图片必须来自当前用户的本站上传目录',
       );
     }
-  }
+    return `returns/${userId}/${canonical}`;
+  });
+}
+
+export function assertReturnEvidenceUrls(
+  images: string[],
+  userId: string,
+): void {
+  normalizeReturnEvidencePaths(images, userId);
 }
 
 export type CreateReturnRequestInput = z.infer<
