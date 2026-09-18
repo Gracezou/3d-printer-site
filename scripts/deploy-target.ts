@@ -263,13 +263,13 @@ function inspectGitContext(testMode: boolean): GitContext {
   };
 }
 
-function targetConfigPath(options: Options, testMode: boolean): string {
+function targetConfigPath(options: Options): string {
   const override = process.env.DEPLOY_TARGET_CONFIG;
   if (!override) {
     return path.join(repoRoot, 'deploy', 'targets', `${options.target}.env`);
   }
-  if (!testMode || !options.dryRun) {
-    fail('DEPLOY_TARGET_CONFIG 仅允许 dry-run 测试模式使用');
+  if (!options.dryRun) {
+    fail('DEPLOY_TARGET_CONFIG 仅允许 dry-run 使用');
   }
   const resolved = resolveRepositoryFile(override, 'DEPLOY_TARGET_CONFIG');
   const relative = path.relative(repoRoot, resolved);
@@ -427,7 +427,7 @@ async function main(): Promise<void> {
 
   const testMode =
     options.dryRun && process.env.DEPLOY_TARGET_TEST_MODE === '1';
-  const configPath = targetConfigPath(options, testMode);
+  const configPath = targetConfigPath(options);
   const config = loadTargetConfig(options.target, configPath, options.dryRun);
   const git = inspectGitContext(testMode);
   if (!/^release-v\d+\.\d+\.\d+$/u.test(git.branch)) {
