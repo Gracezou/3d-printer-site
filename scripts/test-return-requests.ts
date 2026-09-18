@@ -353,6 +353,34 @@ async function main(): Promise<void> {
     );
     assert.equal(doneProvider.calls(), 1);
 
+    const changedStatus = await createOrder('STATUS', userA, 'queued');
+    const changedStatusRequest = await createReturnRequest(userA, {
+      orderNo: changedStatus.order.orderNo,
+      reasonCode: 'quality_issue',
+      reasonText: '申请后开始打印仍由运营决定是否批准',
+      images: [],
+      items: [{ orderItemId: changedStatus.item.id, quantity: 1 }],
+    });
+    await db
+      .update(printJobs)
+      .set({ status: 'printing' })
+      .where(eq(printJobs.id, changedStatus.job.id));
+    await approveReturnRequest(
+      changedStatusRequest.id,
+      { items: [{ orderItemId: changedStatus.item.id, restock: false }] },
+      context,
+      { refund: { getProvider: () => provider().value } },
+    );
+    assert.equal(
+      (
+        await getCustomerReturnRequest(
+          userA,
+          changedStatusRequest.requestNo,
+        )
+      ).status,
+      'completed',
+    );
+
     const direct = await createOrder('DIRECT', userA, 'queued');
     const applied = await createOrder('APPLY', userA, 'queued');
     const stockBeforeApplication = (
@@ -604,7 +632,7 @@ async function main(): Promise<void> {
       page: 1,
       pageSize: 50,
     });
-    assert.equal(customerList.total, 4);
+    assert.equal(customerList.total, 5);
     const queue = await listAdminReturnRequests({ page: 1, pageSize: 50 });
     assert(queue.list.some((request) => request.id === doneRequest.id));
 

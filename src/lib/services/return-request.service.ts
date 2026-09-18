@@ -558,11 +558,9 @@ export async function approveReturnRequest(
       .select({
         orderItemId: returnRequestItems.orderItemId,
         quantity: returnRequestItems.quantity,
-        printStatus: printJobs.status,
       })
       .from(returnRequestItems)
       .innerJoin(orderItems, eq(orderItems.id, returnRequestItems.orderItemId))
-      .leftJoin(printJobs, eq(printJobs.orderItemId, orderItems.id))
       .where(eq(returnRequestItems.requestId, requestId));
     const reviewByItem = new Map(
       input.items.map((item) => [item.orderItemId, item]),
@@ -573,22 +571,9 @@ export async function approveReturnRequest(
     ) {
       throw new BizError('PARAM_INVALID', '审核商品必须与申请商品完全一致');
     }
-    const rules = await getReturnRules(tx);
-    const exception = isReturnException(request.reasonCode, rules);
-    for (const item of items) {
-      if (exception && !item.printStatus) {
-        throw new BizError('RETURN_FIT_EXCEPTION', '例外申请商品未进入打印流程');
-      }
-      if (
-        !exception &&
-        !canCustomerRequestReturn(item.printStatus, request.reasonCode, rules)
-      ) {
-        throw new BizError(
-          'RETURN_NOT_ALLOWED',
-          '普通原因不能越过当前打印状态受理',
-        );
-      }
-    }
+    // Customer admission is checked when the request is created. Approval may
+    // happen after printing starts; refundOrder re-locks the order/items and
+    // remains the authority for refundable quantity and amount.
     const now = new Date();
     const [updated] = await tx
       .update(returnRequests)
