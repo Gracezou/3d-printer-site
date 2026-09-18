@@ -4,10 +4,18 @@
 
 ## 1. 准备
 
+> **⚠️ 安全红线（必读）**：`.env.sandbox` 里的 Supabase 配置**必须指向本地 Supabase（`supabase start`）或专用沙箱项目**，**严禁从 `.env.dev` / `.env.production` 复制**任何 Supabase URL / 密钥；`ADMIN_JWT_SECRET` **必须新生成**（示例：`openssl rand -base64 48`），禁止复用现网值。
+>
+> 违反的后果：应用会用这些配置在**现网 Supabase Auth 创建测试买家、发送真实验证码邮件**，并把售后凭证/商品图片**上传到现网存储桶**，污染生产数据。
+>
+> 支付宝网关（`ALIPAY_GATEWAY`）必须是沙箱域名（`*.alipaydev.com`，以支付宝官方沙箱文档为准，见 <https://opendocs.alipay.com/common/02kkv7>）。**留空会默认走生产网关**（`https://openapi.alipay.com/gateway.do`），导致测试退款打到生产渠道。
+
 1. 启动一套隔离本地 PostgreSQL，记下 `127.0.0.1` 或 `localhost` 连接串。
-2. 复制模板：`cp .env.sandbox.example .env.sandbox`，把文件权限设为 `0600`。
-3. 填入支付宝沙箱应用 ID、应用私钥、支付宝公钥、沙箱网关、通知/返回 URL；`ENABLE_MOCK_PAYMENT` 必须为 `false`。
-4. 先人工打印并核对数据库主机，确认是 `127.0.0.1`/`localhost`，然后执行迁移、播种和应用启动。不要设置 `ALLOW_REMOTE_TEST_DATABASE`。
+2. 启动本地 Supabase（`supabase start`），或准备专用沙箱项目；记下其 URL、anon key、service_role key 与 storage bucket。
+3. 复制模板：`cp .env.sandbox.example .env.sandbox`，把文件权限设为 `0600`。
+4. 填入 Supabase 相关键（`SUPABASE_URL`、`SUPABASE_SERVICE_ROLE_KEY`、`SUPABASE_STORAGE_BUCKET`、`NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_ANON_KEY`），**只指向第 2 步的本地/沙箱项目**；`ADMIN_JWT_SECRET` 用 `openssl rand -base64 48` 新生成。
+5. 填入支付宝沙箱应用 ID、应用私钥、支付宝公钥、**沙箱网关（`*.alipaydev.com`）**、通知/返回 URL；`ENABLE_MOCK_PAYMENT` 必须为 `false`。
+6. 先人工打印并核对数据库主机，确认是 `127.0.0.1`/`localhost`，然后执行迁移、播种和应用启动。不要设置 `ALLOW_REMOTE_TEST_DATABASE`。
 
 ```bash
 pnpm exec dotenv -e .env.sandbox -- tsx scripts/assert-local-test-database.ts
@@ -46,7 +54,11 @@ pnpm sandbox:refund-check -- --order-no=<ORDER_NO> --query-provider=<OUT_REQUEST
 
 ## 4. 请求超时场景
 
-1. 仅在沙箱环境，通过浏览器网络限速/反向代理超时让退款 HTTP 请求在客户端侧超时；不要取消服务端进程，也不要修改 `out_request_no`。
+> **为什么不用浏览器限速**：浏览器限速只影响「浏览器 → 应用服务器」这一段，**测不到应用服务器调用支付宝网关的超时**；只有「退款请求已发出、渠道结果未知」才会进入「续记 / 人工复核」路径，浏览器侧超时无法复现这条路径。因此必须在**应用服务器与支付宝网关之间**制造延迟（应用侧渠道调用超时阈值为 10 秒，见 `src/lib/services/payment/alipay.provider.ts`）。
+
+1. 仅在沙箱环境，在应用服务器与支付宝网关之间加一层**本地 HTTP 代理**，对发往支付宝网关（`*.alipaydev.com`）的请求注入延迟（例如 12 秒，超过应用侧 10 秒超时阈值），让**服务端**调用渠道超时；不要取消服务端进程，也不要修改 `out_request_no`。
+   - 思路：启动一个本地代理（如 `mitmproxy` 的延迟注入，或自写最小转发代理、转发前 `sleep`），把应用的支付宝出站请求指向该代理；具体凭据、端口与工具参数不在此文档中，按工具文档配置即可。
+   - 目标是让**应用服务器**感知到渠道超时，而不是让浏览器页面超时。
 2. 记录超时发生时间、退款 ID、`out_request_no`、应用日志中的安全错误摘要与支付宝 `traceId`。
 3. 等待至少 10 秒，用第 3 节命令查询原退款号。
 4. 若查询成功，后台用原退款 ID“续记”落账；若仍未知，保持人工复核。严禁新建另一退款号试探。

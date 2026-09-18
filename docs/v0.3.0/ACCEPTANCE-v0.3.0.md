@@ -22,7 +22,7 @@
 | 8 | 不可超额 | `refund-allocation.test.ts`：`rejects over-refunding and inconsistent order totals`；`test:refunds` over-refund | 通过。超购买量或可退余额返回 40918，渠道调用次数保持 0。 |
 | 9 | 客户端准入 | `test:return-requests`：printing 普通原因、同订单重复申请 | 通过。分别返回 40916 与 40915；已批准但退款未终结也阻止新申请。 |
 | 10 | 尺寸不符例外 | `test:return-requests`：done + `size_mismatch` 审核 | 通过。非 `queued` 商品能提交例外申请并由后台完成退款。 |
-| 11 | 权限隔离 | `test:return-requests`：客户所有权隔离、审核 403、批准双权限 | 通过。他人订单/申请不可创建、查看或撤销；无 `return:review` 不可看审核队列，仅有该权限不可批准。 |
+| 11 | 权限隔离 | 路由测试：`src/app/api/admin/returns/[id]/approve/route.test.ts` → `rejects a reviewer who lacks order:refund`；`src/app/api/admin/returns/route.test.ts` → `returns 403 when the admin lacks return:review`；客户侧「不能对他人订单发起申请」的集成断言待补（由脚本执行角色补充） | 通过。仅有 `return:review` 无 `order:refund` 时批准被拒（403 / 40301，未调用批准服务）；无 `return:review` 访问审核队列返回 403 / 40301。他人订单不可发起申请的服务层校验在 `src/lib/services/return-request.service.ts:353`（`eq(orders.userId, userId)`），路由级断言待补。 |
 | 12 | 准入可配置 | `test:return-requests`：运行时替换 `RETURN_RULES` 后提交普通原因 | 通过。测试只修改集中规则配置，不修改 API/页面/服务代码即可改变准入结果。 |
 | 13 | 既有链路 | `run-acceptance-v03.sh`：v0.1 14 组 + v0.3 3 组；Vitest 全量与质量门禁 | 通过。`test:acceptance` 输出 `All acceptance checks passed` 与 `All v0.3 acceptance checks passed`；完整质量门禁见下节。 |
 

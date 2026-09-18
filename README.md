@@ -140,7 +140,7 @@ v0.2.1 预生产目标是华为云新加坡主机 + Nginx + Next.js，Supabase �
 - [v0.2.2 增量变更](./docs/v0.2.2/CHANGES-v0.2.2.md)
 - [v0.2.2 品牌文案定稿清单](./docs/v0.2.2/BRAND-COPY.md)
 - [Playwright 快速上手](./docs/guides/PLAYWRIGHT-GETTING-STARTED.md)
-- [v0.3.0 增量变更（初稿）](./docs/v0.3.0/CHANGES-v0.3.0.md)
+- [v0.3.0 增量变更](./docs/v0.3.0/CHANGES-v0.3.0.md)
 - [v0.3.0 自动化验收记录](./docs/v0.3.0/ACCEPTANCE-v0.3.0.md)
 - [v0.3.0 支付宝沙箱退款回归手册](./docs/v0.3.0/ALIPAY-SANDBOX-REFUND-RUNBOOK.md)
 - [v0.3.0 数据库迁移与回滚](./docs/v0.3.0/MIGRATION-ROLLBACK-v0.3.0.md)
