@@ -4,8 +4,8 @@ Next.js 15 + PostgreSQL/Supabase 实现的 3D 打印成品商城，包含商品�
 
 ## 当前版本与状态
 
-- **生产**：v0.2.2 已上线（printer.daxiaoxiang.com，蓝绿发布）。
-- **开发中**：v0.3.0 售后退款引擎，在 `release-v0.3.0` 分支推进，stage 环境验证中。
+- **生产**：尚未上线，服务器待提供。
+- **Stage**：v0.3.0 已发布至 `http://stage.printer.daxiaoxiang.com`。
 - v0.2.3（境内迁移）文档位于 `release-v0.2.3` 分支。
 
 ## 本地开发
