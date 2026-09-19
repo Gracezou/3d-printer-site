@@ -119,7 +119,16 @@ Grace 需要在 GitHub 分别创建 `stage`、`production` Environment，并在�
 }
 ```
 
-生产 Environment 将 `environment` 改为 `production` 并填写生产专属值。Stage 若没有备案号，`NEXT_PUBLIC_ICP_LICENSE` 可填 `STAGE-NOT-APPLICABLE` 等明确占位值；字段仍不得留空。CI 从这一个 JSON 原子读取全部构建参数，断言 `environment` 与当前构建目标一致、四个 `NEXT_PUBLIC_*` 字段均为非空单行字符串，再注入构建；这样缺少 Environment 配置时，即使 GitHub 回退到另一层级的同名变量，也会因环境标记不匹配而失败。生产 Environment 应配置 Grace 为 required reviewer，防止代理自行构建生产镜像。
+生产 Environment 将 `environment` 改为 `production` 并填写生产专属值。Stage 若没有备案号，`NEXT_PUBLIC_ICP_LICENSE` 可填 `STAGE-NOT-APPLICABLE` 等明确占位值；字段仍不得留空。CI 从这一个 JSON 原子读取全部构建参数，断言 `environment` 与当前构建目标一致、四个 `NEXT_PUBLIC_*` 字段均为非空单行字符串，再注入构建；回退到另一环境的配置时会因环境标记不匹配而失败。
+
+GitHub 对 Environment 缺失变量的回退没有来源标记：如果仓库级或组织级恰好存在同名且 `environment` 也相同的 `BUILD_CONFIG`，CI 无法区分。生产首发前及每次调整构建配置后，Grace 必须人工执行以下命令，确认两层均不存在 `BUILD_CONFIG`；组织未使用 Actions variables 时可跳过第二条：
+
+```bash
+gh variable list
+gh variable list --org <org>
+```
+
+这些 `NEXT_PUBLIC_*` 值最终都会进入浏览器前端，属于公开构建信息。如果仍希望避免 `BUILD_CONFIG` 整段出现在步骤日志中，可将它改存为对应 Environment 的 secret，并同步把 workflow 引用从 `vars.BUILD_CONFIG` 改为 `secrets.BUILD_CONFIG`。生产 Environment 还应配置 Grace 为 required reviewer，防止代理自行构建生产镜像。
 
 ## 服务器前置条件
 
