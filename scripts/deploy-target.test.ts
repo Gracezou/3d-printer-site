@@ -10,7 +10,10 @@ import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
+  assertProductionPrivateKeyProtected,
   assertRemoteDatabaseIdentity,
+  checkProductionDatabaseIsolation,
+  databaseClusterKeyFromUrl,
   databaseIdentityFromUrl,
   databaseIdentityHash,
   hasNearbyRuntimeFilename,
@@ -30,6 +33,10 @@ const stageDatabaseUrl =
   'postgresql://postgres.stage_ref:secret@region.pooler.supabase.com:6543/postgres';
 const otherDatabaseUrl =
   'postgresql://postgres.other_ref:secret@region.pooler.supabase.com:6543/postgres';
+const directStageDatabaseUrl =
+  'postgresql://postgres:secret@db.stage_ref.supabase.co:5432/postgres';
+const sessionStageDatabaseUrl =
+  'postgresql://postgres.stage_ref:secret@region.pooler.supabase.com:5432/postgres';
 
 function runDeploy(
   args: string[],
@@ -190,7 +197,7 @@ describe.sequential('deploy-target', () => {
     const runtimePath = writeRuntime();
     writePrivateFile(
       path.join(scanRoot, '.env.dev'),
-      `DATABASE_URL=${stageDatabaseUrl}\n`,
+      `DATABASE_URL=${directStageDatabaseUrl}\n`,
     );
     const configPath = writeTargetConfig('shared-rejected.env');
     const result = runDeploy(['stage', '--dry-run'], configPath, runtimePath);
@@ -205,7 +212,7 @@ describe.sequential('deploy-target', () => {
     const runtimePath = writeRuntime();
     writePrivateFile(
       path.join(scanRoot, '.env.dev'),
-      `DATABASE_URL=${stageDatabaseUrl}\n`,
+      `DATABASE_URL=${sessionStageDatabaseUrl}\n`,
     );
     const configPath = writeTargetConfig('shared-accepted.env');
     const result = runDeploy(
@@ -234,6 +241,75 @@ describe.sequential('deploy-target', () => {
     rmSync(path.join(scanRoot, '.env.preprod'));
   });
 
+  it('maps direct, session-pooler, and transaction-pooler URLs to one Supabase cluster', () => {
+    const directKey = databaseClusterKeyFromUrl(directStageDatabaseUrl);
+    const sessionKey = databaseClusterKeyFromUrl(sessionStageDatabaseUrl);
+    const transactionKey = databaseClusterKeyFromUrl(stageDatabaseUrl);
+    expect(directKey).toBe(sessionKey);
+    expect(sessionKey).toBe(transactionKey);
+    expect(databaseIdentityFromUrl(directStageDatabaseUrl)).not.toBe(
+      databaseIdentityFromUrl(sessionStageDatabaseUrl),
+    );
+    expect(databaseIdentityFromUrl(sessionStageDatabaseUrl)).not.toBe(
+      databaseIdentityFromUrl(stageDatabaseUrl),
+    );
+  });
+
+  it('keeps different Supabase project refs in different clusters', () => {
+    expect(databaseClusterKeyFromUrl(stageDatabaseUrl)).not.toBe(
+      databaseClusterKeyFromUrl(otherDatabaseUrl),
+    );
+  });
+
+  it('identifies non-Supabase clusters by host and database while ignoring port', () => {
+    const direct = databaseClusterKeyFromUrl(
+      'postgresql://app:secret@postgres.internal:5432/shop',
+    );
+    const alternatePort = databaseClusterKeyFromUrl(
+      'postgresql://other:secret@postgres.internal:6543/shop',
+    );
+    const otherDatabase = databaseClusterKeyFromUrl(
+      'postgresql://app:secret@postgres.internal:5432/analytics',
+    );
+    expect(direct).toBe(alternatePort);
+    expect(direct).not.toBe(otherDatabase);
+  });
+
+  it.each([
+    {
+      name: 'comma-separated hosts',
+      url: 'postgresql://postgres:secret@host-one.invalid,host-two.invalid/postgres',
+    },
+    {
+      name: 'host query parameter',
+      url: 'postgresql://postgres:secret@host.invalid/postgres?host=other.invalid',
+    },
+    {
+      name: 'hostaddr query parameter',
+      url: 'postgresql://postgres:secret@host.invalid/postgres?hostaddr=127.0.0.1',
+    },
+    {
+      name: 'port query parameter',
+      url: 'postgresql://postgres:secret@host.invalid/postgres?port=6543',
+    },
+  ])('rejects DATABASE_URL target override: $name', ({ url }) => {
+    expect(() => databaseIdentityFromUrl(url)).toThrow(/DATABASE_URL/u);
+  });
+
+  it('rejects a production database shared with another environment', () => {
+    writePrivateFile(
+      path.join(scanRoot, '.env.dev'),
+      `DATABASE_URL=${directStageDatabaseUrl}\n`,
+    );
+    expect(() =>
+      checkProductionDatabaseIsolation(
+        databaseClusterKeyFromUrl(stageDatabaseUrl),
+        scanRoot,
+      ),
+    ).toThrow(/生产目标禁止共用数据库/u);
+    rmSync(path.join(scanRoot, '.env.dev'));
+  });
+
   it('rejects password authentication for production', () => {
     const runtimePath = writeRuntime(
       '.env.production',
@@ -252,6 +328,29 @@ describe.sequential('deploy-target', () => {
     );
     expect(result.status).toBe(1);
     expect(result.output).toContain('生产发布只允许 SSH 密钥认证');
+  });
+
+  it('rejects an unencrypted production private key and accepts an encrypted one', () => {
+    const unencryptedKey = path.join(fixtureDir, 'unencrypted-key');
+    const encryptedKey = path.join(fixtureDir, 'encrypted-key');
+    const unencrypted = spawnSync(
+      'ssh-keygen',
+      ['-q', '-t', 'ed25519', '-N', '', '-f', unencryptedKey],
+      { encoding: 'utf8' },
+    );
+    const encrypted = spawnSync(
+      'ssh-keygen',
+      ['-q', '-t', 'ed25519', '-N', 'fake-passphrase', '-f', encryptedKey],
+      { encoding: 'utf8' },
+    );
+    expect(unencrypted.status).toBe(0);
+    expect(encrypted.status).toBe(0);
+    expect(() => assertProductionPrivateKeyProtected(unencryptedKey)).toThrow(
+      /必须设置口令/u,
+    );
+    expect(() =>
+      assertProductionPrivateKeyProtected(encryptedKey),
+    ).not.toThrow();
   });
 
   it('requires a non-empty restore point identifier', () => {
@@ -299,13 +398,34 @@ describe.sequential('deploy-target', () => {
     expect(result.output).not.toContain('postgresql://');
   });
 
-  it('redacts sensitive remote diagnostic lines and configured values', () => {
+  it('redacts credentials, private keys, tokens, URLs, and standalone hosts', () => {
+    const jwt =
+      'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJmYWtlLXVzZXIifQ.fake_signature_value';
+    const base64 =
+      'QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo1MjM0NTY3ODkwYWJjZGVm';
+    const databaseHost = 'fake-project.pooler.supabase.com';
     const diagnostic = redactRemoteDiagnostic(
-      'SSH_HOST=sensitive-stage-host.invalid\nrequest https://secret.invalid/path\nsafe line',
-      ['sensitive-stage-host.invalid'],
+      [
+        'SSH_HOST=sensitive-stage-host.invalid',
+        'request https://secret.invalid/path',
+        'DATABASE_URL=postgresql://postgres:secret@fake.invalid/postgres',
+        'API_KEY=fake-api-key',
+        '-----BEGIN RSA PRIVATE KEY-----',
+        base64,
+        '-----END RSA PRIVATE KEY-----',
+        jwt,
+        `getaddrinfo ENOTFOUND ${databaseHost}`,
+        'safe line',
+      ].join('\n'),
+      ['sensitive-stage-host.invalid', databaseHost],
     );
     expect(diagnostic).not.toContain('sensitive-stage-host.invalid');
     expect(diagnostic).not.toContain('secret.invalid');
+    expect(diagnostic).not.toContain('fake-api-key');
+    expect(diagnostic).not.toContain('PRIVATE KEY-----');
+    expect(diagnostic).not.toContain(base64);
+    expect(diagnostic).not.toContain(jwt);
+    expect(diagnostic).not.toContain(databaseHost);
     expect(diagnostic).toContain('safe line');
   });
 });

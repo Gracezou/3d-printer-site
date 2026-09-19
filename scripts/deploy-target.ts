@@ -36,7 +36,16 @@ type TargetConfig = {
 type LoadedTarget = {
   config: TargetConfig;
   databaseIdentity: string;
+  databaseClusterKey: string;
   databaseHostname: string;
+  diagnosticSensitiveValues: string[];
+};
+
+type DatabaseTarget = {
+  hostname: string;
+  port: string;
+  database: string;
+  username: string;
 };
 
 type GitContext = {
@@ -119,7 +128,7 @@ export function parseArgs(argv: string[]): Options {
   };
 }
 
-export function databaseIdentityFromUrl(databaseUrl: string): string {
+function parseDatabaseTarget(databaseUrl: string): DatabaseTarget {
   let candidate: URL;
   try {
     candidate = new URL(databaseUrl);
@@ -129,13 +138,69 @@ export function databaseIdentityFromUrl(databaseUrl: string): string {
   if (!['postgres:', 'postgresql:'].includes(candidate.protocol)) {
     fail('DATABASE_URL 必须使用 PostgreSQL 协议');
   }
-  const database = decodeURIComponent(candidate.pathname.slice(1));
-  const username = decodeURIComponent(candidate.username);
-  if (!candidate.hostname || !database || !username || database.includes('/')) {
+  const forbiddenTargetParameters = new Set([
+    'host',
+    'hostaddr',
+    'port',
+    'dbname',
+    'user',
+  ]);
+  for (const key of candidate.searchParams.keys()) {
+    if (forbiddenTargetParameters.has(key.toLowerCase())) {
+      fail(`DATABASE_URL 不得使用 ${key} 查询参数改写连接目标`);
+    }
+  }
+
+  let database: string;
+  let username: string;
+  let hostname: string;
+  try {
+    database = decodeURIComponent(candidate.pathname.slice(1));
+    username = decodeURIComponent(candidate.username);
+    hostname = decodeURIComponent(candidate.hostname).toLowerCase();
+  } catch {
+    fail('DATABASE_URL 包含无效的 URL 编码');
+  }
+  if (hostname.includes(',')) {
+    fail('DATABASE_URL 不得包含多个主机');
+  }
+  if (
+    !hostname ||
+    !database ||
+    !username ||
+    database.includes('/')
+  ) {
     fail('DATABASE_URL 缺少主机、数据库名或用户名');
   }
-  const port = candidate.port || '5432';
-  return `${candidate.hostname.toLowerCase()}:${port}/${encodeURIComponent(database)}?user=${encodeURIComponent(username)}`;
+  return {
+    hostname,
+    port: candidate.port || '5432',
+    database,
+    username,
+  };
+}
+
+export function databaseIdentityFromUrl(databaseUrl: string): string {
+  const target = parseDatabaseTarget(databaseUrl);
+  return `${target.hostname}:${target.port}/${encodeURIComponent(target.database)}?user=${encodeURIComponent(target.username)}`;
+}
+
+export function databaseClusterKeyFromUrl(databaseUrl: string): string {
+  const target = parseDatabaseTarget(databaseUrl);
+  const directSupabase = /^db\.([a-z0-9_-]+)\.supabase\.co$/iu.exec(
+    target.hostname,
+  );
+  if (directSupabase) return `supabase:${directSupabase[1]!.toLowerCase()}`;
+
+  const poolerUser = /^postgres\.([a-z0-9_-]+)$/iu.exec(target.username);
+  if (
+    target.hostname.endsWith('.pooler.supabase.com') &&
+    poolerUser
+  ) {
+    return `supabase:${poolerUser[1]!.toLowerCase()}`;
+  }
+
+  return `postgres:${target.hostname}/${encodeURIComponent(target.database)}`;
 }
 
 export function databaseIdentityHash(identity: string): string {
@@ -319,6 +384,10 @@ export function loadTargetConfig(
   if (databaseIdentity !== config.DB_IDENTITY) {
     fail('DATABASE_URL 的数据库身份与 DB_IDENTITY 不一致');
   }
+  const databaseClusterKey = databaseClusterKeyFromUrl(
+    runtimeValues.DATABASE_URL,
+  );
+  const databaseTarget = parseDatabaseTarget(runtimeValues.DATABASE_URL);
   for (const reservedKey of [
     'ALLOW_REMOTE_DATABASE_MIGRATION',
     'CONFIRM_REMOTE_DATABASE_HOST',
@@ -334,7 +403,12 @@ export function loadTargetConfig(
   }
   if (config.SSH_AUTH === 'key') {
     if (!config.SSH_KEY_PATH) fail('SSH_AUTH=key 时必须填写 SSH_KEY_PATH');
-    if (!dryRun) assertPrivateFile(config.SSH_KEY_PATH, 'SSH 私钥');
+    if (!dryRun) {
+      assertPrivateFile(config.SSH_KEY_PATH, 'SSH 私钥');
+      if (target === 'production') {
+        assertProductionPrivateKeyProtected(config.SSH_KEY_PATH);
+      }
+    }
   } else {
     if (!config.SSH_PASSWORD) fail('SSH_AUTH=password 时必须填写 SSH_PASSWORD');
     if (!dryRun && !commandExists('sshpass')) {
@@ -345,7 +419,12 @@ export function loadTargetConfig(
   return {
     config,
     databaseIdentity,
-    databaseHostname: new URL(runtimeValues.DATABASE_URL).hostname,
+    databaseClusterKey,
+    databaseHostname: databaseTarget.hostname,
+    diagnosticSensitiveValues: [
+      databaseTarget.hostname,
+      ...Object.values(runtimeValues).filter((value) => value.length >= 8),
+    ],
   };
 }
 
@@ -371,6 +450,18 @@ function commandExists(command: string): boolean {
     stdio: 'ignore',
   });
   return result.error === undefined;
+}
+
+export function assertProductionPrivateKeyProtected(filePath: string): void {
+  const probe = spawnSync(
+    'ssh-keygen',
+    ['-y', '-P', '', '-f', filePath],
+    { cwd: repoRoot, stdio: 'ignore' },
+  );
+  if (probe.error) fail('无法执行 ssh-keygen 检查生产私钥口令');
+  if (probe.status === 0) {
+    fail('生产私钥必须设置口令，禁止使用空口令私钥');
+  }
 }
 
 function gitOutput(args: string[]): string {
@@ -431,17 +522,25 @@ function sharedDatabaseScanRoot(options: Options): string {
   return resolved;
 }
 
-export function checkStageDatabaseIsolation(
-  stageIdentity: string,
+function checkDatabaseIsolation(
+  target: Target,
+  targetClusterKey: string,
   acceptedNames: Set<string>,
   scanRoot: string,
 ): string[] {
   const acceptedMatches: string[] = [];
-  const candidates = [
-    { name: 'dev', file: '.env.dev' },
-    { name: 'production', file: '.env.production' },
-    { name: 'preprod', file: '.env.preprod' },
-  ];
+  const candidates =
+    target === 'stage'
+      ? [
+          { name: 'dev', file: '.env.dev' },
+          { name: 'production', file: '.env.production' },
+          { name: 'preprod', file: '.env.preprod' },
+        ]
+      : [
+          { name: 'dev', file: '.env.dev' },
+          { name: 'stage', file: '.env.stage' },
+          { name: 'preprod', file: '.env.preprod' },
+        ];
 
   for (const candidate of candidates) {
     const candidatePath = path.join(scanRoot, candidate.file);
@@ -456,11 +555,14 @@ export function checkStageDatabaseIsolation(
       fail(`对照运行配置 ${candidate.file} 缺少 DATABASE_URL`);
     }
     const matches =
-      databaseIdentityFromUrl(values.DATABASE_URL) === stageIdentity;
+      databaseClusterKeyFromUrl(values.DATABASE_URL) === targetClusterKey;
     process.stdout.write(
       `数据库互斥检查 ${candidate.name}：${matches ? '相同' : '不同'}\n`,
     );
     if (!matches) continue;
+    if (target === 'production') {
+      fail(`Production 与 ${candidate.name} 共用数据库；生产目标禁止共用数据库`);
+    }
     if (!acceptedNames.has(candidate.name)) {
       fail(
         `Stage 与 ${candidate.name} 共用数据库；需 Grace 明确接受后传入 --accept-shared-database=${candidate.name}`,
@@ -476,6 +578,26 @@ export function checkStageDatabaseIsolation(
     fail('共享数据库接受参数与实际身份比较结果不一致');
   }
   return acceptedMatches;
+}
+
+export function checkStageDatabaseIsolation(
+  stageClusterKey: string,
+  acceptedNames: Set<string>,
+  scanRoot: string,
+): string[] {
+  return checkDatabaseIsolation(
+    'stage',
+    stageClusterKey,
+    acceptedNames,
+    scanRoot,
+  );
+}
+
+export function checkProductionDatabaseIsolation(
+  productionClusterKey: string,
+  scanRoot: string,
+): void {
+  checkDatabaseIsolation('production', productionClusterKey, new Set(), scanRoot);
 }
 
 function sshArgs(config: TargetConfig, command: string): {
@@ -518,25 +640,32 @@ async function verifyRemoteDatabaseIdentity(
   config: TargetConfig,
   localIdentity: string,
   image: string,
+  diagnosticSensitiveValues: string[],
 ): Promise<void> {
   const identityProgram = [
     "const { createHash } = require('node:crypto');",
+    'try {',
     'const candidate = new URL(process.env.DATABASE_URL);',
     "if (!['postgres:', 'postgresql:'].includes(candidate.protocol)) process.exit(2);",
+    "const forbidden = new Set(['host','hostaddr','port','dbname','user']);",
+    'for (const key of candidate.searchParams.keys()) if (forbidden.has(key.toLowerCase())) process.exit(2);',
     "const database = decodeURIComponent(candidate.pathname.slice(1));",
     'const username = decodeURIComponent(candidate.username);',
+    'const hostname = decodeURIComponent(candidate.hostname).toLowerCase();',
+    "if (!hostname || hostname.includes(',') || !database || !username || database.includes('/')) process.exit(2);",
     "const port = candidate.port || '5432';",
-    'const identity = `${candidate.hostname.toLowerCase()}:${port}/${encodeURIComponent(database)}?user=${encodeURIComponent(username)}`;',
+    'const identity = `${hostname}:${port}/${encodeURIComponent(database)}?user=${encodeURIComponent(username)}`;',
     "process.stdout.write(createHash('sha256').update(identity).digest('hex') + '\\n');",
+    '} catch { process.exit(2); }',
   ].join('');
   const command = [
     `cd ${config.DEPLOY_DIR}`,
     `docker pull ${image} >/dev/null`,
-    `docker run --rm --entrypoint node --env-file .env ${image} -e ${shellQuote(identityProgram)}`,
+    `APP_IMAGE=${shellQuote(image)} docker compose --env-file .env -f compose.yaml run --rm --no-deps --entrypoint node web -e ${shellQuote(identityProgram)}`,
   ].join(' && ');
   const result = await runRemote(config, command);
   if (result.status !== 0) {
-    writeRemoteDiagnostics(config, result);
+    writeRemoteDiagnostics(config, result, diagnosticSensitiveValues);
     fail('无法核对服务器运行配置的数据库身份');
   }
   const hash = result.stdout
@@ -548,11 +677,12 @@ async function verifyRemoteDatabaseIdentity(
 
 async function readPreviousImageTag(
   config: TargetConfig,
+  diagnosticSensitiveValues: string[],
 ): Promise<string | null> {
   const command = `cd ${config.DEPLOY_DIR} && . ./.active-release && printf '%s\\n' "\${PREVIOUS_IMAGE:-}"`;
   const result = await runRemote(config, command);
   if (result.status !== 0) {
-    writeRemoteDiagnostics(config, result);
+    writeRemoteDiagnostics(config, result, diagnosticSensitiveValues);
     fail('无法读取服务器上一发布镜像');
   }
   const image = result.stdout.trim().split(/\r?\n/u).at(-1) ?? '';
@@ -582,13 +712,25 @@ export function redactRemoteDiagnostic(
     redacted = redacted.split(value).join('[REDACTED]');
   }
   redacted = redacted.replace(
+    /-----BEGIN(?: [A-Z0-9]+)* PRIVATE KEY-----[\s\S]*?-----END(?: [A-Z0-9]+)* PRIVATE KEY-----/giu,
+    '[REDACTED_PEM_PRIVATE_KEY]',
+  );
+  redacted = redacted.replace(
     /\b(?:postgres(?:ql)?|https?|ssh):\/\/\S+/giu,
     '[REDACTED_URL]',
+  );
+  redacted = redacted.replace(
+    /\b[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\b/gu,
+    '[REDACTED_JWT]',
+  );
+  redacted = redacted.replace(
+    /(?<![A-Za-z0-9+/_-])[A-Za-z0-9+/_-]{40,}={0,2}(?![A-Za-z0-9+/_=-])/gu,
+    '[REDACTED_BASE64]',
   );
   return redacted
     .split(/\r?\n/u)
     .map((line) =>
-      /(?:DATABASE_URL|PASSWORD|PRIVATE_KEY|SECRET|TOKEN|SERVICE_ROLE|ADMIN_JWT|ALIPAY_|SUPABASE_|SSH_)/iu.test(
+      /(?:DATABASE_URL|PASSWORD|PRIVATE_KEY|SECRET|TOKEN|SERVICE_ROLE|ADMIN_JWT|ALIPAY_|SUPABASE_|SSH_|\b[A-Z0-9_]*(?:KEY|SECRET|PASSWORD|TOKEN)[A-Z0-9_]*\s*=)/iu.test(
         line,
       )
         ? '[REDACTED sensitive diagnostic line]'
@@ -632,6 +774,7 @@ async function runRemote(
 function writeRemoteDiagnostics(
   config: TargetConfig,
   result: RemoteResult,
+  additionalSensitiveValues: string[] = [],
 ): void {
   const sensitiveValues = [
     config.SSH_HOST,
@@ -643,6 +786,7 @@ function writeRemoteDiagnostics(
     config.IMAGE_REPO,
     config.APP_RUNTIME_ENV_FILE,
     config.DB_IDENTITY,
+    ...additionalSensitiveValues,
   ];
   const diagnostic = redactRemoteDiagnostic(
     `${result.stdout}\n${result.stderr}`,
@@ -807,14 +951,21 @@ async function main(): Promise<void> {
     process.env.DEPLOY_RUNTIME_ENV_OVERRIDE,
   );
   const { config } = loaded;
+  const isolationScanRoot = sharedDatabaseScanRoot(options);
   const acceptedSharedDatabases =
     options.target === 'stage'
       ? checkStageDatabaseIsolation(
-          loaded.databaseIdentity,
+          loaded.databaseClusterKey,
           options.acceptedSharedDatabases,
-          sharedDatabaseScanRoot(options),
+          isolationScanRoot,
         )
       : [];
+  if (options.target === 'production') {
+    checkProductionDatabaseIsolation(
+      loaded.databaseClusterKey,
+      isolationScanRoot,
+    );
+  }
   const git = inspectGitContext(testMode);
   if (!/^release-v\d+\.\d+\.\d+$/u.test(git.branch)) {
     fail('只能从 release-v<major>.<minor>.<patch> 分支发布');
@@ -873,7 +1024,12 @@ async function main(): Promise<void> {
   const manifest = run('docker', ['manifest', 'inspect', image]);
   if (manifest.status !== 0) fail('不可变镜像标签不存在或当前账号无权读取');
 
-  await verifyRemoteDatabaseIdentity(config, loaded.databaseIdentity, image);
+  await verifyRemoteDatabaseIdentity(
+    config,
+    loaded.databaseIdentity,
+    image,
+    loaded.diagnosticSensitiveValues,
+  );
   const pendingMigrations = checkPendingMigrations(
     config,
     loaded.databaseHostname,
@@ -898,11 +1054,18 @@ async function main(): Promise<void> {
   const remoteCommand = `cd ${config.DEPLOY_DIR} && ./${releaseScript} ${image}`;
   const release = await runRemote(config, remoteCommand);
   if (release.status !== 0) {
-    writeRemoteDiagnostics(config, release);
+    writeRemoteDiagnostics(
+      config,
+      release,
+      loaded.diagnosticSensitiveValues,
+    );
     fail('服务器发布失败；远端发布脚本已负责自动回滚');
   }
 
-  const previousImageTag = await readPreviousImageTag(config);
+  const previousImageTag = await readPreviousImageTag(
+    config,
+    loaded.diagnosticSensitiveValues,
+  );
   try {
     await verifyDeployment(config, git.sha);
   } catch (error: unknown) {
