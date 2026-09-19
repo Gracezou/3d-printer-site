@@ -50,7 +50,7 @@ Grace 需要逐项填写：
 
 为 Stage 和生产分别创建部署专用密钥，不复用个人密钥；公钥只授予运行发布脚本所需的服务器账号。私钥保存在本机安全目录并设为 `0600`。首次发布前人工核对并保存服务器 host key，脚本强制启用 host key 校验。
 
-生产私钥必须使用 `ssh-add -c <private-key>` 加载到 `ssh-agent`；`-c` 会让每次私钥使用都要求 Grace 在本机确认。生产目标只允许密钥认证，脚本会拒绝 `SSH_AUTH=password`。
+生产私钥必须设置口令，并使用 `ssh-add -c <private-key>` 加载到 `ssh-agent`；`-c` 会让每次私钥使用都要求 Grace 在本机确认。生产目标只允许密钥认证；脚本会拒绝 `SSH_AUTH=password`，也会用 `ssh-keygen` 拒绝空口令私钥。
 
 密码认证只作为 Stage 兼容方案。脚本通过 `SSHPASS` 环境变量调用 `sshpass -e`，不会把密码放进命令参数或日志，但仍弱于密钥认证。
 
@@ -70,7 +70,7 @@ scripts/deploy-target.sh stage --restore-point=<pitr-or-dump-id>
 
 Stage 发布会在工作区干净时自动推送当前 `release-v<major>.<minor>.<patch>` 分支，等待 `release-image.yml` 成功并确认 GHCR 不可变镜像存在，然后检查迁移、执行服务器发布和健康检查。仅当该版本全部功能完成且代码评审、安全审查、独立回归均通过，且没有影响发布的待确认事项时，才属于已授权的 Stage 自动发布范围。
 
-Stage 会将数据库身份与仓内存在的 `.env.dev`、`.env.production`、`.env.preprod` 逐一比较，日志只显示“相同/不同”。共用数据库默认拒绝；Grace 明确接受后，按实际目标增加例如 `--accept-shared-database=dev`，该例外会写入发布摘要。
+Stage 会将数据库集群与仓内存在的 `.env.dev`、`.env.production`、`.env.preprod` 逐一比较，日志只显示“相同/不同”。Supabase 以项目 ref 识别集群，因此同一项目的直连、session pooler 和 transaction pooler 都会判为相同；其他 PostgreSQL 以主机和库名识别并忽略端口。共用数据库默认拒绝；Grace 明确接受后，按实际目标增加例如 `--accept-shared-database=dev`，该例外会写入发布摘要。生产则与 dev、stage、preprod 做同样检查，发现共用时一律拒绝且没有例外参数。
 
 生产发布必须先取得 Grace 在频道中的本次明确批准，再执行：
 
@@ -88,7 +88,7 @@ scripts/deploy-target.sh production --i-have-grace-approval
 pnpm db:migrate
 ```
 
-部署脚本先校验本地 `DATABASE_URL` 与 `DB_IDENTITY` 完全一致，再从身份中派生 host，设置 `ALLOW_REMOTE_DATABASE_MIGRATION=true` 与 `CONFIRM_REMOTE_DATABASE_HOST`，保留既有迁移双重确认。迁移前还会通过 SSH 让服务器容器读取 `$DEPLOY_DIR/.env`、计算相同数据库身份的 SHA-256；服务器只回传哈希，本地与服务器不一致时拒绝迁移和发布。
+部署脚本先校验本地 `DATABASE_URL` 与 `DB_IDENTITY` 完全一致，再从身份中派生 host，设置 `ALLOW_REMOTE_DATABASE_MIGRATION=true` 与 `CONFIRM_REMOTE_DATABASE_HOST`，保留既有迁移双重确认。迁移前还会通过 SSH 使用 `docker compose run`，按应用相同的 `env_file` 规则读取 `$DEPLOY_DIR/.env`、计算完整数据库身份的 SHA-256；服务器只回传哈希，本地与服务器不一致时拒绝迁移和发布。连接串中的多主机或 `host`、`hostaddr`、`port`、`dbname`、`user` 查询参数会被拒绝。
 
 `pnpm db:migrate` 不再隐式读取 `.env.dev`。本地手工迁移示例：
 
@@ -108,12 +108,13 @@ Stage 构建同时保留旧版 `sha-<commit>` 兼容标签，供 v0.2.x 热修�
 
 Grace 需要在 GitHub 分别创建 `stage`、`production` Environment，并在两边配置同名变量：
 
+- `BUILD_ENVIRONMENT`：分别严格填写 `stage`、`production`
 - `NEXT_PUBLIC_SITE_URL`
 - `NEXT_PUBLIC_ICP_LICENSE`
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
-生产 Environment 应配置 Grace 为 required reviewer，防止代理自行构建生产镜像。
+上述变量只允许在对应 Environment 级定义，不要在仓库级配置同名回退值。CI 会校验 `BUILD_ENVIRONMENT` 与构建目标一致，并要求四个 `NEXT_PUBLIC_*` 变量全部非空。生产 Environment 应配置 Grace 为 required reviewer，防止代理自行构建生产镜像。
 
 ## 服务器前置条件
 
