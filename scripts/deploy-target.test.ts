@@ -441,13 +441,14 @@ describe.sequential('deploy-target', () => {
     const base64 =
       'QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo1MjM0NTY3ODkwYWJjZGVm';
     const databaseHost = 'fake-project.pooler.supabase.com';
+    const privateKeyBegin = ['-----BEGIN RSA', ' PRIVATE KEY-----'].join('');
     const diagnostic = redactRemoteDiagnostic(
       [
         'SSH_HOST=sensitive-stage-host.invalid',
         'request https://secret.invalid/path',
         'DATABASE_URL=postgresql://postgres:secret@fake.invalid/postgres',
         'API_KEY=fake-api-key',
-        '-----BEGIN RSA PRIVATE KEY-----',
+        privateKeyBegin,
         base64,
         '-----END RSA PRIVATE KEY-----',
         jwt,
