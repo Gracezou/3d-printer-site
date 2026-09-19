@@ -8,8 +8,8 @@ active_file="$deploy_dir/.active-release"
 upstream_file="${NGINX_UPSTREAM_FILE:-/etc/nginx/conf.d/3d-printer-site-upstream.conf}"
 new_image="${1:-}"
 
-if [[ ! "$new_image" =~ ^ghcr\.io/[a-z0-9._/-]+:sha-[0-9a-f]{7,40}$ ]]; then
-  echo "Usage: $0 ghcr.io/owner/image:sha-<git-sha>" >&2
+if [[ ! "$new_image" =~ ^ghcr\.io/[a-z0-9._/-]+:(stage-|production-)?sha-[0-9a-f]{7,40}$ ]]; then
+  echo "Usage: $0 ghcr.io/owner/image:[stage-|production-]sha-<git-sha>" >&2
   exit 2
 fi
 
@@ -138,6 +138,7 @@ umask 077
   printf 'ACTIVE_SLOT=%q\n' "$candidate_slot"
   printf 'ACTIVE_PORT=%q\n' "$candidate_port"
   printf 'ACTIVE_IMAGE=%q\n' "$new_image"
+  printf 'PREVIOUS_IMAGE=%q\n' "$active_image"
 } >"$active_file"
 
 if [[ -n "$active_slot" && "$active_slot" != "$candidate_slot" ]]; then

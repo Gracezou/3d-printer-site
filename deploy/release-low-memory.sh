@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
 
 deploy_dir="${DEPLOY_DIR:-/opt/3d-printer-site}"
 compose_file="$deploy_dir/compose.yaml"
@@ -15,8 +15,8 @@ rollback_health_attempts="${RELEASE_ROLLBACK_HEALTH_ATTEMPTS:-30}"
 rollback_health_interval="${RELEASE_ROLLBACK_HEALTH_INTERVAL_SECONDS:-5}"
 project_name="3d-printer-site"
 
-if [[ ! "$new_image" =~ ^ghcr\.io/[a-z0-9._/-]+:sha-[0-9a-f]{7,40}$ ]]; then
-  echo "Usage: $0 ghcr.io/owner/image:sha-<git-sha>" >&2
+if [[ ! "$new_image" =~ ^ghcr\.io/[a-z0-9._/-]+:(stage-|production-)?sha-[0-9a-f]{7,40}$ ]]; then
+  echo "Usage: $0 ghcr.io/owner/image:[stage-|production-]sha-<git-sha>" >&2
   exit 2
 fi
 
@@ -120,12 +120,14 @@ wait_for_health() {
 
 write_active_release() {
   local image="$1"
+  local previous="$2"
   umask 077
   {
     printf 'ACTIVE_MODE=stop-start\n'
     printf 'ACTIVE_SLOT=single\n'
     printf 'ACTIVE_PORT=3000\n'
     printf 'ACTIVE_IMAGE=%q\n' "$image"
+    printf 'PREVIOUS_IMAGE=%q\n' "$previous"
   } >"$active_file"
 }
 
@@ -151,7 +153,7 @@ rollback() {
       "$rollback_health_url" \
       "$rollback_health_attempts" \
       "$rollback_health_interval"; then
-      write_active_release "$previous_image"
+      write_active_release "$previous_image" ""
       echo "Rollback completed." >&2
     else
       echo "CRITICAL: previous image did not recover." >&2
@@ -196,7 +198,7 @@ if command -v nginx >/dev/null 2>&1; then
   nginx -t
 fi
 
-write_active_release "$new_image"
+write_active_release "$new_image" "$previous_image"
 trap - ERR
 
 downtime_ms=$((healthy_at - stopped_at))
