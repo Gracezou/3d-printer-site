@@ -9,12 +9,14 @@
 > 违反的后果：应用会用这些配置在**现网 Supabase Auth 创建测试买家、发送真实验证码邮件**，并把售后凭证/商品图片**上传到现网存储桶**，污染生产数据。
 >
 > 支付宝网关（`ALIPAY_GATEWAY`）必须是沙箱域名（`*.alipaydev.com`，以支付宝官方沙箱文档为准，见 <https://opendocs.alipay.com/common/02kkv7>）。**留空会默认走生产网关**（`https://openapi.alipay.com/gateway.do`），导致测试退款打到生产渠道。
+>
+> 各键用途、必填性与示例占位值见 [环境变量参考](../ops/ENVIRONMENT.md)；本节只强调沙箱专用的安全约束。
 
 1. 启动一套隔离本地 PostgreSQL，记下 `127.0.0.1` 或 `localhost` 连接串。
 2. 启动本地 Supabase（`supabase start`），或准备专用沙箱项目；记下其 URL、anon key、service_role key 与 storage bucket。
 3. 复制模板：`cp .env.sandbox.example .env.sandbox`，把文件权限设为 `0600`。
-4. 填入 Supabase 相关键（`SUPABASE_URL`、`SUPABASE_SERVICE_ROLE_KEY`、`SUPABASE_STORAGE_BUCKET`、`NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_ANON_KEY`），**只指向第 2 步的本地/沙箱项目**；`ADMIN_JWT_SECRET` 用 `openssl rand -base64 48` 新生成。
-5. 填入支付宝沙箱应用 ID、应用私钥、支付宝公钥、**沙箱网关（`*.alipaydev.com`）**、通知/返回 URL；`ENABLE_MOCK_PAYMENT` 必须为 `false`。
+4. 填入 Supabase 相关键（`SUPABASE_URL`、`SUPABASE_SERVICE_ROLE_KEY`、`SUPABASE_STORAGE_BUCKET`、`NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_ANON_KEY`），**只指向第 2 步的本地/沙箱项目**；`ADMIN_JWT_SECRET` 用 `openssl rand -base64 48` 新生成。各键用途见 [环境变量参考](../ops/ENVIRONMENT.md)。
+5. 填入支付宝沙箱应用 ID、应用私钥、支付宝公钥、**沙箱网关（`*.alipaydev.com`）**、通知/返回 URL；`ENABLE_MOCK_PAYMENT` 必须为 `false`。各键用途见 [环境变量参考](../ops/ENVIRONMENT.md)。
 6. 先人工打印并核对数据库主机，确认是 `127.0.0.1`/`localhost`，然后执行迁移、播种和应用启动。不要设置 `ALLOW_REMOTE_TEST_DATABASE`。
 
 ```bash

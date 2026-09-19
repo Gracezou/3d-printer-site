@@ -4,18 +4,20 @@
 
 ## 配置文件分工
 
-发布涉及两类本地文件，它们必须按环境分开，权限均为 `0600`，且永不提交：
+发布涉及本地私有文件，必须按环境分开、权限均为 `0600` 且永不提交。各键的用途、必填性与示例占位值统一见 [环境变量参考](./ENVIRONMENT.md)，本节只讲文件分工与安全红线。
 
 1. `deploy/targets/stage.env` / `deploy/targets/production.env`
-   - 服务器连接和发布目标配置。
-   - 模板分别为 `deploy/targets/stage.env.example` 和 `production.env.example`。
-   - 真实文件由 Grace 填写；不得复制到另一个环境。
+   - 服务器连接和发布目标配置，模板分别为 `deploy/targets/stage.env.example` 和 `production.env.example`。
+   - 逐键说明见 [环境变量参考](./ENVIRONMENT.md)「部署目标键」。
 2. `.env.stage` / `.env.production`
-   - 应用、数据库、Supabase、支付和后台鉴权配置。
-   - Stage 只允许 `.env.stage`，且 `APP_ENV=staging`；生产只允许 `.env.production`，且 `APP_ENV=production`。
+   - 应用、数据库、Supabase、支付和后台鉴权配置；Stage 只允许 `.env.stage`（`APP_ENV=staging`），生产只允许 `.env.production`（`APP_ENV=production`）。
    - Stage 与生产必须使用不同的 Supabase 项目、支付配置和签名密钥；严禁从 `.env.dev` 复制。
-   - `DATABASE_URL` 推荐使用对应项目的 Supabase Session pooler（端口 `5432`）。直连 `db.<project-ref>.supabase.co` 依赖 IPv6；只有运行主机具备 IPv6 或项目已购买 IPv4 附加服务时才使用直连。
-   - 发布脚本只用 `APP_RUNTIME_ENV_FILE` 指向的本地文件检查并执行迁移，不会把它上传到服务器。服务器的 `$DEPLOY_DIR/.env` 需在首次发布前由 Grace 单独安全配置。
+   - 发布脚本只用 `APP_RUNTIME_ENV_FILE` 指向的本地文件检查并执行迁移，不会把它上传到服务器。
+3. 服务器 `$DEPLOY_DIR/.env`
+   - 由 `deploy/compose.yaml` 的 `env_file` 读取，模板为 `deploy/.env.production.example`。
+   - 首次发布前由 Grace 单独安全配置到服务器，权限 `0600`。
+
+`DATABASE_URL` 推荐使用对应项目的 Supabase Session pooler（端口 `5432`）。直连 `db.<project-ref>.supabase.co` 依赖 IPv6；只有运行主机具备 IPv6 或项目已购买 IPv4 附加服务时才使用直连。
 
 示例：
 
@@ -31,19 +33,7 @@ chmod 600 deploy/targets/stage.env .env.stage
 
 ## 部署目标键
 
-Grace 需要逐项填写：
-
-- `TARGET_NAME`：固定为 `stage` 或 `production`。
-- `SSH_HOST`、`SSH_PORT`、`SSH_USER`：SSH 目标。
-- `SSH_AUTH`：推荐 `key`；也可填 `password`。
-- `SSH_KEY_PATH`：密钥认证时填写，私钥权限必须为 `0600`。
-- `SSH_PASSWORD`：密码认证时填写；本机必须安装 `sshpass`。密码认证安全性较弱，不推荐。
-- `DEPLOY_DIR`：服务器部署目录，需已有 Compose 和发布脚本。
-- `RELEASE_MODE`：内存充足服务器用 `blue-green`，低内存服务器用 `low-memory`。
-- `SITE_URL`、`HEALTH_URL`：发布后的首页和健康检查地址。
-- `IMAGE_REPO`：不含标签的 GHCR 镜像仓库。
-- `APP_RUNTIME_ENV_FILE`：Stage 固定 `.env.stage`，生产固定 `.env.production`。
-- `DB_IDENTITY`：`host:port/database?user=username`。必须与 `DATABASE_URL` 解析出的主机、端口、库名、用户完全一致；Supabase pooler 用户名采用 `<数据库角色>.<project-ref>`，默认角色即 `postgres.<project-ref>`。
+`deploy/targets/*.env` 的逐键用途、必填项、敏感性与示例占位值见 [环境变量参考](./ENVIRONMENT.md)「部署目标键」。
 
 脚本不会打印目标文件中的密码、密钥路径、主机、URL、镜像仓库或数据库连接串。默认只提示 SSH 主机已配置；`--quiet-host` 可连该提示也省略。
 
@@ -107,19 +97,9 @@ pnpm exec dotenv -e .env.dev --override -- pnpm db:migrate
 
 Stage 构建同时保留旧版 `sha-<commit>` 兼容标签，供 v0.2.x 热修分支的既有发布脚本使用；生产构建不写该兼容标签，不能覆盖 Stage 镜像。
 
-Grace 需要在 GitHub 分别创建 `stage`、`production` Environment，并在每个 Environment 级仅配置一个 JSON 变量 `BUILD_CONFIG`。不要在仓库级或组织级创建同名变量。结构如下，所有值均为占位示例：
+Grace 需要在 GitHub 分别创建 `stage`、`production` Environment，并在每个 Environment 级仅配置一个 JSON 变量 `BUILD_CONFIG`。不要在仓库级或组织级创建同名变量。JSON 结构、字段用途与校验规则见 [环境变量参考](./ENVIRONMENT.md)「GitHub Environment `BUILD_CONFIG`」。
 
-```json
-{
-  "environment": "stage",
-  "NEXT_PUBLIC_SITE_URL": "https://stage.example.com",
-  "NEXT_PUBLIC_ICP_LICENSE": "STAGE-NOT-APPLICABLE",
-  "NEXT_PUBLIC_SUPABASE_URL": "https://stage-project.supabase.co",
-  "NEXT_PUBLIC_SUPABASE_ANON_KEY": "replace-with-stage-anon-key"
-}
-```
-
-生产 Environment 将 `environment` 改为 `production` 并填写生产专属值。Stage 若没有备案号，`NEXT_PUBLIC_ICP_LICENSE` 可填 `STAGE-NOT-APPLICABLE` 等明确占位值；字段仍不得留空。CI 从这一个 JSON 原子读取全部构建参数，断言 `environment` 与当前构建目标一致、四个 `NEXT_PUBLIC_*` 字段均为非空单行字符串，再注入构建；回退到另一环境的配置时会因环境标记不匹配而失败。
+CI 从这一份 JSON 原子读取全部构建参数，断言 `environment` 与当前构建目标一致、四个 `NEXT_PUBLIC_*` 字段均为非空单行字符串，再注入构建；回退到另一环境的配置时会因环境标记不匹配而失败。
 
 GitHub 对 Environment 缺失变量的回退没有来源标记：如果仓库级或组织级恰好存在同名且 `environment` 也相同的 `BUILD_CONFIG`，CI 无法区分。生产首发前及每次调整构建配置后，Grace 必须人工执行以下命令，确认两层均不存在 `BUILD_CONFIG`；组织未使用 Actions variables 时可跳过第二条：
 
