@@ -14,6 +14,7 @@ import {
 } from './deploy-target';
 import { deviceSeedBrands, deviceSeedModels } from './device-catalog-data';
 import { seedSystemData } from './seed';
+import { safeErrorCode } from './safe-error-code';
 import {
   stageExtraDeviceModels,
   stageMaterials,
@@ -63,15 +64,7 @@ const credentialPath = path.join(repoRoot, '.local', 'stage-admin-credentials');
 
 class SafeStageError extends Error {}
 
-// Only symbolic codes (e.g. ENOTFOUND, 28P01) are printed; messages may carry
-// hosts or usernames.
-export function safeErrorCode(error: unknown): string {
-  if (typeof error === 'object' && error !== null && 'code' in error) {
-    const code = String((error as { code: unknown }).code);
-    if (/^[A-Z0-9_]{2,40}$/u.test(code)) return code;
-  }
-  return error instanceof Error ? error.constructor.name : 'unknown';
-}
+export { safeErrorCode } from './safe-error-code';
 
 export function stageConnectionHint(
   error: unknown,

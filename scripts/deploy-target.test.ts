@@ -40,6 +40,8 @@ const sessionStageDatabaseUrl =
   'postgresql://postgres.stage_ref:secret@region.pooler.supabase.com:5432/postgres';
 const customRoleStageDatabaseUrl =
   'postgresql://app_user.stage_ref:secret@region.pooler.supabase.com:5432/postgres';
+const dottedRoleStageDatabaseUrl =
+  'postgresql://my.role.stage_ref:secret@region.pooler.supabase.com:5432/postgres';
 
 function runDeploy(
   args: string[],
@@ -260,6 +262,12 @@ describe.sequential('deploy-target', () => {
 
   it('maps a custom-role pooler URL to the same Supabase project', () => {
     expect(databaseClusterKeyFromUrl(customRoleStageDatabaseUrl)).toBe(
+      databaseClusterKeyFromUrl(directStageDatabaseUrl),
+    );
+  });
+
+  it('extracts the project ref after the final dot in a dotted role name', () => {
+    expect(databaseClusterKeyFromUrl(dottedRoleStageDatabaseUrl)).toBe(
       databaseClusterKeyFromUrl(directStageDatabaseUrl),
     );
   });

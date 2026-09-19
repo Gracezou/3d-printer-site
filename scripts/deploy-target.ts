@@ -194,7 +194,7 @@ export function databaseClusterKeyFromUrl(databaseUrl: string): string {
 
   // Supabase pooler routing uses <role>.<project-ref>. Custom database roles
   // are valid here, so the project ref must not be tied to the postgres role.
-  const poolerUser = /^[^.]+\.([a-z0-9_-]+)$/iu.exec(target.username);
+  const poolerUser = /^.+\.([a-z0-9_-]+)$/iu.exec(target.username);
   if (
     target.hostname.endsWith('.pooler.supabase.com') &&
     poolerUser

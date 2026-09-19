@@ -1,9 +1,11 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import postgres from 'postgres';
 
 import { assertMigrationDatabaseUrl } from './assert-local-database';
+import { safeErrorCode } from './safe-error-code';
 
 type Journal = {
   entries: Array<{ when: number }>;
@@ -44,9 +46,17 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch(() => {
-  process.stderr.write(
-    'Unable to inspect migration state; target details were intentionally omitted.\n',
-  );
-  process.exitCode = 1;
-});
+export function migrationInspectionFailure(error: unknown): string {
+  return `Unable to inspect migration state (${safeErrorCode(error)}); target details were intentionally omitted.`;
+}
+
+const isDirectInvocation =
+  process.argv[1] !== undefined &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (isDirectInvocation) {
+  main().catch((error: unknown) => {
+    process.stderr.write(`${migrationInspectionFailure(error)}\n`);
+    process.exitCode = 1;
+  });
+}
