@@ -403,11 +403,11 @@ export function loadTargetConfig(
   }
   if (config.SSH_AUTH === 'key') {
     if (!config.SSH_KEY_PATH) fail('SSH_AUTH=key 时必须填写 SSH_KEY_PATH');
-    if (!dryRun) {
+    if (!dryRun || target === 'production') {
       assertPrivateFile(config.SSH_KEY_PATH, 'SSH 私钥');
-      if (target === 'production') {
-        assertProductionPrivateKeyProtected(config.SSH_KEY_PATH);
-      }
+    }
+    if (target === 'production') {
+      assertProductionPrivateKeyProtected(config.SSH_KEY_PATH);
     }
   } else {
     if (!config.SSH_PASSWORD) fail('SSH_AUTH=password 时必须填写 SSH_PASSWORD');
