@@ -78,5 +78,5 @@ pnpm db:migrate
 
 - [v0.2.0 增量变更](./CHANGES-v0.2.0.md)
 - [v0.2.0 部署计划](./DEPLOYMENT-PLAN-v0.2.0.md)
-- [v0.1.0 验收记录](./v0.1.0/ACCEPTANCE.md)
-- [项目 README](../README.md)
+- [v0.1.0 验收记录](../v0.1.0/ACCEPTANCE.md)
+- [项目 README](../../../README.md)
