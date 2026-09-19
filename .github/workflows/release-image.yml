@@ -1,7 +1,16 @@
 name: Release container image
+run-name: Release image [${{ github.event_name == 'workflow_dispatch' && inputs.target_environment || 'stage' }}] ${{ github.ref_name }}
 
 on:
   workflow_dispatch:
+    inputs:
+      target_environment:
+        description: Build-time configuration environment
+        required: true
+        type: choice
+        options:
+          - stage
+          - production
   push:
     branches:
       - dev-0.2
@@ -16,6 +25,9 @@ permissions:
 jobs:
   verify-and-publish:
     runs-on: ubuntu-latest
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.target_environment || 'stage' }}
+    env:
+      DEPLOY_ENVIRONMENT: ${{ github.event_name == 'workflow_dispatch' && inputs.target_environment || 'stage' }}
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -36,10 +48,13 @@ jobs:
 
       - name: Verify source
         env:
-          NEXT_PUBLIC_SITE_URL: ${{ vars.PREPROD_SITE_URL || 'https://printer.daxiaoxiang.com' }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.PREPROD_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.PREPROD_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SITE_URL: ${{ vars.NEXT_PUBLIC_SITE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
         run: |
+          test -n "$NEXT_PUBLIC_SITE_URL"
+          test -n "$NEXT_PUBLIC_SUPABASE_URL"
+          test -n "$NEXT_PUBLIC_SUPABASE_ANON_KEY"
           pnpm typecheck
           pnpm lint
           pnpm test
@@ -57,6 +72,20 @@ jobs:
         shell: bash
         run: echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
 
+      - name: Resolve application version
+        id: version
+        shell: bash
+        run: |
+          ref_name="$GITHUB_REF_NAME"
+          if [[ "$ref_name" =~ ^release-v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            release_version="${BASH_REMATCH[1]}"
+          elif [[ "$ref_name" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            release_version="${BASH_REMATCH[1]}"
+          else
+            release_version="$(node -p "require('./package.json').version")"
+          fi
+          echo "app_version=v${release_version}+sha-${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -66,12 +95,14 @@ jobs:
           context: .
           platforms: linux/amd64
           push: true
-          tags: ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ env.DEPLOY_ENVIRONMENT }}-sha-${{ github.sha }}
+            ${{ env.DEPLOY_ENVIRONMENT == 'stage' && format('{0}:sha-{1}', env.IMAGE_NAME, github.sha) || '' }}
           build-args: |
-            APP_VERSION=v0.3.0+sha-${{ github.sha }}
-            NEXT_PUBLIC_SITE_URL=${{ vars.PREPROD_SITE_URL || 'https://printer.daxiaoxiang.com' }}
-            NEXT_PUBLIC_ICP_LICENSE=${{ vars.PREPROD_ICP_LICENSE }}
-            NEXT_PUBLIC_SUPABASE_URL=${{ vars.PREPROD_SUPABASE_URL }}
-            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ vars.PREPROD_SUPABASE_ANON_KEY }}
+            APP_VERSION=${{ steps.version.outputs.app_version }}
+            NEXT_PUBLIC_SITE_URL=${{ vars.NEXT_PUBLIC_SITE_URL }}
+            NEXT_PUBLIC_ICP_LICENSE=${{ vars.NEXT_PUBLIC_ICP_LICENSE }}
+            NEXT_PUBLIC_SUPABASE_URL=${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
