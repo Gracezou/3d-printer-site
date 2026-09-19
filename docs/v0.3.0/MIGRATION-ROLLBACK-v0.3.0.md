@@ -22,7 +22,7 @@
 ```bash
 ALLOW_REMOTE_DATABASE_MIGRATION=true \
 CONFIRM_REMOTE_DATABASE_HOST=<exact-host> \
-pnpm db:migrate
+pnpm exec dotenv -e <approved-runtime-env> -- pnpm db:migrate
 ```
 
 `drizzle.config.ts` 同样执行守卫，因此 `pnpm exec drizzle-kit migrate/push` 不能绕过。若未来改用会解释 URL `?host=` 参数的 `pg` 驱动，须同步校验实际连接主机后才能继续使用此守卫。
@@ -30,7 +30,7 @@ pnpm db:migrate
 ## 前向执行与验证
 
 1. 打印目标 host，双人确认与恢复点编号。
-2. 执行 `pnpm db:migrate`，核对迁移表最新为 0008。
+2. 显式加载已核对的运行配置后执行 `pnpm db:migrate`，核对迁移表最新为 0008；该命令不会自动读取 `.env.dev`。
 3. 运行 schema/索引/RLS 检查，再部署应用。
 4. 在隔离验证数据上执行 `pnpm test:acceptance`；生产只做只读与经批准的小额验证，不写演示数据。
 5. 在确认部署版本至少包含提交 `861b490`（对象路径持久化与可推进分页清理）后，才允许启用 `cleanup-return-evidence` cron。
@@ -56,4 +56,3 @@ Drizzle 迁移没有自动 down 脚本。**首选恢复执行前的完整数据�
 - 本地增量：0007→0008 通过。
 - B4 未新增迁移，完整 `test:acceptance` 在 `127.0.0.1` 隔离库通过。
 - 本文不授权执行生产迁移，也不授权连接共用 Supabase。
-

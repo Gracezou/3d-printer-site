@@ -12,13 +12,13 @@ Next.js 15 + PostgreSQL/Supabase 实现的 3D 打印成品商城，包含商品�
 ```bash
 cp .env.example .env.dev
 pnpm install
-pnpm db:migrate
+pnpm exec dotenv -e .env.dev --override -- pnpm db:migrate
 pnpm db:seed
 pnpm dev
 ```
 
 1. 在 Supabase 中创建 public Storage bucket `products`，启用 Email Auth，并将 Magic Link 邮件模板改为包含 `{{ .Token }}` 的验证码模板。应用接受 Supabase 可配置的 6 至 10 位 OTP；对外验证时应配置自定义 SMTP。
-2. 将 `.env.dev` 的必填项填好后执行迁移。空库会按顺序执行 `src/lib/db/migrations/` 中的 Drizzle 迁移。`pnpm db:migrate` 与直接调用 drizzle-kit 默认只接受 `localhost`/`127.0.0.1`。
+2. 将 `.env.dev` 的必填项填好后显式加载它再执行迁移。空库会按顺序执行 `src/lib/db/migrations/` 中的 Drizzle 迁移。`pnpm db:migrate` 不再自动读取 `.env.dev`；它与直接调用 drizzle-kit 默认只接受 `localhost`/`127.0.0.1`。
 3. `pnpm db:seed` 会创建系统角色、默认运费和 `admin` 超级管理员；首次执行时终端会输出随机临时密码，登录后应立即修改。若 `admin` 已存在，重复播种不会改密码。
 4. 访问 `http://localhost:5003`，后台地址为 `http://localhost:5003/admin`。
 
