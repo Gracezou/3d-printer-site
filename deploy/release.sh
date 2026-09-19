@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
 
 deploy_dir="${DEPLOY_DIR:-/opt/3d-printer-site}"
 compose_file="$deploy_dir/compose.yaml"
@@ -79,10 +79,16 @@ restore_upstream() {
 }
 
 on_error() {
+  local original_status="$?"
+  if (( BASH_SUBSHELL > 0 )); then
+    exit "$original_status"
+  fi
+  trap - ERR
   echo "Release failed; active release remains ${active_image:-unchanged}." >&2
   show_candidate_logs
   restore_upstream
   stop_candidate
+  exit "$original_status"
 }
 trap on_error ERR
 trap cleanup EXIT

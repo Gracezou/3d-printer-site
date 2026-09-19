@@ -41,7 +41,10 @@ function prepareCase(name: string): string {
   return deployDir;
 }
 
-function runFailure(mode: 'up-fail' | 'health-fail', deployDir: string) {
+function runFailure(
+  mode: 'up-fail' | 'health-fail' | 'inspect-fail',
+  deployDir: string,
+) {
   const logPath = path.join(deployDir, 'docker.log');
   const statePath = path.join(deployDir, 'container-state');
   return spawnSync(releaseScript, [candidateImage], {
@@ -72,6 +75,9 @@ set -eu
 printf '%s\\n' "$*" >>"$FAKE_DOCKER_LOG"
 if [[ "\${1:-}" == "inspect" ]]; then
   state="$(cat "$FAKE_DOCKER_STATE")"
+  if [[ "$FAKE_DOCKER_MODE" == "inspect-fail" && "$state" == "new" ]]; then
+    exit 43
+  fi
   if [[ "$FAKE_DOCKER_MODE" == "health-fail" && "$state" == "new" ]]; then
     printf 'unhealthy\\n'
   else
@@ -138,6 +144,17 @@ exit 0
     );
     expect(readFileSync(path.join(deployDir, '.active-release'), 'utf8')).toContain(
       `ACTIVE_IMAGE=${previousImage}`,
+    );
+  });
+
+  it('runs rollback only once when docker inspect fails in a subshell', () => {
+    const deployDir = prepareCase('inspect-fail');
+    const result = runFailure('inspect-fail', deployDir);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr.match(/Restoring previous image/gu)).toHaveLength(1);
+    expect(result.stderr.match(/Rollback completed\./gu)).toHaveLength(1);
+    expect(readFileSync(path.join(deployDir, 'container-state'), 'utf8')).toBe(
+      'old\n',
     );
   });
 });

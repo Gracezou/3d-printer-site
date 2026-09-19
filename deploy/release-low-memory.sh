@@ -170,6 +170,9 @@ rollback() {
 
 on_error() {
   local original_status="$?"
+  if (( BASH_SUBSHELL > 0 )); then
+    exit "$original_status"
+  fi
   trap - ERR
   rollback "$original_status"
   exit "$original_status"
