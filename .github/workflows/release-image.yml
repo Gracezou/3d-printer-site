@@ -48,11 +48,15 @@ jobs:
 
       - name: Verify source
         env:
+          BUILD_ENVIRONMENT: ${{ vars.BUILD_ENVIRONMENT }}
           NEXT_PUBLIC_SITE_URL: ${{ vars.NEXT_PUBLIC_SITE_URL }}
+          NEXT_PUBLIC_ICP_LICENSE: ${{ vars.NEXT_PUBLIC_ICP_LICENSE }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
         run: |
+          test "$BUILD_ENVIRONMENT" = "$DEPLOY_ENVIRONMENT"
           test -n "$NEXT_PUBLIC_SITE_URL"
+          test -n "$NEXT_PUBLIC_ICP_LICENSE"
           test -n "$NEXT_PUBLIC_SUPABASE_URL"
           test -n "$NEXT_PUBLIC_SUPABASE_ANON_KEY"
           pnpm typecheck
