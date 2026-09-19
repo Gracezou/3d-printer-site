@@ -62,6 +62,16 @@ const credentialPath = path.join(repoRoot, '.local', 'stage-admin-credentials');
 
 class SafeStageError extends Error {}
 
+// Only symbolic codes (e.g. ENOTFOUND, 28P01) are printed; messages may carry
+// hosts or usernames.
+export function safeErrorCode(error: unknown): string {
+  if (typeof error === 'object' && error !== null && 'code' in error) {
+    const code = String((error as { code: unknown }).code);
+    if (/^[A-Z0-9_]{2,40}$/u.test(code)) return code;
+  }
+  return error instanceof Error ? error.constructor.name : 'unknown';
+}
+
 function fail(message: string): never {
   throw new SafeStageError(message);
 }
@@ -809,7 +819,7 @@ if (
       process.stderr.write(`${error.message}\n`);
     } else {
       process.stderr.write(
-        'Stage 初始化失败；详细错误已抑制以避免泄露连接或账号信息。\n',
+        `Stage 初始化失败（错误码 ${safeErrorCode(error)}）；详细错误已抑制以避免泄露连接或账号信息。\n`,
       );
     }
     process.exitCode = 1;

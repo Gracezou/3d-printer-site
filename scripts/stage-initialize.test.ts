@@ -4,6 +4,7 @@ import {
   classifyDatabaseState,
   compareStageDatabaseClusters,
   expectedProjectTables,
+  safeErrorCode,
   supabaseProjectRefFromUrl,
 } from './stage-initialize';
 
@@ -74,5 +75,20 @@ describe('stage storage project guard', () => {
     );
     expect(supabaseProjectRefFromUrl('http://abcref.supabase.co')).toBeNull();
     expect(supabaseProjectRefFromUrl('https://storage.example.com')).toBeNull();
+  });
+});
+
+describe('stage error reporting', () => {
+  it('prints only symbolic error codes', () => {
+    expect(
+      safeErrorCode(
+        Object.assign(new Error('getaddrinfo ENOTFOUND db.secret.example'), {
+          code: 'ENOTFOUND',
+        }),
+      ),
+    ).toBe('ENOTFOUND');
+    expect(
+      safeErrorCode(Object.assign(new Error('x'), { code: 'db.secret host' })),
+    ).toBe('Error');
   });
 });
