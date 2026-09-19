@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import bcrypt from 'bcryptjs';
 import postgres from 'postgres';
@@ -22,8 +23,17 @@ const OPERATOR_PERMISSIONS = [
   'promotion:view',
 ];
 
-async function main(): Promise<void> {
-  const databaseUrl = process.env.DATABASE_URL;
+interface SeedSystemDataOptions {
+  databaseUrl: string;
+  credentialFile?: string;
+  announce?: boolean;
+}
+
+export async function seedSystemData({
+  databaseUrl,
+  credentialFile,
+  announce = true,
+}: SeedSystemDataOptions): Promise<{ createdAdmin: boolean }> {
   if (!databaseUrl) {
     throw new Error('DATABASE_URL is required');
   }
@@ -82,13 +92,6 @@ async function main(): Promise<void> {
   }
 
   if (generatedPassword) {
-    const credentialArgument = process.argv.find((argument) =>
-      argument.startsWith('--credential-file='),
-    );
-    const credentialFile = credentialArgument?.slice(
-      '--credential-file='.length,
-    );
-
     if (credentialFile) {
       const outputPath = resolve(credentialFile);
       await mkdir(dirname(outputPath), { recursive: true });
@@ -99,26 +102,54 @@ async function main(): Promise<void> {
           mode: 0o600,
         },
       );
-      process.stdout.write(
-        `Created admin user. Credentials saved to ${credentialFile} with mode 0600.\n`,
-      );
+      await chmod(outputPath, 0o600);
+      if (announce) {
+        process.stdout.write(
+          `Created admin user. Credentials saved to ${credentialFile} with mode 0600.\n`,
+        );
+      }
     } else {
+      if (!announce) {
+        throw new Error('credentialFile is required when announce is disabled');
+      }
       process.stdout.write(
         `Created admin user. Temporary password: ${generatedPassword}\n`,
       );
     }
-    process.stdout.write(
-      'Change this password immediately after the first login.\n',
-    );
-  } else {
+    if (announce) {
+      process.stdout.write(
+        'Change this password immediately after the first login.\n',
+      );
+    }
+  } else if (announce) {
     process.stdout.write(
       'Seed data is up to date; existing admin password was not changed.\n',
     );
   }
+
+  return { createdAdmin: generatedPassword !== undefined };
 }
 
-main().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : 'Unknown seed error';
-  process.stderr.write(`Seed failed: ${message}\n`);
-  process.exitCode = 1;
-});
+async function main(): Promise<void> {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) throw new Error('DATABASE_URL is required');
+  const credentialArgument = process.argv.find((argument) =>
+    argument.startsWith('--credential-file='),
+  );
+  await seedSystemData({
+    databaseUrl,
+    credentialFile: credentialArgument?.slice('--credential-file='.length),
+  });
+}
+
+if (
+  process.argv[1] &&
+  fileURLToPath(import.meta.url) === resolve(process.argv[1])
+) {
+  main().catch((error: unknown) => {
+    const message =
+      error instanceof Error ? error.message : 'Unknown seed error';
+    process.stderr.write(`Seed failed: ${message}\n`);
+    process.exitCode = 1;
+  });
+}
