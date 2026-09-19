@@ -14,6 +14,7 @@
    - 应用、数据库、Supabase、支付和后台鉴权配置。
    - Stage 只允许 `.env.stage`，且 `APP_ENV=staging`；生产只允许 `.env.production`，且 `APP_ENV=production`。
    - Stage 与生产必须使用不同的 Supabase 项目、支付配置和签名密钥；严禁从 `.env.dev` 复制。
+   - `DATABASE_URL` 推荐使用对应项目的 Supabase Session pooler（端口 `5432`）。直连 `db.<project-ref>.supabase.co` 依赖 IPv6；只有运行主机具备 IPv6 或项目已购买 IPv4 附加服务时才使用直连。
    - 发布脚本只用 `APP_RUNTIME_ENV_FILE` 指向的本地文件检查并执行迁移，不会把它上传到服务器。服务器的 `$DEPLOY_DIR/.env` 需在首次发布前由 Grace 单独安全配置。
 
 示例：
@@ -42,7 +43,7 @@ Grace 需要逐项填写：
 - `SITE_URL`、`HEALTH_URL`：发布后的首页和健康检查地址。
 - `IMAGE_REPO`：不含标签的 GHCR 镜像仓库。
 - `APP_RUNTIME_ENV_FILE`：Stage 固定 `.env.stage`，生产固定 `.env.production`。
-- `DB_IDENTITY`：`host:port/database?user=username`。必须与 `DATABASE_URL` 解析出的主机、端口、库名、用户完全一致；Supabase 共享 pooler 的用户必须包含 `postgres.<project-ref>`。
+- `DB_IDENTITY`：`host:port/database?user=username`。必须与 `DATABASE_URL` 解析出的主机、端口、库名、用户完全一致；Supabase pooler 用户名采用 `<数据库角色>.<project-ref>`，默认角色即 `postgres.<project-ref>`。
 
 脚本不会打印目标文件中的密码、密钥路径、主机、URL、镜像仓库或数据库连接串。默认只提示 SSH 主机已配置；`--quiet-host` 可连该提示也省略。
 
@@ -106,15 +107,19 @@ pnpm exec dotenv -e .env.dev --override -- pnpm db:migrate
 
 Stage 构建同时保留旧版 `sha-<commit>` 兼容标签，供 v0.2.x 热修分支的既有发布脚本使用；生产构建不写该兼容标签，不能覆盖 Stage 镜像。
 
-Grace 需要在 GitHub 分别创建 `stage`、`production` Environment，并在两边配置同名变量：
+Grace 需要在 GitHub 分别创建 `stage`、`production` Environment，并在每个 Environment 级仅配置一个 JSON 变量 `BUILD_CONFIG`。不要在仓库级或组织级创建同名变量。结构如下，所有值均为占位示例：
 
-- `BUILD_ENVIRONMENT`：分别严格填写 `stage`、`production`
-- `NEXT_PUBLIC_SITE_URL`
-- `NEXT_PUBLIC_ICP_LICENSE`
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+```json
+{
+  "environment": "stage",
+  "NEXT_PUBLIC_SITE_URL": "https://stage.example.com",
+  "NEXT_PUBLIC_ICP_LICENSE": "STAGE-NOT-APPLICABLE",
+  "NEXT_PUBLIC_SUPABASE_URL": "https://stage-project.supabase.co",
+  "NEXT_PUBLIC_SUPABASE_ANON_KEY": "replace-with-stage-anon-key"
+}
+```
 
-上述变量只允许在对应 Environment 级定义，不要在仓库级配置同名回退值。CI 会校验 `BUILD_ENVIRONMENT` 与构建目标一致，并要求四个 `NEXT_PUBLIC_*` 变量全部非空。生产 Environment 应配置 Grace 为 required reviewer，防止代理自行构建生产镜像。
+生产 Environment 将 `environment` 改为 `production` 并填写生产专属值。Stage 若没有备案号，`NEXT_PUBLIC_ICP_LICENSE` 可填 `STAGE-NOT-APPLICABLE` 等明确占位值；字段仍不得留空。CI 从这一个 JSON 原子读取全部构建参数，断言 `environment` 与当前构建目标一致、四个 `NEXT_PUBLIC_*` 字段均为非空单行字符串，再注入构建；这样缺少 Environment 配置时，即使 GitHub 回退到另一层级的同名变量，也会因环境标记不匹配而失败。生产 Environment 应配置 Grace 为 required reviewer，防止代理自行构建生产镜像。
 
 ## 服务器前置条件
 

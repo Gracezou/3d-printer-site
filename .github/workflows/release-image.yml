@@ -46,19 +46,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Verify source
+      - name: Resolve Environment build config
         env:
-          BUILD_ENVIRONMENT: ${{ vars.BUILD_ENVIRONMENT }}
-          NEXT_PUBLIC_SITE_URL: ${{ vars.NEXT_PUBLIC_SITE_URL }}
-          NEXT_PUBLIC_ICP_LICENSE: ${{ vars.NEXT_PUBLIC_ICP_LICENSE }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          BUILD_CONFIG: ${{ vars.BUILD_CONFIG }}
+        run: pnpm exec tsx scripts/resolve-build-config.ts "$DEPLOY_ENVIRONMENT"
+
+      - name: Verify source
         run: |
-          test "$BUILD_ENVIRONMENT" = "$DEPLOY_ENVIRONMENT"
-          test -n "$NEXT_PUBLIC_SITE_URL"
-          test -n "$NEXT_PUBLIC_ICP_LICENSE"
-          test -n "$NEXT_PUBLIC_SUPABASE_URL"
-          test -n "$NEXT_PUBLIC_SUPABASE_ANON_KEY"
           pnpm typecheck
           pnpm lint
           pnpm test
@@ -104,9 +98,9 @@ jobs:
             ${{ env.DEPLOY_ENVIRONMENT == 'stage' && format('{0}:sha-{1}', env.IMAGE_NAME, github.sha) || '' }}
           build-args: |
             APP_VERSION=${{ steps.version.outputs.app_version }}
-            NEXT_PUBLIC_SITE_URL=${{ vars.NEXT_PUBLIC_SITE_URL }}
-            NEXT_PUBLIC_ICP_LICENSE=${{ vars.NEXT_PUBLIC_ICP_LICENSE }}
-            NEXT_PUBLIC_SUPABASE_URL=${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
-            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+            NEXT_PUBLIC_SITE_URL=${{ env.NEXT_PUBLIC_SITE_URL }}
+            NEXT_PUBLIC_ICP_LICENSE=${{ env.NEXT_PUBLIC_ICP_LICENSE }}
+            NEXT_PUBLIC_SUPABASE_URL=${{ env.NEXT_PUBLIC_SUPABASE_URL }}
+            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ env.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
