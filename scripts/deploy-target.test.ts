@@ -19,6 +19,7 @@ import {
   hasNearbyRuntimeFilename,
   parseArgs,
   redactRemoteDiagnostic,
+  shouldSuggestSessionPooler,
 } from './deploy-target';
 
 const repoRoot = path.resolve(import.meta.dirname, '..');
@@ -37,6 +38,8 @@ const directStageDatabaseUrl =
   'postgresql://postgres:secret@db.stage_ref.supabase.co:5432/postgres';
 const sessionStageDatabaseUrl =
   'postgresql://postgres.stage_ref:secret@region.pooler.supabase.com:5432/postgres';
+const customRoleStageDatabaseUrl =
+  'postgresql://app_user.stage_ref:secret@region.pooler.supabase.com:5432/postgres';
 
 function runDeploy(
   args: string[],
@@ -255,6 +258,32 @@ describe.sequential('deploy-target', () => {
     );
   });
 
+  it('maps a custom-role pooler URL to the same Supabase project', () => {
+    expect(databaseClusterKeyFromUrl(customRoleStageDatabaseUrl)).toBe(
+      databaseClusterKeyFromUrl(directStageDatabaseUrl),
+    );
+  });
+
+  it('rejects a custom-role pooler URL shared with a direct stage URL', () => {
+    const runtimePath = writeRuntime(
+      '.env.stage',
+      'staging',
+      customRoleStageDatabaseUrl,
+    );
+    writePrivateFile(
+      path.join(scanRoot, '.env.dev'),
+      `DATABASE_URL=${directStageDatabaseUrl}\n`,
+    );
+    const configPath = writeTargetConfig('custom-role-shared.env', {
+      DB_IDENTITY: databaseIdentityFromUrl(customRoleStageDatabaseUrl),
+    });
+    const result = runDeploy(['stage', '--dry-run'], configPath, runtimePath);
+    expect(result.status).toBe(1);
+    expect(result.output).toContain('数据库互斥检查 dev：相同');
+    expect(result.output).not.toContain('stage_ref');
+    rmSync(path.join(scanRoot, '.env.dev'));
+  });
+
   it('keeps different Supabase project refs in different clusters', () => {
     expect(databaseClusterKeyFromUrl(stageDatabaseUrl)).not.toBe(
       databaseClusterKeyFromUrl(otherDatabaseUrl),
@@ -427,5 +456,42 @@ describe.sequential('deploy-target', () => {
     expect(diagnostic).not.toContain(jwt);
     expect(diagnostic).not.toContain(databaseHost);
     expect(diagnostic).toContain('safe line');
+  });
+
+  it('redacts a truncated private key block and replaces longer literals first', () => {
+    const longerSecret = 'prefix-short-secret-suffix';
+    const diagnostic = redactRemoteDiagnostic(
+      [
+        `credential=${longerSecret}`,
+        '-----BEGIN OPENSSH PRIVATE KEY-----',
+        'short-fragment',
+      ].join('\n'),
+      ['short-secret', longerSecret],
+    );
+    expect(diagnostic).not.toContain('prefix-');
+    expect(diagnostic).not.toContain('suffix');
+    expect(diagnostic).not.toContain('PRIVATE KEY-----');
+    expect(diagnostic).not.toContain('short-fragment');
+  });
+
+  it('suggests Session pooler only for direct Supabase DNS failures', () => {
+    expect(
+      shouldSuggestSessionPooler(
+        'getaddrinfo ENOTFOUND redacted',
+        'db.project-ref.supabase.co',
+      ),
+    ).toBe(true);
+    expect(
+      shouldSuggestSessionPooler(
+        'authentication failed',
+        'db.project-ref.supabase.co',
+      ),
+    ).toBe(false);
+    expect(
+      shouldSuggestSessionPooler(
+        'getaddrinfo ENOTFOUND redacted',
+        'region.pooler.supabase.com',
+      ),
+    ).toBe(false);
   });
 });

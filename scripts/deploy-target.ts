@@ -192,7 +192,9 @@ export function databaseClusterKeyFromUrl(databaseUrl: string): string {
   );
   if (directSupabase) return `supabase:${directSupabase[1]!.toLowerCase()}`;
 
-  const poolerUser = /^postgres\.([a-z0-9_-]+)$/iu.exec(target.username);
+  // Supabase pooler routing uses <role>.<project-ref>. Custom database roles
+  // are valid here, so the project ref must not be tied to the postgres role.
+  const poolerUser = /^[^.]+\.([a-z0-9_-]+)$/iu.exec(target.username);
   if (
     target.hostname.endsWith('.pooler.supabase.com') &&
     poolerUser
@@ -432,7 +434,7 @@ function run(
   command: string,
   args: string[],
   options: { env?: NodeJS.ProcessEnv; input?: string } = {},
-): { status: number; stdout: string } {
+): { status: number; stdout: string; stderr: string } {
   const result = spawnSync(command, args, {
     cwd: repoRoot,
     encoding: 'utf8',
@@ -441,7 +443,11 @@ function run(
     stdio: ['pipe', 'pipe', 'pipe'],
     maxBuffer: 16 * 1024 * 1024,
   });
-  return { status: result.status ?? 1, stdout: result.stdout ?? '' };
+  return {
+    status: result.status ?? 1,
+    stdout: result.stdout ?? '',
+    stderr: result.stderr ?? '',
+  };
 }
 
 function commandExists(command: string): boolean {
@@ -708,11 +714,14 @@ export function redactRemoteDiagnostic(
   sensitiveValues: string[],
 ): string {
   let redacted = text;
-  for (const value of sensitiveValues.filter((candidate) => candidate.length >= 4)) {
+  const literalValues = [
+    ...new Set(sensitiveValues.filter((candidate) => candidate.length >= 4)),
+  ].sort((left, right) => right.length - left.length);
+  for (const value of literalValues) {
     redacted = redacted.split(value).join('[REDACTED]');
   }
   redacted = redacted.replace(
-    /-----BEGIN(?: [A-Z0-9]+)* PRIVATE KEY-----[\s\S]*?-----END(?: [A-Z0-9]+)* PRIVATE KEY-----/giu,
+    /-----BEGIN(?: [A-Z0-9]+)* PRIVATE KEY-----[\s\S]*?(?:-----END(?: [A-Z0-9]+)* PRIVATE KEY-----|$)/giu,
     '[REDACTED_PEM_PRIVATE_KEY]',
   );
   redacted = redacted.replace(
@@ -737,6 +746,16 @@ export function redactRemoteDiagnostic(
         : line,
     )
     .join('\n');
+}
+
+export function shouldSuggestSessionPooler(
+  diagnostic: string,
+  databaseHostname: string,
+): boolean {
+  return (
+    /\bENOTFOUND\b/u.test(diagnostic) &&
+    /^db\.[a-z0-9_-]+\.supabase\.co$/iu.test(databaseHostname)
+  );
 }
 
 function appendTail(current: string, chunk: string): string {
@@ -875,7 +894,19 @@ function checkPendingMigrations(
       },
     },
   );
-  if (result.status !== 0) fail('无法安全检查目标库迁移状态');
+  if (result.status !== 0) {
+    if (
+      shouldSuggestSessionPooler(
+        `${result.stdout}\n${result.stderr}`,
+        databaseHostname,
+      )
+    ) {
+      fail(
+        '无法解析 Supabase 直连数据库主机；请改用 Session pooler 连接串（端口 5432）',
+      );
+    }
+    fail('无法安全检查目标库迁移状态');
+  }
   const state = result.stdout.trim();
   if (state !== 'pending' && state !== 'current') {
     fail('迁移状态检查返回了未知结果');
@@ -907,7 +938,19 @@ function runMigrations(
       },
     },
   );
-  if (result.status !== 0) fail('数据库迁移失败；目标详情已从日志省略');
+  if (result.status !== 0) {
+    if (
+      shouldSuggestSessionPooler(
+        `${result.stdout}\n${result.stderr}`,
+        databaseHostname,
+      )
+    ) {
+      fail(
+        '无法解析 Supabase 直连数据库主机；请改用 Session pooler 连接串（端口 5432）',
+      );
+    }
+    fail('数据库迁移失败；目标详情已从日志省略');
+  }
 }
 
 async function verifyDeployment(config: TargetConfig, sha: string): Promise<void> {

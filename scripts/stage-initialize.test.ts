@@ -5,6 +5,7 @@ import {
   compareStageDatabaseClusters,
   expectedProjectTables,
   safeErrorCode,
+  stageConnectionHint,
   supabaseProjectRefFromUrl,
 } from './stage-initialize';
 
@@ -90,5 +91,23 @@ describe('stage error reporting', () => {
     expect(
       safeErrorCode(Object.assign(new Error('x'), { code: 'db.secret host' })),
     ).toBe('Error');
+  });
+
+  it('suggests Session pooler for an unresolvable direct Supabase host', () => {
+    const error = Object.assign(new Error('sensitive host omitted'), {
+      code: 'ENOTFOUND',
+    });
+    expect(
+      stageConnectionHint(
+        error,
+        'postgresql://postgres:secret@db.project-ref.supabase.co/postgres',
+      ),
+    ).toContain('Session pooler');
+    expect(
+      stageConnectionHint(
+        error,
+        'postgresql://postgres.project-ref:secret@region.pooler.supabase.com:5432/postgres',
+      ),
+    ).toBe('');
   });
 });

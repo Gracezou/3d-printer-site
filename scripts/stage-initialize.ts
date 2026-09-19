@@ -10,6 +10,7 @@ import {
   databaseClusterKeyFromUrl,
   databaseIdentityFromUrl,
   parseEnvText,
+  shouldSuggestSessionPooler,
 } from './deploy-target';
 import { deviceSeedBrands, deviceSeedModels } from './device-catalog-data';
 import { seedSystemData } from './seed';
@@ -70,6 +71,21 @@ export function safeErrorCode(error: unknown): string {
     if (/^[A-Z0-9_]{2,40}$/u.test(code)) return code;
   }
   return error instanceof Error ? error.constructor.name : 'unknown';
+}
+
+export function stageConnectionHint(
+  error: unknown,
+  databaseUrl: string,
+): string {
+  let hostname = '';
+  try {
+    hostname = new URL(databaseUrl).hostname;
+  } catch {
+    return '';
+  }
+  return shouldSuggestSessionPooler(safeErrorCode(error), hostname)
+    ? ' 请改用 Session pooler 连接串（端口 5432）。'
+    : '';
 }
 
 function fail(message: string): never {
@@ -818,8 +834,9 @@ if (
     if (error instanceof SafeStageError) {
       process.stderr.write(`${error.message}\n`);
     } else {
+      const hint = stageConnectionHint(error, process.env.DATABASE_URL ?? '');
       process.stderr.write(
-        `Stage 初始化失败（错误码 ${safeErrorCode(error)}）；详细错误已抑制以避免泄露连接或账号信息。\n`,
+        `Stage 初始化失败（错误码 ${safeErrorCode(error)}）；详细错误已抑制以避免泄露连接或账号信息。${hint}\n`,
       );
     }
     process.exitCode = 1;
