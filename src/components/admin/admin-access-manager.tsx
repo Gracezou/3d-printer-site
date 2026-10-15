@@ -14,6 +14,11 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 
+import { useAdminQueryState } from '@/lib/use-admin-query-state';
+
+import { useUnsavedChanges } from '@/lib/use-unsaved-changes';
+import { AdminDrawer } from '@/components/admin/admin-drawer';
+
 import { notifyAdminUnauthorized } from '@/lib/admin-session-client';
 
 type Status = 'active' | 'disabled';
@@ -146,13 +151,14 @@ export function AdminAccessManager({
   canEditAdmins,
   canEditRoles,
 }: Props) {
-  const [tab, setTab] = useState<'admins' | 'roles'>('admins');
+  const [tab, setTab] = useAdminQueryState<'admins' | 'roles'>('tab', 'admins');
   const [admins, setAdmins] = useState<ListResult | null>(null);
   const [roles, setRoles] = useState<Role[]>([]);
-  const [keywordInput, setKeywordInput] = useState('');
-  const [keyword, setKeyword] = useState('');
-  const [status, setStatus] = useState('');
-  const [page, setPage] = useState(1);
+  const [keyword, setKeyword] = useAdminQueryState<string>('keyword', '');
+  const [keywordInput, setKeywordInput] = useState(keyword);
+  useEffect(() => setKeywordInput(keyword), [keyword]);
+  const [status, setStatus] = useAdminQueryState<string>('status', '');
+  const [page, setPage] = useAdminQueryState<number>('page', 1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -175,6 +181,10 @@ export function AdminAccessManager({
     permissions: [] as string[],
   });
   const [newPassword, setNewPassword] = useState('');
+  const [roleBaseline, setRoleBaseline] = useState('');
+  const roleDirty =
+    Boolean(roleEditor) && JSON.stringify(roleForm) !== roleBaseline;
+  const confirmRoleDiscard = useUnsavedChanges(roleDirty);
 
   const loadRoles = useCallback(async () => {
     const data = await apiRequest<Role[]>('/api/admin/roles');
@@ -231,6 +241,18 @@ export function AdminAccessManager({
   }
 
   function openRoleEditor(target: Role | 'new') {
+    if (busy || !confirmRoleDiscard()) return;
+    const draft =
+      target === 'new'
+        ? { code: '', name: '', permissions: [] }
+        : {
+            code: target.code,
+            name: target.name,
+            permissions: target.permissions.includes('*')
+              ? []
+              : target.permissions,
+          };
+    setRoleBaseline(JSON.stringify(draft));
     setRoleEditor(target);
     setRoleForm(
       target === 'new'
@@ -324,8 +346,20 @@ export function AdminAccessManager({
     setBusy('role-save');
     setError('');
     const isSuper = !isNew && roleEditor.code === 'super_admin';
+    if (
+      !isNew &&
+      !isSuper &&
+      !window.confirm(
+        '权限变更会立即影响该角色下 ' +
+          roleEditor.adminCount +
+          ' 个账号，确认保存？',
+      )
+    ) {
+      setBusy('');
+      return;
+    }
     try {
-      await apiRequest(
+      const savedRole = await apiRequest<Role>(
         isNew ? '/api/admin/roles' : `/api/admin/roles/${roleEditor.id}`,
         {
           method: isNew ? 'POST' : 'PATCH',
@@ -338,7 +372,11 @@ export function AdminAccessManager({
           ),
         },
       );
-      setRoleEditor(null);
+      setRoleEditor({
+        ...savedRole,
+        adminCount: isNew ? 0 : roleEditor.adminCount,
+      });
+      setRoleBaseline(JSON.stringify(roleForm));
       setNotice(isNew ? '角色已创建' : '角色已更新');
       await Promise.all([loadRoles(), loadAdmins()]);
     } catch (caught) {
@@ -355,6 +393,8 @@ export function AdminAccessManager({
     try {
       await apiRequest(`/api/admin/roles/${target.id}`, { method: 'DELETE' });
       setNotice('角色已删除');
+      if (roleEditor !== 'new' && roleEditor?.id === target.id)
+        setRoleEditor(null);
       await loadRoles();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '删除失败');
@@ -372,29 +412,191 @@ export function AdminAccessManager({
     }));
   }
 
+  const rolePanel = roleEditor ? (
+    <section className="min-w-0 rounded-lg border border-neutral-200 bg-white">
+      <form onSubmit={(event) => void saveRole(event)} className="p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold">
+              {roleEditor === 'new' ? '新增角色' : '编辑角色'}
+            </h2>
+            <p className="text-xs text-zinc-400">
+              权限变更会在管理员下一次请求时即时生效。
+            </p>
+          </div>
+          <span className="text-xs text-neutral-500">
+            {roleForm.permissions.length} 项已选
+          </span>
+        </div>
+        <fieldset
+          disabled={!canEditRoles || Boolean(busy)}
+          className="mt-4 grid gap-4 sm:grid-cols-2"
+        >
+          <label className="text-sm">
+            角色编码
+            <input
+              required
+              disabled={roleEditor !== 'new'}
+              value={roleForm.code}
+              onChange={(event) =>
+                setRoleForm({ ...roleForm, code: event.target.value })
+              }
+              className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 disabled:bg-zinc-50"
+            />
+          </label>
+          <label className="text-sm">
+            角色名称
+            <input
+              required
+              value={roleForm.name}
+              onChange={(event) =>
+                setRoleForm({ ...roleForm, name: event.target.value })
+              }
+              className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2"
+            />
+          </label>
+        </fieldset>
+        {roleEditor !== 'new' && roleEditor.code === 'super_admin' ? (
+          <div className="mt-5 rounded-md bg-lime-50 p-4 text-sm text-lime-800">
+            超级管理员固定拥有全部权限，不能取消。
+          </div>
+        ) : (
+          <div className="mt-6 space-y-4">
+            {permissionGroups.map(([group, permissions]) => (
+              <fieldset
+                key={group}
+                disabled={!canEditRoles || Boolean(busy)}
+                className="border-t border-neutral-100 pt-3"
+              >
+                <legend className="mb-2 text-sm font-semibold text-zinc-700">
+                  {group}{' '}
+                  <span className="ml-2 font-normal text-neutral-500">
+                    {
+                      permissions.filter((p) =>
+                        roleForm.permissions.includes(p),
+                      ).length
+                    }
+                    /{permissions.length}
+                  </span>
+                  <label className="ml-4 inline-flex items-center gap-1.5 font-normal">
+                    <input
+                      type="checkbox"
+                      aria-label={group + '全选'}
+                      disabled={!canEditRoles || Boolean(busy)}
+                      checked={permissions.every((p) =>
+                        roleForm.permissions.includes(p),
+                      )}
+                      ref={(element) => {
+                        if (element)
+                          element.indeterminate =
+                            permissions.some((p) =>
+                              roleForm.permissions.includes(p),
+                            ) &&
+                            !permissions.every((p) =>
+                              roleForm.permissions.includes(p),
+                            );
+                      }}
+                      onChange={(event) => {
+                        const checked = event.target.checked;
+                        setRoleForm((current) => ({
+                          ...current,
+                          permissions: checked
+                            ? [
+                                ...new Set([
+                                  ...current.permissions,
+                                  ...permissions,
+                                ]),
+                              ]
+                            : current.permissions.filter(
+                                (p) =>
+                                  !(permissions as readonly string[]).includes(
+                                    p,
+                                  ),
+                              ),
+                        }));
+                      }}
+                    />
+                    全选
+                  </label>
+                </legend>
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {permissions.map((permission) => (
+                    <label
+                      key={permission}
+                      className="flex cursor-pointer items-center gap-2 rounded-md border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={roleForm.permissions.includes(permission)}
+                        onChange={() => togglePermission(permission)}
+                        className="accent-zinc-900"
+                      />
+                      <span>{permissionLabels[permission]}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            ))}
+          </div>
+        )}
+        {error ? (
+          <p role="alert" className="mt-4 text-sm text-red-700">
+            {error}
+          </p>
+        ) : null}
+        {canEditRoles ? (
+          <div className="admin-save-bar mt-4">
+            <button
+              type="button"
+              onClick={() => {
+                if (!busy && confirmRoleDiscard()) setRoleEditor(null);
+              }}
+              className="rounded-md border px-4 py-2 text-sm"
+            >
+              取消
+            </button>
+            <button
+              disabled={Boolean(busy) || !roleDirty}
+              className="flex items-center gap-2 rounded-md bg-zinc-900 px-4 py-2 text-sm text-white disabled:opacity-50"
+            >
+              {busy === 'role-save' ? (
+                <LoaderCircle className="size-4 animate-spin" />
+              ) : null}
+              保存
+            </button>
+          </div>
+        ) : null}
+      </form>
+    </section>
+  ) : (
+    <div className="rounded-lg border border-neutral-200 bg-white p-8 text-sm text-neutral-500">
+      选择左侧角色查看权限，或新增角色。
+    </div>
+  );
+
   const totalPages = Math.max(
     1,
     Math.ceil((admins?.total ?? 0) / (admins?.pageSize ?? 20)),
   );
 
   return (
-    <div className="space-y-6">
+    <div className="admin-page space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold tracking-[0.18em] text-lime-700">
-            ACCESS CONTROL
-          </p>
-          <h1 className="mt-1 text-2xl font-bold text-zinc-900">
-            管理员与角色
-          </h1>
+          <h1 className="text-2xl font-semibold text-zinc-900">管理员与角色</h1>
           <p className="mt-1 text-sm text-zinc-500">
             管理后台账号、角色和模块级操作权限。
           </p>
         </div>
         <button
           type="button"
-          onClick={() => void load()}
-          className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-medium hover:bg-zinc-50"
+          onClick={() => {
+            if (!busy && confirmRoleDiscard()) {
+              setRoleEditor(null);
+              void load();
+            }
+          }}
+          className="flex items-center gap-2 rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm font-medium hover:bg-zinc-50"
         >
           <RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} />
           刷新
@@ -402,21 +604,26 @@ export function AdminAccessManager({
       </div>
 
       {error ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </div>
       ) : null}
       {notice ? (
-        <div className="rounded-xl border border-lime-200 bg-lime-50 px-4 py-3 text-sm text-lime-800">
+        <div className="rounded-md border border-lime-200 bg-lime-50 px-4 py-3 text-sm text-lime-800">
           {notice}
         </div>
       ) : null}
 
-      <div className="flex gap-2 rounded-2xl border border-zinc-200 bg-white p-2">
+      <div className="flex gap-2 rounded-lg border border-zinc-200 bg-white p-2">
         <button
           type="button"
-          onClick={() => setTab('admins')}
-          className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium ${tab === 'admins' ? 'bg-zinc-900 text-white' : 'text-zinc-500 hover:bg-zinc-50'}`}
+          onClick={() => {
+            if (!busy && confirmRoleDiscard()) {
+              setRoleEditor(null);
+              setTab('admins');
+            }
+          }}
+          className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium ${tab === 'admins' ? 'bg-zinc-900 text-white' : 'text-zinc-500 hover:bg-zinc-50'}`}
         >
           <UserCog className="size-4" />
           管理员账号
@@ -424,7 +631,7 @@ export function AdminAccessManager({
         <button
           type="button"
           onClick={() => setTab('roles')}
-          className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium ${tab === 'roles' ? 'bg-zinc-900 text-white' : 'text-zinc-500 hover:bg-zinc-50'}`}
+          className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium ${tab === 'roles' ? 'bg-zinc-900 text-white' : 'text-zinc-500 hover:bg-zinc-50'}`}
         >
           <ShieldCheck className="size-4" />
           角色权限
@@ -448,10 +655,10 @@ export function AdminAccessManager({
                   value={keywordInput}
                   onChange={(event) => setKeywordInput(event.target.value)}
                   placeholder="搜索用户名或姓名"
-                  className="w-full rounded-xl border border-zinc-200 bg-white py-2 pr-3 pl-9 text-sm"
+                  className="w-full rounded-md border border-zinc-200 bg-white py-2 pr-3 pl-9 text-sm"
                 />
               </div>
-              <button className="rounded-xl bg-zinc-900 px-4 py-2 text-sm text-white">
+              <button className="rounded-md bg-zinc-900 px-4 py-2 text-sm text-white">
                 搜索
               </button>
             </form>
@@ -461,7 +668,7 @@ export function AdminAccessManager({
                 setStatus(event.target.value);
                 setPage(1);
               }}
-              className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm"
+              className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm"
             >
               <option value="">全部状态</option>
               <option value="active">启用</option>
@@ -471,14 +678,14 @@ export function AdminAccessManager({
               <button
                 type="button"
                 onClick={() => openAdminEditor('new')}
-                className="flex items-center gap-2 rounded-xl bg-lime-300 px-4 py-2 text-sm font-semibold text-zinc-900"
+                className="flex items-center gap-2 rounded-md bg-zinc-900 px-4 py-2 text-sm font-semibold text-white"
               >
                 <Plus className="size-4" />
                 新增管理员
               </button>
             ) : null}
           </div>
-          <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white">
+          <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="bg-zinc-50 text-xs text-zinc-500">
@@ -493,7 +700,7 @@ export function AdminAccessManager({
                 <tbody className="divide-y divide-zinc-100">
                   {admins?.list.map((account) => (
                     <tr key={account.id}>
-                      <td className="px-5 py-4">
+                      <td className="px-4 py-3">
                         <p className="font-medium text-zinc-900">
                           {account.name}
                           {account.id === currentAdminId ? (
@@ -506,32 +713,32 @@ export function AdminAccessManager({
                           {account.username}
                         </p>
                       </td>
-                      <td className="px-5 py-4">
+                      <td className="px-4 py-3">
                         <p>{account.roleName}</p>
                         <p className="text-xs text-zinc-400">
                           {account.roleCode}
                         </p>
                       </td>
-                      <td className="px-5 py-4">
+                      <td className="px-4 py-3">
                         <span
                           className={`rounded-full px-2.5 py-1 text-xs font-medium ${account.status === 'active' ? 'bg-lime-100 text-lime-800' : 'bg-zinc-100 text-zinc-500'}`}
                         >
                           {account.status === 'active' ? '启用' : '停用'}
                         </span>
                       </td>
-                      <td className="px-5 py-4 text-zinc-500">
+                      <td className="px-4 py-3 text-zinc-500">
                         {formatTime(account.lastLoginAt)}
                       </td>
-                      <td className="px-5 py-4">
+                      <td className="px-4 py-3">
                         <div className="flex justify-end gap-1">
                           {canEditAdmins ? (
                             <>
                               <button
                                 title="编辑"
                                 onClick={() => openAdminEditor(account)}
-                                className="rounded-lg p-2 text-zinc-500 hover:bg-zinc-100"
+                                className="inline-flex items-center gap-1 rounded-md p-2 text-xs text-zinc-600 hover:bg-zinc-100"
                               >
-                                <Pencil className="size-4" />
+                                <Pencil className="size-4" /> 编辑
                               </button>
                               <button
                                 title="重置密码"
@@ -540,18 +747,18 @@ export function AdminAccessManager({
                                   setNewPassword('');
                                   setError('');
                                 }}
-                                className="rounded-lg p-2 text-zinc-500 hover:bg-zinc-100"
+                                className="inline-flex items-center gap-1 rounded-md p-2 text-xs text-zinc-600 hover:bg-zinc-100"
                               >
-                                <KeyRound className="size-4" />
+                                <KeyRound className="size-4" /> 重置密码
                               </button>
                               {account.id !== currentAdminId ? (
                                 <button
                                   title="删除"
                                   disabled={busy === account.id}
                                   onClick={() => void removeAdmin(account)}
-                                  className="rounded-lg p-2 text-red-500 hover:bg-red-50"
+                                  className="inline-flex items-center gap-1 rounded-md p-2 text-xs text-red-600 hover:bg-red-50"
                                 >
-                                  <Trash2 className="size-4" />
+                                  <Trash2 className="size-4" /> 删除
                                 </button>
                               ) : null}
                             </>
@@ -598,102 +805,79 @@ export function AdminAccessManager({
           </div>
         </section>
       ) : (
-        <section className="space-y-4">
-          <div className="flex justify-end">
+        <section className="admin-split">
+          <nav
+            aria-label="角色列表"
+            className="space-y-1 rounded-lg border border-neutral-200 bg-white p-2"
+          >
             {canEditRoles ? (
               <button
                 type="button"
+                disabled={Boolean(busy)}
                 onClick={() => openRoleEditor('new')}
-                className="flex items-center gap-2 rounded-xl bg-lime-300 px-4 py-2 text-sm font-semibold"
+                className="mb-2 flex w-full items-center gap-2 rounded-md border border-neutral-200 px-3 py-2 text-sm"
               >
                 <Plus className="size-4" />
                 新增角色
               </button>
             ) : null}
-          </div>
-          <div className="grid gap-4 lg:grid-cols-2">
             {roles.map((role) => (
-              <article
-                key={role.id}
-                className="rounded-2xl border border-zinc-200 bg-white p-5"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h2 className="font-semibold text-zinc-900">
-                        {role.name}
-                      </h2>
-                      {role.isSystem ? (
-                        <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] text-blue-700">
-                          系统角色
-                        </span>
-                      ) : null}
-                    </div>
-                    <p className="mt-1 text-xs text-zinc-400">
-                      {role.code} · {role.adminCount} 个账号
-                    </p>
-                  </div>
-                  {canEditRoles ? (
-                    <div className="flex">
-                      <button
-                        title="编辑"
-                        onClick={() => openRoleEditor(role)}
-                        className="rounded-lg p-2 text-zinc-500 hover:bg-zinc-100"
-                      >
-                        <Pencil className="size-4" />
-                      </button>
-                      {!role.isSystem ? (
-                        <button
-                          title="删除"
-                          disabled={role.adminCount > 0 || busy === role.id}
-                          onClick={() => void removeRole(role)}
-                          className="rounded-lg p-2 text-red-500 hover:bg-red-50 disabled:opacity-30"
-                        >
-                          <Trash2 className="size-4" />
-                        </button>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-                <div className="mt-4 flex flex-wrap gap-1.5">
-                  {role.permissions.includes('*') ? (
-                    <span className="rounded-lg bg-lime-100 px-2 py-1 text-xs text-lime-800">
-                      全部权限
-                    </span>
-                  ) : (
-                    role.permissions.map((permission) => (
-                      <span
-                        key={permission}
-                        className="rounded-lg bg-zinc-100 px-2 py-1 text-xs text-zinc-600"
-                      >
-                        {permissionLabels[permission] ?? permission}
-                      </span>
-                    ))
-                  )}
-                  {!role.permissions.length ? (
-                    <span className="text-xs text-zinc-400">未配置权限</span>
-                  ) : null}
-                </div>
-              </article>
+              <div key={role.id} className="flex items-center">
+                <button
+                  type="button"
+                  disabled={Boolean(busy)}
+                  aria-pressed={
+                    roleEditor !== 'new' && roleEditor?.id === role.id
+                  }
+                  onClick={() => openRoleEditor(role)}
+                  className={
+                    (roleEditor !== 'new' && roleEditor?.id === role.id
+                      ? 'bg-neutral-100 '
+                      : 'hover:bg-neutral-50 ') +
+                    'min-w-0 flex-1 rounded-md px-3 py-3 text-left'
+                  }
+                >
+                  <span className="block truncate text-sm font-medium">
+                    {role.name}
+                  </span>
+                  <span className="text-xs text-neutral-500">
+                    {role.adminCount} 个账号 ·{' '}
+                    {role.isSystem ? '系统角色' : '自定义'}
+                  </span>
+                </button>
+                {canEditRoles && !role.isSystem ? (
+                  <button
+                    type="button"
+                    title={
+                      role.adminCount ? '请先移出该角色的管理员' : '删除角色'
+                    }
+                    aria-label={'删除角色 ' + role.name}
+                    disabled={role.adminCount > 0 || Boolean(busy)}
+                    onClick={() => {
+                      if (confirmRoleDiscard()) void removeRole(role);
+                    }}
+                    className="rounded p-2 text-red-600 disabled:opacity-30"
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                ) : null}
+              </div>
             ))}
-          </div>
+            {!roles.length && !loading ? (
+              <p className="p-3 text-sm text-neutral-500">暂无角色</p>
+            ) : null}
+          </nav>
+          {rolePanel}
         </section>
       )}
 
       {adminEditor ? (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 p-4">
-          <form
-            onSubmit={(event) => void saveAdmin(event)}
-            className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl"
-          >
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">
-                {adminEditor === 'new' ? '新增管理员' : '编辑管理员'}
-              </h2>
-              <button type="button" onClick={() => setAdminEditor(null)}>
-                <X className="size-5" />
-              </button>
-            </div>
+        <AdminDrawer
+          title={adminEditor === 'new' ? '新增管理员' : '编辑管理员'}
+          busy={busy === 'admin-save'}
+          onClose={() => setAdminEditor(null)}
+        >
+          <form onSubmit={(event) => void saveAdmin(event)} className="p-5">
             <div className="mt-5 grid gap-4">
               <label className="text-sm">
                 用户名
@@ -704,7 +888,7 @@ export function AdminAccessManager({
                   onChange={(event) =>
                     setAdminForm({ ...adminForm, username: event.target.value })
                   }
-                  className="mt-1 w-full rounded-xl border border-zinc-200 px-3 py-2"
+                  className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2"
                 />
               </label>
               {adminEditor === 'new' ? (
@@ -723,7 +907,7 @@ export function AdminAccessManager({
                         password: event.target.value,
                       })
                     }
-                    className="mt-1 w-full rounded-xl border border-zinc-200 px-3 py-2"
+                    className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2"
                   />
                   <span className="mt-1 block text-xs text-zinc-400">
                     至少 8 个字符，保存后不会再次展示。
@@ -738,7 +922,7 @@ export function AdminAccessManager({
                   onChange={(event) =>
                     setAdminForm({ ...adminForm, name: event.target.value })
                   }
-                  className="mt-1 w-full rounded-xl border border-zinc-200 px-3 py-2"
+                  className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2"
                 />
               </label>
               <label className="text-sm">
@@ -749,7 +933,7 @@ export function AdminAccessManager({
                   onChange={(event) =>
                     setAdminForm({ ...adminForm, roleId: event.target.value })
                   }
-                  className="mt-1 w-full rounded-xl border border-zinc-200 px-3 py-2"
+                  className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2"
                 >
                   {roles.map((role) => (
                     <option key={role.id} value={role.id}>
@@ -768,37 +952,43 @@ export function AdminAccessManager({
                       status: event.target.value as Status,
                     })
                   }
-                  className="mt-1 w-full rounded-xl border border-zinc-200 px-3 py-2"
+                  className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2"
                 >
                   <option value="active">启用</option>
                   <option value="disabled">停用</option>
                 </select>
               </label>
             </div>
-            <div className="mt-6 flex justify-end gap-2">
+            {error ? (
+              <p role="alert" className="mt-4 text-sm text-red-700">
+                {error}
+              </p>
+            ) : null}
+            <div className="admin-save-bar mt-4">
               <button
                 type="button"
+                data-drawer-close
                 onClick={() => setAdminEditor(null)}
-                className="rounded-xl border px-4 py-2 text-sm"
+                className="rounded-md border px-4 py-2 text-sm"
               >
                 取消
               </button>
               <button
                 disabled={busy === 'admin-save'}
-                className="rounded-xl bg-zinc-900 px-4 py-2 text-sm text-white disabled:opacity-50"
+                className="rounded-md bg-zinc-900 px-4 py-2 text-sm text-white disabled:opacity-50"
               >
                 {busy === 'admin-save' ? '保存中…' : '保存'}
               </button>
             </div>
           </form>
-        </div>
+        </AdminDrawer>
       ) : null}
 
       {resetTarget ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 p-4">
           <form
             onSubmit={(event) => void resetPassword(event)}
-            className="w-full max-w-md rounded-2xl bg-white p-6"
+            className="w-full max-w-md rounded-lg bg-white p-6"
           >
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold">
@@ -818,7 +1008,7 @@ export function AdminAccessManager({
                 autoComplete="new-password"
                 value={newPassword}
                 onChange={(event) => setNewPassword(event.target.value)}
-                className="mt-1 w-full rounded-xl border border-zinc-200 px-3 py-2"
+                className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2"
               />
               <span className="mt-1 block text-xs text-zinc-400">
                 至少 8 个字符；密码不会写入日志或接口响应。
@@ -828,115 +1018,15 @@ export function AdminAccessManager({
               <button
                 type="button"
                 onClick={() => setResetTarget(null)}
-                className="rounded-xl border px-4 py-2 text-sm"
+                className="rounded-md border px-4 py-2 text-sm"
               >
                 取消
               </button>
               <button
                 disabled={busy === 'password'}
-                className="rounded-xl bg-zinc-900 px-4 py-2 text-sm text-white"
+                className="rounded-md bg-zinc-900 px-4 py-2 text-sm text-white"
               >
                 确认重置
-              </button>
-            </div>
-          </form>
-        </div>
-      ) : null}
-
-      {roleEditor ? (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/45 p-4">
-          <form
-            onSubmit={(event) => void saveRole(event)}
-            className="mx-auto my-8 w-full max-w-3xl rounded-2xl bg-white p-6"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-semibold">
-                  {roleEditor === 'new' ? '新增角色' : '编辑角色'}
-                </h2>
-                <p className="text-xs text-zinc-400">
-                  权限变更会在管理员下一次请求时即时生效。
-                </p>
-              </div>
-              <button type="button" onClick={() => setRoleEditor(null)}>
-                <X className="size-5" />
-              </button>
-            </div>
-            <div className="mt-5 grid gap-4 sm:grid-cols-2">
-              <label className="text-sm">
-                角色编码
-                <input
-                  required
-                  disabled={roleEditor !== 'new'}
-                  value={roleForm.code}
-                  onChange={(event) =>
-                    setRoleForm({ ...roleForm, code: event.target.value })
-                  }
-                  className="mt-1 w-full rounded-xl border border-zinc-200 px-3 py-2 disabled:bg-zinc-50"
-                />
-              </label>
-              <label className="text-sm">
-                角色名称
-                <input
-                  required
-                  value={roleForm.name}
-                  onChange={(event) =>
-                    setRoleForm({ ...roleForm, name: event.target.value })
-                  }
-                  className="mt-1 w-full rounded-xl border border-zinc-200 px-3 py-2"
-                />
-              </label>
-            </div>
-            {roleEditor !== 'new' && roleEditor.code === 'super_admin' ? (
-              <div className="mt-5 rounded-xl bg-lime-50 p-4 text-sm text-lime-800">
-                超级管理员固定拥有全部权限，不能取消。
-              </div>
-            ) : (
-              <div className="mt-6 space-y-4">
-                {permissionGroups.map(([group, permissions]) => (
-                  <fieldset key={group}>
-                    <legend className="mb-2 text-sm font-semibold text-zinc-700">
-                      {group}
-                    </legend>
-                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                      {permissions.map((permission) => (
-                        <label
-                          key={permission}
-                          className="flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={roleForm.permissions.includes(permission)}
-                            onChange={() => togglePermission(permission)}
-                            className="accent-zinc-900"
-                          />
-                          <span>{permissionLabels[permission]}</span>
-                          <code className="ml-auto text-[10px] text-zinc-400">
-                            {permission}
-                          </code>
-                        </label>
-                      ))}
-                    </div>
-                  </fieldset>
-                ))}
-              </div>
-            )}
-            <div className="mt-6 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setRoleEditor(null)}
-                className="rounded-xl border px-4 py-2 text-sm"
-              >
-                取消
-              </button>
-              <button
-                disabled={busy === 'role-save'}
-                className="flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2 text-sm text-white disabled:opacity-50"
-              >
-                {busy === 'role-save' ? (
-                  <LoaderCircle className="size-4 animate-spin" />
-                ) : null}
-                保存
               </button>
             </div>
           </form>

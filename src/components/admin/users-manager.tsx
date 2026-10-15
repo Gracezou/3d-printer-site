@@ -179,20 +179,15 @@ export function UsersManager({ canDisable }: { canDisable: boolean }) {
   const totalPages = Math.max(1, Math.ceil((result?.total ?? 0) / 20));
 
   return (
-    <div className="mx-auto max-w-[1480px] px-4 py-7 sm:px-7 lg:px-10 lg:py-10">
+    <div className="admin-page">
       {notice ? (
-        <div className="fixed top-5 right-5 z-[90] rounded-2xl bg-[#151816] px-5 py-3 text-sm font-medium text-white shadow-xl">
+        <div className="fixed top-5 right-5 z-[90] rounded-lg bg-[#151816] px-5 py-3 text-sm font-medium text-white shadow-xl">
           {notice}
         </div>
       ) : null}
       <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
         <div>
-          <p className="text-xs font-semibold tracking-[0.18em] text-neutral-400">
-            CUSTOMERS
-          </p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight">
-            用户管理
-          </h1>
+          <h1 className="text-2xl font-semibold tracking-tight">用户管理</h1>
           <p className="mt-2 text-sm text-neutral-500">
             查看用户订单与地址，控制账号是否允许登录和下单。
           </p>
@@ -200,7 +195,7 @@ export function UsersManager({ canDisable }: { canDisable: boolean }) {
         <button
           type="button"
           onClick={() => void load()}
-          className="inline-flex h-10 w-fit items-center gap-2 rounded-xl border border-black/8 bg-white px-4 text-sm font-medium"
+          className="inline-flex h-10 w-fit items-center gap-2 rounded-md border border-black/8 bg-white px-4 text-sm font-medium"
         >
           <RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} />
           刷新
@@ -213,7 +208,7 @@ export function UsersManager({ canDisable }: { canDisable: boolean }) {
           setPage(1);
           setKeyword(keywordInput.trim());
         }}
-        className="mt-7 grid gap-3 rounded-2xl border border-black/6 bg-white p-4 shadow-sm md:grid-cols-[minmax(260px,1fr)_180px_auto]"
+        className="mt-7 grid gap-3 rounded-lg border border-black/6 bg-white p-4 shadow-sm md:grid-cols-[minmax(260px,1fr)_180px_auto]"
       >
         <label className="relative">
           <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-neutral-400" />
@@ -221,7 +216,7 @@ export function UsersManager({ canDisable }: { canDisable: boolean }) {
             value={keywordInput}
             onChange={(event) => setKeywordInput(event.target.value)}
             placeholder="邮箱、手机号或昵称"
-            className="h-10 w-full rounded-xl border border-black/8 pl-10 text-sm outline-none"
+            className="h-10 w-full rounded-md border border-black/8 pl-10 text-sm outline-none"
           />
         </label>
         <select
@@ -230,25 +225,25 @@ export function UsersManager({ canDisable }: { canDisable: boolean }) {
             setStatus(event.target.value);
             setPage(1);
           }}
-          className="h-10 rounded-xl border border-black/8 px-3 text-sm"
+          className="h-10 rounded-md border border-black/8 px-3 text-sm"
         >
           <option value="">全部状态</option>
           <option value="active">正常</option>
           <option value="disabled">已禁用</option>
         </select>
-        <button className="h-10 rounded-xl bg-lime-300 px-5 text-sm font-semibold">
+        <button className="h-10 rounded-md bg-lime-300 px-5 text-sm font-semibold">
           查询
         </button>
       </form>
 
       {error ? (
-        <div className="mt-5 flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700">
+        <div className="mt-5 flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           <CircleAlert className="size-4" />
           {error}
         </div>
       ) : null}
 
-      <div className="mt-5 overflow-hidden rounded-2xl border border-black/6 bg-white shadow-sm">
+      <div className="mt-5 overflow-hidden rounded-lg border border-black/6 bg-white shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1000px] text-left text-sm">
             <thead className="bg-neutral-50 text-xs text-neutral-500">
@@ -275,7 +270,7 @@ export function UsersManager({ canDisable }: { canDisable: boolean }) {
               ) : result?.list.length ? (
                 result.list.map((user) => (
                   <tr key={user.id} className="hover:bg-neutral-50/70">
-                    <td className="px-5 py-4">
+                    <td className="px-4 py-3">
                       <p className="font-semibold">
                         {user.nickname || '未设置昵称'}
                       </p>
@@ -283,22 +278,22 @@ export function UsersManager({ canDisable }: { canDisable: boolean }) {
                         {user.email} · {user.phone}
                       </p>
                     </td>
-                    <td className="px-5 py-4 text-xs leading-5 text-neutral-500">
+                    <td className="px-4 py-3 text-xs leading-5 text-neutral-500">
                       <p>{formatDate(user.createdAt)}</p>
                       <p>登录：{formatDate(user.lastLoginAt)}</p>
                     </td>
-                    <td className="px-5 py-4">{user.orderCount} 单</td>
-                    <td className="px-5 py-4 font-semibold">
+                    <td className="px-4 py-3">{user.orderCount} 单</td>
+                    <td className="px-4 py-3 font-semibold">
                       ¥{user.totalSpent}
                     </td>
-                    <td className="px-5 py-4">
+                    <td className="px-4 py-3">
                       <span
                         className={`rounded-full px-2.5 py-1 text-xs font-medium ${user.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}
                       >
                         {user.status === 'active' ? '正常' : '已禁用'}
                       </span>
                     </td>
-                    <td className="px-5 py-4">
+                    <td className="px-4 py-3">
                       <div className="flex justify-end gap-2">
                         <button
                           disabled={detailLoading}
@@ -340,7 +335,7 @@ export function UsersManager({ canDisable }: { canDisable: boolean }) {
             </tbody>
           </table>
         </div>
-        <div className="flex items-center justify-between border-t border-black/6 px-5 py-4 text-sm">
+        <div className="flex items-center justify-between border-t border-black/6 px-4 py-3 text-sm">
           <span className="text-neutral-500">共 {result?.total ?? 0} 位</span>
           <div className="flex items-center gap-2">
             <button
@@ -388,25 +383,25 @@ export function UsersManager({ canDisable }: { canDisable: boolean }) {
               <button
                 type="button"
                 onClick={() => setDetail(null)}
-                className="rounded-xl bg-neutral-100 p-2"
+                className="rounded-md bg-neutral-100 p-2"
               >
                 <X className="size-5" />
               </button>
             </div>
             <div className="mt-6 grid grid-cols-3 gap-3">
-              <div className="rounded-xl bg-neutral-50 p-4">
+              <div className="rounded-md bg-neutral-50 p-4">
                 <p className="text-xs text-neutral-400">订单数</p>
                 <p className="mt-2 text-xl font-semibold">
                   {detail.orderCount}
                 </p>
               </div>
-              <div className="rounded-xl bg-neutral-50 p-4">
+              <div className="rounded-md bg-neutral-50 p-4">
                 <p className="text-xs text-neutral-400">累计消费</p>
                 <p className="mt-2 text-xl font-semibold">
                   ¥{detail.totalSpent}
                 </p>
               </div>
-              <div className="rounded-xl bg-neutral-50 p-4">
+              <div className="rounded-md bg-neutral-50 p-4">
                 <p className="text-xs text-neutral-400">账号状态</p>
                 <p className="mt-2 text-xl font-semibold">
                   {detail.status === 'active' ? '正常' : '禁用'}
@@ -417,7 +412,7 @@ export function UsersManager({ canDisable }: { canDisable: boolean }) {
               <button
                 disabled={busy !== ''}
                 onClick={() => void toggle(detail)}
-                className={`mt-4 h-10 w-full rounded-xl border text-sm font-semibold disabled:opacity-40 ${detail.status === 'active' ? 'border-rose-200 text-rose-700' : 'border-emerald-200 text-emerald-700'}`}
+                className={`mt-4 h-10 w-full rounded-md border text-sm font-semibold disabled:opacity-40 ${detail.status === 'active' ? 'border-rose-200 text-rose-700' : 'border-emerald-200 text-emerald-700'}`}
               >
                 {detail.status === 'active' ? '禁用该用户' : '重新启用该用户'}
               </button>
@@ -429,7 +424,7 @@ export function UsersManager({ canDisable }: { canDisable: boolean }) {
                   {detail.addresses.map((address) => (
                     <div
                       key={address.id}
-                      className="rounded-xl border border-black/6 p-4 text-sm"
+                      className="rounded-md border border-black/6 p-4 text-sm"
                     >
                       <div className="flex items-center gap-2">
                         <span className="font-semibold">
@@ -460,7 +455,7 @@ export function UsersManager({ canDisable }: { canDisable: boolean }) {
             <section className="mt-7">
               <h3 className="font-semibold">订单历史</h3>
               {detail.orders.length ? (
-                <div className="mt-3 overflow-hidden rounded-xl border border-black/6">
+                <div className="mt-3 overflow-hidden rounded-md border border-black/6">
                   <table className="w-full text-left text-sm">
                     <thead className="bg-neutral-50 text-xs text-neutral-500">
                       <tr>

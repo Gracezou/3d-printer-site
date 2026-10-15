@@ -318,18 +318,15 @@ export function DiscountCodesManager({ canEdit }: { canEdit: boolean }) {
   const totalPages = Math.max(1, Math.ceil((result?.total ?? 0) / 20));
 
   return (
-    <div className="mx-auto max-w-[1480px] px-4 py-7 sm:px-7 lg:px-10 lg:py-10">
+    <div className="admin-page">
       {notice ? (
-        <div className="fixed top-5 right-5 z-[90] rounded-2xl bg-[#151816] px-5 py-3 text-sm font-medium text-white shadow-xl">
+        <div className="fixed top-5 right-5 z-[90] rounded-lg bg-[#151816] px-5 py-3 text-sm font-medium text-white shadow-xl">
           {notice}
         </div>
       ) : null}
       <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
         <div>
-          <p className="text-xs font-semibold tracking-[0.18em] text-neutral-400">
-            DISCOUNT CODES
-          </p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight">折扣码</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">折扣码</h1>
           <p className="mt-2 text-sm text-neutral-500">
             管理有效期、总核销次数和单用户限次；关闭开关后立即不可用。
           </p>
@@ -338,7 +335,7 @@ export function DiscountCodesManager({ canEdit }: { canEdit: boolean }) {
           <button
             type="button"
             onClick={() => void load()}
-            className="inline-flex h-10 items-center gap-2 rounded-xl border border-black/8 bg-white px-4 text-sm font-medium"
+            className="inline-flex h-10 items-center gap-2 rounded-md border border-black/8 bg-white px-4 text-sm font-medium"
           >
             <RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} />
             刷新
@@ -348,7 +345,7 @@ export function DiscountCodesManager({ canEdit }: { canEdit: boolean }) {
               type="button"
               disabled={!result?.promotionOptions.length}
               onClick={() => openEditor('new')}
-              className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#151816] px-4 text-sm font-medium text-white disabled:opacity-40"
+              className="inline-flex h-10 items-center gap-2 rounded-md bg-[#151816] px-4 text-sm font-medium text-white disabled:opacity-40"
             >
               <Plus className="size-4" /> 新增折扣码
             </button>
@@ -362,7 +359,7 @@ export function DiscountCodesManager({ canEdit }: { canEdit: boolean }) {
           setPage(1);
           setKeyword(keywordInput.trim());
         }}
-        className="mt-7 grid gap-3 rounded-2xl border border-black/6 bg-white p-4 shadow-sm md:grid-cols-[minmax(220px,1fr)_160px_160px_auto]"
+        className="mt-7 grid gap-3 rounded-lg border border-black/6 bg-white p-4 shadow-sm md:grid-cols-[minmax(220px,1fr)_160px_160px_auto]"
       >
         <label className="relative">
           <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-neutral-400" />
@@ -370,7 +367,7 @@ export function DiscountCodesManager({ canEdit }: { canEdit: boolean }) {
             value={keywordInput}
             onChange={(event) => setKeywordInput(event.target.value)}
             placeholder="搜索折扣码"
-            className="h-10 w-full rounded-xl border border-black/8 pl-10 text-sm outline-none"
+            className="h-10 w-full rounded-md border border-black/8 pl-10 text-sm outline-none"
           />
         </label>
         <select
@@ -379,7 +376,7 @@ export function DiscountCodesManager({ canEdit }: { canEdit: boolean }) {
             setCodeType(event.target.value);
             setPage(1);
           }}
-          className="h-10 rounded-xl border border-black/8 px-3 text-sm"
+          className="h-10 rounded-md border border-black/8 px-3 text-sm"
         >
           <option value="">全部类型</option>
           <option value="permanent">常驻码</option>
@@ -391,7 +388,7 @@ export function DiscountCodesManager({ canEdit }: { canEdit: boolean }) {
             setStatus(event.target.value);
             setPage(1);
           }}
-          className="h-10 rounded-xl border border-black/8 px-3 text-sm"
+          className="h-10 rounded-md border border-black/8 px-3 text-sm"
         >
           <option value="">全部状态</option>
           {Object.entries(statusLabels).map(([value, label]) => (
@@ -400,18 +397,18 @@ export function DiscountCodesManager({ canEdit }: { canEdit: boolean }) {
             </option>
           ))}
         </select>
-        <button className="h-10 rounded-xl bg-lime-300 px-5 text-sm font-semibold">
+        <button className="h-10 rounded-md bg-lime-300 px-5 text-sm font-semibold">
           查询
         </button>
       </form>
 
       {error ? (
-        <div className="mt-5 flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700">
+        <div className="mt-5 flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           <CircleAlert className="size-4" /> {error}
         </div>
       ) : null}
 
-      <div className="mt-5 overflow-hidden rounded-2xl border border-black/6 bg-white shadow-sm">
+      <div className="mt-5 overflow-hidden rounded-lg border border-black/6 bg-white shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1180px] text-left text-sm">
             <thead className="bg-neutral-50 text-xs text-neutral-500">
@@ -439,7 +436,7 @@ export function DiscountCodesManager({ canEdit }: { canEdit: boolean }) {
               ) : result?.list.length ? (
                 result.list.map((code) => (
                   <tr key={code.id} className="hover:bg-neutral-50/70">
-                    <td className="px-5 py-4">
+                    <td className="px-4 py-3">
                       <p className="font-mono font-semibold tracking-wide">
                         {code.code}
                       </p>
@@ -448,25 +445,25 @@ export function DiscountCodesManager({ canEdit }: { canEdit: boolean }) {
                         {!code.promotionActive ? ' · 规则已停用' : ''}
                       </p>
                     </td>
-                    <td className="px-5 py-4">
+                    <td className="px-4 py-3">
                       {code.codeType === 'permanent' ? '常驻' : '限次'}
                     </td>
-                    <td className="px-5 py-4 font-medium">
+                    <td className="px-4 py-3 font-medium">
                       {code.usedCount} / {code.maxUses ?? '不限'}
                     </td>
-                    <td className="px-5 py-4">每人 {code.perUserLimit} 次</td>
-                    <td className="px-5 py-4 text-xs leading-5 text-neutral-500">
+                    <td className="px-4 py-3">每人 {code.perUserLimit} 次</td>
+                    <td className="px-4 py-3 text-xs leading-5 text-neutral-500">
                       <p>{formatDate(code.startsAt)}</p>
                       <p>至 {formatDate(code.endsAt)}</p>
                     </td>
-                    <td className="px-5 py-4">
+                    <td className="px-4 py-3">
                       <span
                         className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusTones[code.status]}`}
                       >
                         {statusLabels[code.status]}
                       </span>
                     </td>
-                    <td className="px-5 py-4">
+                    <td className="px-4 py-3">
                       <div className="flex justify-end gap-2">
                         <button
                           disabled={busy !== ''}
@@ -521,7 +518,7 @@ export function DiscountCodesManager({ canEdit }: { canEdit: boolean }) {
             </tbody>
           </table>
         </div>
-        <div className="flex items-center justify-between border-t border-black/6 px-5 py-4 text-sm">
+        <div className="flex items-center justify-between border-t border-black/6 px-4 py-3 text-sm">
           <span className="text-neutral-500">共 {result?.total ?? 0} 条</span>
           <div className="flex items-center gap-2">
             <button
@@ -553,7 +550,7 @@ export function DiscountCodesManager({ canEdit }: { canEdit: boolean }) {
             onClick={() => setEditing(null)}
             className="absolute inset-0 bg-black/45 backdrop-blur-[2px]"
           />
-          <section className="relative max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl">
+          <section className="relative max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:rounded-lg">
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-black/6 bg-white px-6 py-5">
               <div>
                 <h2 className="text-xl font-semibold">
@@ -566,7 +563,7 @@ export function DiscountCodesManager({ canEdit }: { canEdit: boolean }) {
               <button
                 type="button"
                 onClick={() => setEditing(null)}
-                className="rounded-xl bg-neutral-100 p-2 text-neutral-500"
+                className="rounded-md bg-neutral-100 p-2 text-neutral-500"
               >
                 <X className="size-5" />
               </button>
@@ -588,7 +585,7 @@ export function DiscountCodesManager({ canEdit }: { canEdit: boolean }) {
                         code: event.target.value.toUpperCase(),
                       }))
                     }
-                    className="mt-2 h-11 w-full rounded-xl border border-black/8 px-3 font-mono uppercase outline-none"
+                    className="mt-2 h-11 w-full rounded-md border border-black/8 px-3 font-mono uppercase outline-none sm:h-9"
                   />
                 </label>
                 <label className="block text-sm font-medium">
@@ -602,7 +599,7 @@ export function DiscountCodesManager({ canEdit }: { canEdit: boolean }) {
                         promotionId: event.target.value,
                       }))
                     }
-                    className="mt-2 h-11 w-full rounded-xl border border-black/8 px-3"
+                    className="mt-2 h-11 w-full rounded-md border border-black/8 px-3 sm:h-9"
                   >
                     {result?.promotionOptions.map((promotion) => (
                       <option key={promotion.id} value={promotion.id}>
@@ -627,7 +624,7 @@ export function DiscountCodesManager({ canEdit }: { canEdit: boolean }) {
                           type === 'permanent' ? '' : value.maxUses || '100',
                       }));
                     }}
-                    className="mt-2 h-11 w-full rounded-xl border border-black/8 px-3"
+                    className="mt-2 h-11 w-full rounded-md border border-black/8 px-3 sm:h-9"
                   >
                     <option value="limited">限次码</option>
                     <option value="permanent">常驻码</option>
@@ -648,7 +645,7 @@ export function DiscountCodesManager({ canEdit }: { canEdit: boolean }) {
                       }))
                     }
                     placeholder={form.codeType === 'permanent' ? '不限' : '100'}
-                    className="mt-2 h-11 w-full rounded-xl border border-black/8 px-3 disabled:bg-neutral-50"
+                    className="mt-2 h-11 w-full rounded-md border border-black/8 px-3 disabled:bg-neutral-50 sm:h-9"
                   />
                 </label>
                 <label className="block text-sm font-medium">
@@ -664,12 +661,12 @@ export function DiscountCodesManager({ canEdit }: { canEdit: boolean }) {
                         perUserLimit: event.target.value,
                       }))
                     }
-                    className="mt-2 h-11 w-full rounded-xl border border-black/8 px-3"
+                    className="mt-2 h-11 w-full rounded-md border border-black/8 px-3 sm:h-9"
                   />
                 </label>
               </div>
               {form.codeType === 'permanent' ? (
-                <p className="rounded-xl bg-sky-50 p-4 text-xs leading-5 text-sky-800">
+                <p className="rounded-md bg-sky-50 p-4 text-xs leading-5 text-sky-800">
                   常驻码不限制总使用次数，数据库中的总次数固定为空；仍受有效期、开关和单用户限次控制。
                 </p>
               ) : null}
@@ -686,7 +683,7 @@ export function DiscountCodesManager({ canEdit }: { canEdit: boolean }) {
                         startsAt: event.target.value,
                       }))
                     }
-                    className="mt-2 h-11 w-full rounded-xl border border-black/8 px-3"
+                    className="mt-2 h-11 w-full rounded-md border border-black/8 px-3 sm:h-9"
                   />
                 </label>
                 <label className="block text-sm font-medium">
@@ -700,7 +697,7 @@ export function DiscountCodesManager({ canEdit }: { canEdit: boolean }) {
                         endsAt: event.target.value,
                       }))
                     }
-                    className="mt-2 h-11 w-full rounded-xl border border-black/8 px-3"
+                    className="mt-2 h-11 w-full rounded-md border border-black/8 px-3 sm:h-9"
                   />
                 </label>
               </div>
@@ -716,10 +713,10 @@ export function DiscountCodesManager({ canEdit }: { canEdit: boolean }) {
                       remark: event.target.value,
                     }))
                   }
-                  className="mt-2 w-full resize-y rounded-xl border border-black/8 p-3"
+                  className="mt-2 w-full resize-y rounded-md border border-black/8 p-3"
                 />
               </label>
-              <label className="flex items-center gap-3 rounded-xl border border-black/8 px-4 py-3 text-sm font-medium">
+              <label className="flex items-center gap-3 rounded-md border border-black/8 px-4 py-3 text-sm font-medium">
                 <input
                   type="checkbox"
                   checked={form.isActive}
@@ -736,7 +733,7 @@ export function DiscountCodesManager({ canEdit }: { canEdit: boolean }) {
               <button
                 disabled={busy !== ''}
                 type="submit"
-                className="h-11 w-full rounded-xl bg-[#151816] text-sm font-semibold text-white disabled:opacity-50"
+                className="h-11 w-full rounded-md bg-[#151816] text-sm font-semibold text-white disabled:opacity-50 sm:h-9"
               >
                 {busy === 'save' ? '保存中…' : '保存折扣码'}
               </button>
@@ -766,7 +763,7 @@ export function DiscountCodesManager({ canEdit }: { canEdit: boolean }) {
               <button
                 type="button"
                 onClick={() => setRedemptionCode(null)}
-                className="rounded-xl bg-neutral-100 p-2"
+                className="rounded-md bg-neutral-100 p-2"
               >
                 <X className="size-5" />
               </button>
@@ -778,7 +775,7 @@ export function DiscountCodesManager({ canEdit }: { canEdit: boolean }) {
                 {redemptions.list.map((redemption) => (
                   <div
                     key={redemption.id}
-                    className="rounded-xl bg-neutral-50 p-4"
+                    className="rounded-md bg-neutral-50 p-4"
                   >
                     <div className="flex justify-between gap-3 text-sm">
                       <span className="font-semibold">

@@ -14,6 +14,7 @@ import {
 } from 'drizzle-orm';
 
 import type { AdminIdentity } from '@/lib/auth/admin';
+import { generateMaterialFields } from '@/lib/admin-generated-fields';
 import { getDb } from '@/lib/db/client';
 import {
   materialStockMovements,
@@ -124,10 +125,17 @@ export async function createMaterial(
   input: CreateMaterialInput,
   context: WriteContext,
 ) {
+  const normalizedInput = {
+    ...input,
+    ...generateMaterialFields(input),
+  };
   try {
     return await withAdminLog(
       async (tx) => {
-        const [created] = await tx.insert(materials).values(input).returning();
+        const [created] = await tx
+          .insert(materials)
+          .values(normalizedInput)
+          .returning();
         if (!created) {
           throw new BizError('INTERNAL_ERROR', '创建耗材失败');
         }
@@ -139,7 +147,7 @@ export async function createMaterial(
         action: 'material.create',
         targetType: 'material',
         targetId: (created) => created.id,
-        payload: { code: input.code },
+        payload: { code: normalizedInput.code },
         ip: context.ip,
       },
     );
@@ -156,9 +164,32 @@ export async function updateMaterial(
   try {
     return await withAdminLog(
       async (tx) => {
+        const [existing] = await tx
+          .select({
+            materialType: materials.materialType,
+            colorName: materials.colorName,
+            colorHex: materials.colorHex,
+            brand: materials.brand,
+          })
+          .from(materials)
+          .where(eq(materials.id, materialId))
+          .limit(1);
+        if (!existing) {
+          throw new BizError('NOT_FOUND', '耗材不存在');
+        }
+        const generatedFields = generateMaterialFields({
+          materialType: input.materialType ?? existing.materialType,
+          colorName:
+            input.colorName === undefined
+              ? existing.colorName
+              : input.colorName,
+          colorHex:
+            input.colorHex === undefined ? existing.colorHex : input.colorHex,
+          brand: input.brand === undefined ? existing.brand : input.brand,
+        });
         const [updated] = await tx
           .update(materials)
-          .set(input)
+          .set({ ...input, ...generatedFields })
           .where(eq(materials.id, materialId))
           .returning();
         if (!updated) {

@@ -261,20 +261,15 @@ export function PromotionsManager({ canEdit }: { canEdit: boolean }) {
   const totalPages = Math.max(1, Math.ceil((result?.total ?? 0) / 20));
 
   return (
-    <div className="mx-auto max-w-[1480px] px-4 py-7 sm:px-7 lg:px-10 lg:py-10">
+    <div className="admin-page">
       {notice ? (
-        <div className="fixed top-5 right-5 z-[90] rounded-2xl bg-[#151816] px-5 py-3 text-sm font-medium text-white shadow-xl">
+        <div className="fixed top-5 right-5 z-[90] rounded-lg bg-[#151816] px-5 py-3 text-sm font-medium text-white shadow-xl">
           {notice}
         </div>
       ) : null}
       <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
         <div>
-          <p className="text-xs font-semibold tracking-[0.18em] text-neutral-400">
-            PROMOTIONS
-          </p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight">
-            优惠规则
-          </h1>
+          <h1 className="text-2xl font-semibold tracking-tight">优惠规则</h1>
           <p className="mt-2 text-sm text-neutral-500">
             定义满减、折扣或包邮逻辑；折扣码将在下一任务中关联规则。
           </p>
@@ -283,7 +278,7 @@ export function PromotionsManager({ canEdit }: { canEdit: boolean }) {
           <button
             type="button"
             onClick={() => void load()}
-            className="inline-flex h-10 items-center gap-2 rounded-xl border border-black/8 bg-white px-4 text-sm font-medium"
+            className="inline-flex h-10 items-center gap-2 rounded-md border border-black/8 bg-white px-4 text-sm font-medium"
           >
             <RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} />
             刷新
@@ -292,7 +287,7 @@ export function PromotionsManager({ canEdit }: { canEdit: boolean }) {
             <button
               type="button"
               onClick={() => openEditor('new')}
-              className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#151816] px-4 text-sm font-medium text-white"
+              className="inline-flex h-10 items-center gap-2 rounded-md bg-[#151816] px-4 text-sm font-medium text-white"
             >
               <Plus className="size-4" /> 新增规则
             </button>
@@ -306,7 +301,7 @@ export function PromotionsManager({ canEdit }: { canEdit: boolean }) {
           setPage(1);
           setKeyword(keywordInput.trim());
         }}
-        className="mt-7 grid gap-3 rounded-2xl border border-black/6 bg-white p-4 shadow-sm md:grid-cols-[minmax(220px,1fr)_180px_160px_auto]"
+        className="mt-7 grid gap-3 rounded-lg border border-black/6 bg-white p-4 shadow-sm md:grid-cols-[minmax(220px,1fr)_180px_160px_auto]"
       >
         <label className="relative">
           <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-neutral-400" />
@@ -314,7 +309,7 @@ export function PromotionsManager({ canEdit }: { canEdit: boolean }) {
             value={keywordInput}
             onChange={(event) => setKeywordInput(event.target.value)}
             placeholder="规则名称"
-            className="h-10 w-full rounded-xl border border-black/8 pl-10 text-sm outline-none"
+            className="h-10 w-full rounded-md border border-black/8 pl-10 text-sm outline-none"
           />
         </label>
         <select
@@ -323,7 +318,7 @@ export function PromotionsManager({ canEdit }: { canEdit: boolean }) {
             setDiscountType(event.target.value);
             setPage(1);
           }}
-          className="h-10 rounded-xl border border-black/8 px-3 text-sm"
+          className="h-10 rounded-md border border-black/8 px-3 text-sm"
         >
           <option value="">全部类型</option>
           {Object.entries(typeLabels).map(([value, label]) => (
@@ -338,24 +333,24 @@ export function PromotionsManager({ canEdit }: { canEdit: boolean }) {
             setActiveFilter(event.target.value);
             setPage(1);
           }}
-          className="h-10 rounded-xl border border-black/8 px-3 text-sm"
+          className="h-10 rounded-md border border-black/8 px-3 text-sm"
         >
           <option value="">全部状态</option>
           <option value="true">已启用</option>
           <option value="false">已停用</option>
         </select>
-        <button className="h-10 rounded-xl bg-lime-300 px-5 text-sm font-semibold">
+        <button className="h-10 rounded-md bg-lime-300 px-5 text-sm font-semibold">
           查询
         </button>
       </form>
 
       {error ? (
-        <div className="mt-5 flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700">
+        <div className="mt-5 flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           <CircleAlert className="size-4" /> {error}
         </div>
       ) : null}
 
-      <div className="mt-5 overflow-hidden rounded-2xl border border-black/6 bg-white shadow-sm">
+      <div className="mt-5 overflow-hidden rounded-lg border border-black/6 bg-white shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1000px] text-left text-sm">
             <thead className="bg-neutral-50 text-xs text-neutral-500">
@@ -382,16 +377,16 @@ export function PromotionsManager({ canEdit }: { canEdit: boolean }) {
               ) : result?.list.length ? (
                 result.list.map((promotion) => (
                   <tr key={promotion.id} className="hover:bg-neutral-50/70">
-                    <td className="px-5 py-4">
+                    <td className="px-4 py-3">
                       <p className="font-semibold">{promotion.name}</p>
                       <p className="mt-1 text-xs text-neutral-400">
                         {typeLabels[promotion.discountType]}
                       </p>
                     </td>
-                    <td className="px-5 py-4 font-medium">
+                    <td className="px-4 py-3 font-medium">
                       {describePromotion(promotion)}
                     </td>
-                    <td className="px-5 py-4">
+                    <td className="px-4 py-3">
                       <p>满 ¥{promotion.minOrderAmount}</p>
                       <p className="mt-1 text-xs text-neutral-400">
                         {scopeLabels[promotion.scope]}
@@ -400,15 +395,15 @@ export function PromotionsManager({ canEdit }: { canEdit: boolean }) {
                           : ''}
                       </p>
                     </td>
-                    <td className="px-5 py-4">{promotion.codeCount} 个</td>
-                    <td className="px-5 py-4">
+                    <td className="px-4 py-3">{promotion.codeCount} 个</td>
+                    <td className="px-4 py-3">
                       <span
                         className={`rounded-full px-2.5 py-1 text-xs font-medium ${promotion.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-neutral-100 text-neutral-500'}`}
                       >
                         {promotion.isActive ? '已启用' : '已停用'}
                       </span>
                     </td>
-                    <td className="px-5 py-4">
+                    <td className="px-4 py-3">
                       <div className="flex justify-end gap-2">
                         {canEdit ? (
                           <>
@@ -459,7 +454,7 @@ export function PromotionsManager({ canEdit }: { canEdit: boolean }) {
             </tbody>
           </table>
         </div>
-        <div className="flex items-center justify-between border-t border-black/6 px-5 py-4 text-sm">
+        <div className="flex items-center justify-between border-t border-black/6 px-4 py-3 text-sm">
           <span className="text-neutral-500">共 {result?.total ?? 0} 条</span>
           <div className="flex items-center gap-2">
             <button
@@ -491,7 +486,7 @@ export function PromotionsManager({ canEdit }: { canEdit: boolean }) {
             onClick={() => setEditing(null)}
             className="absolute inset-0 bg-black/45 backdrop-blur-[2px]"
           />
-          <section className="relative max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl">
+          <section className="relative max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:rounded-lg">
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-black/6 bg-white px-6 py-5">
               <div>
                 <h2 className="text-xl font-semibold">
@@ -504,7 +499,7 @@ export function PromotionsManager({ canEdit }: { canEdit: boolean }) {
               <button
                 type="button"
                 onClick={() => setEditing(null)}
-                className="rounded-xl bg-neutral-100 p-2 text-neutral-500"
+                className="rounded-md bg-neutral-100 p-2 text-neutral-500"
               >
                 <X className="size-5" />
               </button>
@@ -522,7 +517,7 @@ export function PromotionsManager({ canEdit }: { canEdit: boolean }) {
                   onChange={(event) =>
                     setForm((value) => ({ ...value, name: event.target.value }))
                   }
-                  className="mt-2 h-11 w-full rounded-xl border border-black/8 px-3 outline-none"
+                  className="mt-2 h-11 w-full rounded-md border border-black/8 px-3 outline-none sm:h-9"
                 />
               </label>
               <div className="grid gap-4 sm:grid-cols-2">
@@ -539,7 +534,7 @@ export function PromotionsManager({ canEdit }: { canEdit: boolean }) {
                         maxDiscountAmount: '',
                       }));
                     }}
-                    className="mt-2 h-11 w-full rounded-xl border border-black/8 px-3"
+                    className="mt-2 h-11 w-full rounded-md border border-black/8 px-3 sm:h-9"
                   >
                     <option value="fixed_amount">满减</option>
                     <option value="percentage">折扣</option>
@@ -558,7 +553,7 @@ export function PromotionsManager({ canEdit }: { canEdit: boolean }) {
                         minOrderAmount: event.target.value,
                       }))
                     }
-                    className="mt-2 h-11 w-full rounded-xl border border-black/8 px-3"
+                    className="mt-2 h-11 w-full rounded-md border border-black/8 px-3 sm:h-9"
                   />
                   <span className="mt-1.5 block text-xs font-normal text-neutral-400">
                     仅比较商品小计
@@ -586,7 +581,7 @@ export function PromotionsManager({ canEdit }: { canEdit: boolean }) {
                           ? '0.9 表示九折'
                           : '10.00'
                       }
-                      className="mt-2 h-11 w-full rounded-xl border border-black/8 px-3"
+                      className="mt-2 h-11 w-full rounded-md border border-black/8 px-3 sm:h-9"
                     />
                   </label>
                   {form.discountType === 'percentage' ? (
@@ -601,17 +596,17 @@ export function PromotionsManager({ canEdit }: { canEdit: boolean }) {
                             maxDiscountAmount: event.target.value,
                           }))
                         }
-                        className="mt-2 h-11 w-full rounded-xl border border-black/8 px-3"
+                        className="mt-2 h-11 w-full rounded-md border border-black/8 px-3 sm:h-9"
                       />
                     </label>
                   ) : (
-                    <div className="rounded-xl bg-neutral-50 p-4 text-xs leading-5 text-neutral-500">
+                    <div className="rounded-md bg-neutral-50 p-4 text-xs leading-5 text-neutral-500">
                       满减金额会被限制为不超过商品小计，不能抵扣运费。
                     </div>
                   )}
                 </div>
               ) : (
-                <div className="rounded-xl bg-sky-50 p-4 text-sm text-sky-800">
+                <div className="rounded-md bg-sky-50 p-4 text-sm text-sky-800">
                   包邮规则只减免运费，不改变商品金额。
                 </div>
               )}
@@ -627,14 +622,14 @@ export function PromotionsManager({ canEdit }: { canEdit: boolean }) {
                         scopeIds: '',
                       }))
                     }
-                    className="mt-2 h-11 w-full rounded-xl border border-black/8 px-3"
+                    className="mt-2 h-11 w-full rounded-md border border-black/8 px-3 sm:h-9"
                   >
                     <option value="all">全场</option>
                     <option value="category">指定分类</option>
                     <option value="product">指定商品</option>
                   </select>
                 </label>
-                <label className="flex items-center gap-3 rounded-xl border border-black/8 px-4 py-3 text-sm font-medium">
+                <label className="flex items-center gap-3 rounded-md border border-black/8 px-4 py-3 text-sm font-medium">
                   <input
                     type="checkbox"
                     checked={form.isActive}
@@ -663,7 +658,7 @@ export function PromotionsManager({ canEdit }: { canEdit: boolean }) {
                         scopeIds: event.target.value,
                       }))
                     }
-                    className="mt-2 w-full resize-y rounded-xl border border-black/8 p-3 font-mono text-xs outline-none"
+                    className="mt-2 w-full resize-y rounded-md border border-black/8 p-3 font-mono text-xs outline-none"
                   />
                   <span className="mt-1.5 block text-xs font-normal text-amber-600">
                     字段已完整保留；第一版下单仅支持全场规则，指定范围规则请保持停用。
@@ -673,7 +668,7 @@ export function PromotionsManager({ canEdit }: { canEdit: boolean }) {
               <button
                 disabled={busy !== ''}
                 type="submit"
-                className="h-11 w-full rounded-xl bg-[#151816] text-sm font-semibold text-white disabled:opacity-50"
+                className="h-11 w-full rounded-md bg-[#151816] text-sm font-semibold text-white disabled:opacity-50 sm:h-9"
               >
                 {busy === 'save' ? '保存中…' : '保存优惠规则'}
               </button>

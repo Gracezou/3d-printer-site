@@ -150,13 +150,10 @@ export function ReturnsManager() {
   }
 
   return (
-    <div className="p-5 sm:p-8">
+    <div className="admin-page">
       <div className="flex items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-bold tracking-[0.2em] text-neutral-400">
-            AFTER SALES
-          </p>
-          <h1 className="mt-2 text-2xl font-semibold">售后审核</h1>
+          <h1 className="text-xl font-semibold">售后审核</h1>
           <p className="mt-2 text-sm text-neutral-500">
             按件核对打印状态、可退余额与返库选择。
           </p>
@@ -164,7 +161,7 @@ export function ReturnsManager() {
         <button
           type="button"
           onClick={() => void load()}
-          className="rounded-xl border border-black/8 bg-white p-2.5"
+          className="rounded-md border border-black/8 bg-white p-2.5"
           aria-label="刷新"
         >
           <RefreshCw className="size-4" />
@@ -190,7 +187,7 @@ export function ReturnsManager() {
       </div>
 
       {error ? (
-        <div className="mt-5 flex items-center gap-2 rounded-xl bg-rose-50 p-4 text-sm text-rose-700">
+        <div className="mt-5 flex items-center gap-2 rounded-md bg-rose-50 p-4 text-sm text-rose-700">
           <CircleAlert className="size-4" /> {error}
         </div>
       ) : null}
@@ -204,7 +201,7 @@ export function ReturnsManager() {
           {result.list.map((request) => (
             <article
               key={request.id}
-              className="rounded-2xl border border-black/6 bg-white p-5 shadow-sm"
+              className="rounded-lg border border-black/6 bg-white p-5 shadow-sm"
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -225,7 +222,7 @@ export function ReturnsManager() {
                   {request.status}
                 </span>
               </div>
-              <p className="mt-4 rounded-xl bg-neutral-50 p-3 text-sm leading-6">
+              <p className="mt-4 rounded-md bg-neutral-50 p-3 text-sm leading-6">
                 {request.reasonCode}：{request.reasonText || '未填写说明'}
               </p>
               {request.images.length ? (
@@ -249,7 +246,7 @@ export function ReturnsManager() {
                   return (
                     <div
                       key={item.orderItemId}
-                      className="rounded-xl border border-black/6 p-3 text-sm"
+                      className="rounded-md border border-black/6 p-3 text-sm"
                     >
                       <div className="flex flex-wrap justify-between gap-2">
                         <span className="font-medium">
@@ -292,7 +289,7 @@ export function ReturnsManager() {
                 </p>
               ) : null}
               {request.internalNotes.length ? (
-                <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
+                <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
                   <p className="font-semibold">内部处理记录（仅后台可见）</p>
                   <ul className="mt-2 space-y-1.5">
                     {request.internalNotes.map((note) => (
@@ -314,14 +311,14 @@ export function ReturnsManager() {
                   <button
                     disabled={Boolean(busy)}
                     onClick={() => void approve(request)}
-                    className="h-10 rounded-xl bg-[#151816] px-5 text-sm font-semibold text-white disabled:opacity-40"
+                    className="h-10 rounded-md bg-[#151816] px-5 text-sm font-semibold text-white disabled:opacity-40"
                   >
                     {busy === request.id ? '处理中…' : '通过并退款'}
                   </button>
                   <button
                     disabled={Boolean(busy)}
                     onClick={() => void reject(request)}
-                    className="h-10 rounded-xl border border-rose-200 px-5 text-sm font-semibold text-rose-700 disabled:opacity-40"
+                    className="h-10 rounded-md border border-rose-200 px-5 text-sm font-semibold text-rose-700 disabled:opacity-40"
                   >
                     驳回
                   </button>
@@ -331,7 +328,7 @@ export function ReturnsManager() {
           ))}
         </div>
       ) : (
-        <div className="mt-6 rounded-2xl bg-white p-12 text-center text-sm text-neutral-400">
+        <div className="mt-6 rounded-lg bg-white p-12 text-center text-sm text-neutral-400">
           暂无售后申请
         </div>
       )}

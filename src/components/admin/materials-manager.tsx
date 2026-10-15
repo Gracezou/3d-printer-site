@@ -8,6 +8,7 @@ import {
   ClipboardList,
   Filter,
   LoaderCircle,
+  MoreHorizontal,
   PackageOpen,
   Pencil,
   Plus,
@@ -26,7 +27,15 @@ import {
   type ReactNode,
 } from 'react';
 
+import { AdminDrawer } from '@/components/admin/admin-drawer';
+
+import { useAdminQueryState } from '@/lib/use-admin-query-state';
+
 import { notifyAdminUnauthorized } from '@/lib/admin-session-client';
+import {
+  composeMaterialBatchNo,
+  generateMaterialFields,
+} from '@/lib/admin-generated-fields';
 
 interface Material {
   id: string;
@@ -177,7 +186,7 @@ function Modal({
       <section
         role="dialog"
         aria-modal="true"
-        className={`relative max-h-[92vh] w-full overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl ${
+        className={`relative max-h-[92vh] w-full overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-lg ${
           wide ? 'max-w-5xl' : 'max-w-2xl'
         }`}
       >
@@ -192,7 +201,7 @@ function Modal({
             type="button"
             aria-label="关闭"
             onClick={onClose}
-            className="rounded-xl bg-neutral-100 p-2 text-neutral-500 transition hover:bg-neutral-200 hover:text-neutral-900"
+            className="rounded-md bg-neutral-100 p-2 text-neutral-500 transition hover:bg-neutral-200 hover:text-neutral-900"
           >
             <X className="size-5" />
           </button>
@@ -228,7 +237,7 @@ function Field({
 }
 
 const inputClass =
-  'h-11 w-full rounded-xl border border-black/10 bg-white px-3 text-sm outline-none transition placeholder:text-neutral-300 focus:border-neutral-500 focus:ring-2 focus:ring-neutral-100';
+  'h-11 sm:h-9 w-full rounded-md border border-black/10 bg-white px-3 text-sm outline-none transition placeholder:text-neutral-300 focus:border-neutral-500 focus:ring-2 focus:ring-neutral-100';
 
 function SubmitBar({
   onClose,
@@ -240,17 +249,18 @@ function SubmitBar({
   label: string;
 }) {
   return (
-    <div className="flex justify-end gap-3 border-t border-black/6 bg-neutral-50 px-5 py-4 sm:px-7">
+    <div className="admin-save-bar">
       <button
         type="button"
+        data-drawer-close
         onClick={onClose}
-        className="h-10 rounded-xl border border-black/10 bg-white px-4 text-sm font-medium"
+        className="h-10 rounded-md border border-black/10 bg-white px-4 text-sm font-medium"
       >
         取消
       </button>
       <button
         disabled={submitting}
-        className="flex h-10 items-center gap-2 rounded-xl bg-[#151816] px-5 text-sm font-semibold text-white disabled:opacity-50"
+        className="flex h-10 items-center gap-2 rounded-md bg-[#151816] px-5 text-sm font-semibold text-white disabled:opacity-50"
       >
         {submitting ? <LoaderCircle className="size-4 animate-spin" /> : null}
         {label}
@@ -271,8 +281,6 @@ function MaterialEditor({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [form, setForm] = useState({
-    code: material?.code ?? '',
-    name: material?.name ?? '',
     materialType: material?.materialType ?? 'PLA',
     colorName: material?.colorName ?? '',
     colorHex: material?.colorHex ?? '#000000',
@@ -289,6 +297,8 @@ function MaterialEditor({
     setForm((current) => ({ ...current, [name]: value }));
   }
 
+  const generatedFields = generateMaterialFields(form);
+
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     setSubmitting(true);
@@ -296,6 +306,7 @@ function MaterialEditor({
     try {
       const payload = {
         ...form,
+        ...generatedFields,
         colorName: form.colorName || null,
         colorHex: form.colorHex || null,
         brand: form.brand || null,
@@ -321,31 +332,26 @@ function MaterialEditor({
   }
 
   return (
-    <Modal
+    <AdminDrawer
       title={material ? '编辑耗材' : '新增耗材'}
       description="库存数量需通过入库或盘点调整，不能在此直接修改。"
       onClose={onClose}
+      busy={submitting}
     >
       <form onSubmit={submit}>
         <div className="grid gap-5 px-5 py-6 sm:grid-cols-2 sm:px-7">
-          <Field label="耗材编码">
+          <Field label="耗材编码" hint="根据色值、品牌和类型自动生成。">
             <input
-              required
-              maxLength={64}
-              value={form.code}
-              onChange={(event) => change('code', event.target.value)}
-              className={inputClass}
-              placeholder="PLA-BLK-175"
+              readOnly
+              value={generatedFields.code}
+              className={`${inputClass} bg-neutral-50 font-mono text-neutral-600`}
             />
           </Field>
-          <Field label="耗材名称">
+          <Field label="耗材名称" hint="根据颜色名称、品牌和类型自动生成。">
             <input
-              required
-              maxLength={100}
-              value={form.name}
-              onChange={(event) => change('name', event.target.value)}
-              className={inputClass}
-              placeholder="PLA 黑色 1.75mm"
+              readOnly
+              value={generatedFields.name}
+              className={`${inputClass} bg-neutral-50 text-neutral-600`}
             />
           </Field>
           <Field label="类型">
@@ -381,7 +387,7 @@ function MaterialEditor({
                 type="color"
                 value={form.colorHex || '#000000'}
                 onChange={(event) => change('colorHex', event.target.value)}
-                className="h-11 w-14 rounded-xl border border-black/10 bg-white p-1"
+                className="h-11 w-14 rounded-md border border-black/10 bg-white p-1 sm:h-9"
               />
               <input
                 value={form.colorHex}
@@ -446,7 +452,7 @@ function MaterialEditor({
             />
           </Field>
           {error ? (
-            <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700 sm:col-span-2">
+            <p className="rounded-md bg-red-50 p-3 text-sm text-red-700 sm:col-span-2">
               {error}
             </p>
           ) : null}
@@ -457,7 +463,7 @@ function MaterialEditor({
           label={material ? '保存修改' : '创建耗材'}
         />
       </form>
-    </Modal>
+    </AdminDrawer>
   );
 }
 
@@ -472,6 +478,11 @@ function StockInDialog({
 }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const now = new Date();
+  const [purchaseDate, setPurchaseDate] = useState(
+    `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`,
+  );
+  const [orderNo, setOrderNo] = useState('');
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -484,7 +495,7 @@ function StockInDialog({
         body: JSON.stringify({
           grams: data.get('grams'),
           unitCostPerKg: data.get('unitCostPerKg'),
-          batchNo: data.get('batchNo') || null,
+          batchNo: composeMaterialBatchNo(purchaseDate, orderNo),
           remark: data.get('remark') || null,
         }),
       });
@@ -522,12 +533,25 @@ function StockInDialog({
               defaultValue={material.unitCostPerKg}
             />
           </Field>
-          <Field label="批次号">
+          <Field label="采购日期">
             <input
-              name="batchNo"
-              maxLength={64}
+              type="date"
+              required
+              value={purchaseDate}
+              onChange={(event) => setPurchaseDate(event.target.value)}
               className={inputClass}
-              placeholder="B20260828"
+            />
+          </Field>
+          <Field
+            label="订单号（选填）"
+            hint={`保存批次号：${composeMaterialBatchNo(purchaseDate, orderNo) ?? '—'}`}
+          >
+            <input
+              maxLength={55}
+              value={orderNo}
+              onChange={(event) => setOrderNo(event.target.value)}
+              className={inputClass}
+              placeholder="例如 PO-20261013-01"
             />
           </Field>
           <Field label="备注">
@@ -539,7 +563,7 @@ function StockInDialog({
             />
           </Field>
           {error ? (
-            <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700 sm:col-span-2">
+            <p className="rounded-md bg-red-50 p-3 text-sm text-red-700 sm:col-span-2">
               {error}
             </p>
           ) : null}
@@ -608,12 +632,12 @@ function AdjustDialog({
               name="remark"
               required
               maxLength={2000}
-              className="min-h-24 w-full rounded-xl border border-black/10 p-3 text-sm outline-none focus:border-neutral-500"
+              className="min-h-24 w-full rounded-md border border-black/10 p-3 text-sm outline-none focus:border-neutral-500"
               placeholder="请填写盘点差异原因"
             />
           </Field>
           {error ? (
-            <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">
+            <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">
               {error}
             </p>
           ) : null}
@@ -671,7 +695,7 @@ function MovementsDialog({
       onClose={onClose}
       wide
     >
-      <div className="border-b border-black/6 bg-neutral-50 px-5 py-4 sm:px-7">
+      <div className="border-b border-black/6 bg-neutral-50 px-4 py-3 sm:px-7">
         <div className="grid gap-3 sm:grid-cols-[1fr_1fr_1fr_auto]">
           <select
             value={type}
@@ -700,7 +724,7 @@ function MovementsDialog({
           <button
             type="button"
             onClick={() => void load()}
-            className="h-11 rounded-xl bg-[#151816] px-4 text-sm font-medium text-white"
+            className="h-11 rounded-md bg-[#151816] px-4 text-sm font-medium text-white sm:h-9"
           >
             筛选
           </button>
@@ -713,7 +737,7 @@ function MovementsDialog({
           </div>
         ) : null}
         {error ? (
-          <p className="rounded-xl bg-red-50 p-4 text-sm text-red-700">
+          <p className="rounded-md bg-red-50 p-4 text-sm text-red-700">
             {error}
           </p>
         ) : null}
@@ -804,7 +828,7 @@ function ToggleConfirmation({
       onClose={onClose}
     >
       <div className="px-5 py-6 sm:px-7">
-        <div className="flex gap-3 rounded-2xl bg-amber-50 p-4 text-amber-900">
+        <div className="flex gap-3 rounded-lg bg-amber-50 p-4 text-amber-900">
           <CircleAlert className="mt-0.5 size-5 shrink-0" />
           <p className="text-sm leading-6">
             <strong>{material.name}</strong> 当前关联{' '}
@@ -813,7 +837,7 @@ function ToggleConfirmation({
           </p>
         </div>
         {variants.length > 0 ? (
-          <div className="mt-4 max-h-56 overflow-y-auto rounded-2xl border border-black/6">
+          <div className="mt-4 max-h-56 overflow-y-auto rounded-lg border border-black/6">
             {variants.map((variant) => (
               <div
                 key={variant.variantId}
@@ -837,11 +861,11 @@ function ToggleConfirmation({
           <p className="mt-4 text-sm text-neutral-500">暂无关联商品变体。</p>
         )}
       </div>
-      <div className="flex justify-end gap-3 border-t border-black/6 bg-neutral-50 px-5 py-4 sm:px-7">
+      <div className="flex justify-end gap-3 border-t border-black/6 bg-neutral-50 px-4 py-3 sm:px-7">
         <button
           type="button"
           onClick={onClose}
-          className="h-10 rounded-xl border border-black/10 bg-white px-4 text-sm font-medium"
+          className="h-10 rounded-md border border-black/10 bg-white px-4 text-sm font-medium"
         >
           取消
         </button>
@@ -849,7 +873,7 @@ function ToggleConfirmation({
           type="button"
           disabled={submitting}
           onClick={onConfirm}
-          className="flex h-10 items-center gap-2 rounded-xl bg-red-600 px-5 text-sm font-semibold text-white disabled:opacity-50"
+          className="flex h-10 items-center gap-2 rounded-md bg-red-600 px-5 text-sm font-semibold text-white disabled:opacity-50"
         >
           {submitting ? <LoaderCircle className="size-4 animate-spin" /> : null}
           确认停用
@@ -864,15 +888,20 @@ export function MaterialsManager({ permissions }: MaterialsManagerProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const [keywordInput, setKeywordInput] = useState('');
-  const [keyword, setKeyword] = useState('');
-  const [type, setType] = useState('');
-  const [lowStockOnly, setLowStockOnly] = useState(false);
-  const [page, setPage] = useState(1);
+  const [keyword, setKeyword] = useAdminQueryState<string>('keyword', '');
+  const [keywordInput, setKeywordInput] = useState(keyword);
+  useEffect(() => setKeywordInput(keyword), [keyword]);
+  const [type, setType] = useAdminQueryState<string>('type', '');
+  const [lowStockOnly, setLowStockOnly] = useAdminQueryState<boolean>(
+    'lowStockOnly',
+    false,
+  );
+  const [page, setPage] = useAdminQueryState<number>('page', 1);
   const [editor, setEditor] = useState<Material | 'new' | null>(null);
   const [stockTarget, setStockTarget] = useState<Material | null>(null);
   const [adjustTarget, setAdjustTarget] = useState<Material | null>(null);
   const [movementTarget, setMovementTarget] = useState<Material | null>(null);
+  const [moreTarget, setMoreTarget] = useState<Material | null>(null);
   const [toggleReview, setToggleReview] = useState<{
     material: Material;
     variants: VariantReference[];
@@ -957,18 +986,15 @@ export function MaterialsManager({ permissions }: MaterialsManagerProps) {
     result?.list.filter((material) => material.isLowStock).length ?? 0;
 
   return (
-    <div className="mx-auto max-w-[1480px] px-4 py-7 sm:px-7 lg:px-10 lg:py-10">
+    <div className="admin-page">
       {notice ? (
-        <div className="fixed top-5 right-5 z-[90] rounded-2xl bg-[#151816] px-5 py-3 text-sm font-medium text-white shadow-xl">
+        <div className="fixed top-5 right-5 z-[90] rounded-lg bg-[#151816] px-5 py-3 text-sm font-medium text-white shadow-xl">
           {notice}
         </div>
       ) : null}
       <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
         <div>
-          <p className="text-xs font-semibold tracking-[0.18em] text-neutral-400">
-            INVENTORY
-          </p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-neutral-900">
+          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">
             耗材管理
           </h1>
           <p className="mt-2 text-sm text-neutral-500">
@@ -979,7 +1005,7 @@ export function MaterialsManager({ permissions }: MaterialsManagerProps) {
           <button
             type="button"
             onClick={() => setEditor('new')}
-            className="flex h-11 items-center justify-center gap-2 rounded-xl bg-[#151816] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-black"
+            className="flex h-11 items-center justify-center gap-2 rounded-md bg-[#151816] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-black sm:h-9"
           >
             <Plus className="size-4" />
             新增耗材
@@ -987,26 +1013,15 @@ export function MaterialsManager({ permissions }: MaterialsManagerProps) {
         ) : null}
       </div>
 
-      <div className="mt-7 grid gap-3 sm:grid-cols-3">
-        <div className="rounded-2xl border border-black/6 bg-white p-4">
-          <p className="text-xs text-neutral-400">耗材档案</p>
-          <p className="mt-1 text-2xl font-semibold">{result?.total ?? '—'}</p>
-        </div>
-        <div className="rounded-2xl border border-black/6 bg-white p-4">
-          <p className="text-xs text-neutral-400">当前页低库存</p>
-          <p
-            className={`mt-1 text-2xl font-semibold ${lowStockCount > 0 ? 'text-red-600' : ''}`}
-          >
-            {loading ? '—' : lowStockCount}
-          </p>
-        </div>
-        <div className="rounded-2xl border border-black/6 bg-white p-4">
-          <p className="text-xs text-neutral-400">库存口径</p>
-          <p className="mt-2 text-sm font-medium">在库 − 预扣 − 安全库存</p>
-        </div>
+      <div className="mt-4 flex flex-wrap gap-4 text-xs text-neutral-500">
+        <span>耗材 {result?.total ?? '—'} 条</span>
+        <span className={lowStockCount > 0 ? 'text-red-600' : ''}>
+          当前页低库存 {lowStockCount} 条
+        </span>
+        <span>可用 = 在库 − 预扣 − 安全库存</span>
       </div>
 
-      <div className="mt-5 rounded-2xl border border-black/6 bg-white shadow-[0_1px_2px_rgba(0,0,0,.03)]">
+      <div className="mt-5 rounded-lg border border-black/6 bg-white shadow-none">
         <form
           className="flex flex-col gap-3 border-b border-black/6 p-4 lg:flex-row"
           onSubmit={(event) => {
@@ -1037,7 +1052,7 @@ export function MaterialsManager({ permissions }: MaterialsManagerProps) {
               <option key={item}>{item}</option>
             ))}
           </select>
-          <label className="flex h-11 cursor-pointer items-center gap-2 rounded-xl border border-black/10 px-3 text-sm text-neutral-600">
+          <label className="flex h-11 cursor-pointer items-center gap-2 rounded-md border border-black/10 px-3 text-sm text-neutral-600 sm:h-9">
             <input
               type="checkbox"
               checked={lowStockOnly}
@@ -1050,27 +1065,27 @@ export function MaterialsManager({ permissions }: MaterialsManagerProps) {
             <Filter className="size-4" />
             仅看低库存
           </label>
-          <button className="h-11 rounded-xl bg-neutral-100 px-5 text-sm font-medium text-neutral-700 transition hover:bg-neutral-200">
+          <button className="h-11 rounded-md bg-neutral-100 px-5 text-sm font-medium text-neutral-700 transition hover:bg-neutral-200 sm:h-9">
             查询
           </button>
           <button
             type="button"
             title="刷新"
             onClick={() => void loadMaterials()}
-            className="grid size-11 place-items-center rounded-xl border border-black/10 text-neutral-500 hover:bg-neutral-50"
+            className="grid size-11 place-items-center rounded-md border border-black/10 text-neutral-500 hover:bg-neutral-50"
           >
             <RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </form>
 
         {error ? (
-          <div className="m-4 flex items-center gap-2 rounded-xl bg-red-50 p-4 text-sm text-red-700">
+          <div className="m-4 flex items-center gap-2 rounded-md bg-red-50 p-4 text-sm text-red-700">
             <CircleAlert className="size-4" />
             {error}
           </div>
         ) : null}
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1120px] text-left text-sm">
+          <table className="w-full min-w-[1220px] text-left text-sm">
             <thead className="bg-neutral-50/70 text-xs text-neutral-400">
               <tr>
                 <th className="px-5 py-3.5 font-medium">耗材</th>
@@ -1084,7 +1099,7 @@ export function MaterialsManager({ permissions }: MaterialsManagerProps) {
               </tr>
             </thead>
             <tbody>
-              {loading ? (
+              {loading && !result ? (
                 <tr>
                   <td colSpan={8}>
                     <div className="grid h-56 place-items-center text-neutral-400">
@@ -1103,137 +1118,107 @@ export function MaterialsManager({ permissions }: MaterialsManagerProps) {
                   </td>
                 </tr>
               ) : null}
-              {!loading &&
-                result?.list.map((material) => (
-                  <tr
-                    key={material.id}
-                    className={`border-t border-black/5 transition hover:bg-neutral-50/70 ${material.isLowStock ? 'bg-red-50/45' : ''}`}
-                  >
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-3">
-                        <span
-                          className="size-8 shrink-0 rounded-lg border border-black/10 shadow-inner"
-                          style={{
-                            backgroundColor: material.colorHex ?? '#e5e5e5',
-                          }}
-                        />
-                        <div>
-                          <p className="font-semibold text-neutral-900">
-                            {material.name}
-                          </p>
-                          <p className="mt-0.5 font-mono text-xs text-neutral-400">
-                            {material.code}
-                            {material.colorName
-                              ? ` · ${material.colorName}`
-                              : ''}
-                          </p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4">
-                      <p className="font-medium">{material.materialType}</p>
-                      <p className="mt-1 text-xs text-neutral-400">
-                        {material.brand || '无品牌'} ·{' '}
-                        {material.spec || '未设置规格'}
-                      </p>
-                    </td>
-                    <td className="px-4 py-4 text-right font-medium tabular-nums">
-                      {formatGrams(material.stockGrams)}
-                    </td>
-                    <td className="px-4 py-4 text-right text-neutral-500 tabular-nums">
-                      {formatGrams(material.reservedGrams)}
-                    </td>
-                    <td
-                      className={`px-4 py-4 text-right font-semibold tabular-nums ${material.isLowStock ? 'text-red-600' : 'text-emerald-700'}`}
-                    >
-                      {formatGrams(material.availableGrams)}
-                      {material.isLowStock ? (
-                        <span className="mt-1 block text-[10px] font-medium">
-                          库存预警
-                        </span>
-                      ) : null}
-                    </td>
-                    <td className="px-4 py-4">
-                      <p>{formatGrams(material.safetyGrams)}</p>
-                      <p className="mt-1 text-xs text-neutral-400">
-                        损耗 {(Number(material.wasteRate) * 100).toFixed(1)}%
-                      </p>
-                    </td>
-                    <td className="px-4 py-4">
+              {result?.list.map((material) => (
+                <tr
+                  key={material.id}
+                  className={`border-t border-black/5 transition hover:bg-neutral-50/70 ${material.isLowStock ? 'bg-red-50/45' : ''}`}
+                >
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
                       <span
-                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${material.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-neutral-100 text-neutral-500'}`}
-                      >
-                        {material.isActive ? '启用' : '已停用'}
+                        className="size-8 shrink-0 rounded-lg border border-black/10 shadow-inner"
+                        style={{
+                          backgroundColor: material.colorHex ?? '#e5e5e5',
+                        }}
+                      />
+                      <div>
+                        <p className="font-semibold text-neutral-900">
+                          {material.name}
+                        </p>
+                        <p className="mt-0.5 font-mono text-xs text-neutral-400">
+                          {material.code}
+                          {material.colorName ? ` · ${material.colorName}` : ''}
+                        </p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-4">
+                    <p className="font-medium">{material.materialType}</p>
+                    <p className="mt-1 text-xs text-neutral-400">
+                      {material.brand || '无品牌'} ·{' '}
+                      {material.spec || '未设置规格'}
+                    </p>
+                  </td>
+                  <td className="px-4 py-4 text-right font-medium tabular-nums">
+                    {formatGrams(material.stockGrams)}
+                  </td>
+                  <td className="px-4 py-4 text-right text-neutral-500 tabular-nums">
+                    {formatGrams(material.reservedGrams)}
+                  </td>
+                  <td
+                    className={`px-4 py-4 text-right font-semibold tabular-nums ${material.isLowStock ? 'text-red-600' : 'text-emerald-700'}`}
+                  >
+                    {formatGrams(material.availableGrams)}
+                    {material.isLowStock ? (
+                      <span className="mt-1 block text-[10px] font-medium">
+                        库存预警
                       </span>
-                      <p className="mt-1 text-[10px] text-neutral-400">
-                        关联 {material.usedByVariantCount} 个变体
-                      </p>
-                    </td>
-                    <td className="px-5 py-4">
-                      <div className="flex justify-end gap-1">
-                        {permissions.stockIn ? (
-                          <button
-                            type="button"
-                            title="入库"
-                            onClick={() => setStockTarget(material)}
-                            className="rounded-lg p-2 text-neutral-500 hover:bg-lime-100 hover:text-lime-800"
-                          >
-                            <ArrowDownToLine className="size-4" />
-                          </button>
-                        ) : null}
-                        {permissions.adjust ? (
-                          <button
-                            type="button"
-                            title="盘点调整"
-                            onClick={() => setAdjustTarget(material)}
-                            className="rounded-lg p-2 text-neutral-500 hover:bg-amber-100 hover:text-amber-800"
-                          >
-                            <SlidersHorizontal className="size-4" />
-                          </button>
-                        ) : null}
+                    ) : null}
+                  </td>
+                  <td className="px-4 py-4">
+                    <p>{formatGrams(material.safetyGrams)}</p>
+                    <p className="mt-1 text-xs text-neutral-400">
+                      损耗 {(Number(material.wasteRate) * 100).toFixed(1)}%
+                    </p>
+                  </td>
+                  <td className="px-4 py-4">
+                    <span
+                      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${material.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-neutral-100 text-neutral-500'}`}
+                    >
+                      {material.isActive ? '启用' : '已停用'}
+                    </span>
+                    <p className="mt-1 text-[10px] text-neutral-400">
+                      关联 {material.usedByVariantCount} 个变体
+                    </p>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-2">
+                      {permissions.stockIn ? (
                         <button
                           type="button"
-                          title="库存流水"
-                          onClick={() => setMovementTarget(material)}
-                          className="rounded-lg p-2 text-neutral-500 hover:bg-blue-100 hover:text-blue-700"
+                          onClick={() => setStockTarget(material)}
+                          className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-lime-50 px-3 text-xs font-medium text-lime-800 transition hover:bg-lime-100"
                         >
-                          <ClipboardList className="size-4" />
+                          <ArrowDownToLine className="size-4" />
+                          补货
                         </button>
-                        {permissions.edit ? (
-                          <button
-                            type="button"
-                            title="编辑"
-                            onClick={() => setEditor(material)}
-                            className="rounded-lg p-2 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"
-                          >
-                            <Pencil className="size-4" />
-                          </button>
-                        ) : null}
-                        {permissions.edit ? (
-                          <button
-                            type="button"
-                            disabled={busyId === material.id}
-                            title={material.isActive ? '停用' : '启用'}
-                            onClick={() => void requestToggle(material)}
-                            className={`rounded-lg p-2 ${material.isActive ? 'text-emerald-600 hover:bg-red-50 hover:text-red-600' : 'text-neutral-400 hover:bg-emerald-50 hover:text-emerald-600'}`}
-                          >
-                            {busyId === material.id ? (
-                              <LoaderCircle className="size-4 animate-spin" />
-                            ) : material.isActive ? (
-                              <ToggleRight className="size-4" />
-                            ) : (
-                              <ToggleLeft className="size-4" />
-                            )}
-                          </button>
-                        ) : null}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      ) : null}
+                      {permissions.adjust ? (
+                        <button
+                          type="button"
+                          onClick={() => setAdjustTarget(material)}
+                          className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-amber-50 px-3 text-xs font-medium text-amber-800 transition hover:bg-amber-100"
+                        >
+                          <SlidersHorizontal className="size-4" />
+                          盘库
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => setMoreTarget(material)}
+                        className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-black/10 px-3 text-xs font-medium text-neutral-600 transition hover:bg-neutral-50"
+                      >
+                        <MoreHorizontal className="size-4" />
+                        更多
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
-        <div className="flex items-center justify-between border-t border-black/6 px-5 py-4 text-sm text-neutral-500">
+        <div className="flex items-center justify-between border-t border-black/6 px-4 py-3 text-sm text-neutral-500">
           <span>共 {result?.total ?? 0} 条</span>
           <div className="flex items-center gap-2">
             <button
@@ -1265,6 +1250,61 @@ export function MaterialsManager({ permissions }: MaterialsManagerProps) {
           onClose={() => setEditor(null)}
           onSaved={saved}
         />
+      ) : null}
+      {moreTarget ? (
+        <Modal
+          title="更多操作"
+          description={`${moreTarget.code} · ${moreTarget.name}`}
+          onClose={() => setMoreTarget(null)}
+        >
+          <div className="grid gap-3 px-5 py-6 sm:px-7">
+            <button
+              type="button"
+              onClick={() => {
+                setMovementTarget(moreTarget);
+                setMoreTarget(null);
+              }}
+              className="flex items-center gap-3 rounded-md border border-black/8 p-4 text-left text-sm font-medium transition hover:bg-blue-50 hover:text-blue-700"
+            >
+              <ClipboardList className="size-5" />
+              查看库存流水
+            </button>
+            {permissions.edit ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditor(moreTarget);
+                  setMoreTarget(null);
+                }}
+                className="flex items-center gap-3 rounded-md border border-black/8 p-4 text-left text-sm font-medium transition hover:bg-neutral-50"
+              >
+                <Pencil className="size-5" />
+                编辑耗材资料
+              </button>
+            ) : null}
+            {permissions.edit ? (
+              <button
+                type="button"
+                disabled={busyId === moreTarget.id}
+                onClick={() => {
+                  const target = moreTarget;
+                  setMoreTarget(null);
+                  void requestToggle(target);
+                }}
+                className={`flex items-center gap-3 rounded-md border p-4 text-left text-sm font-medium transition ${moreTarget.isActive ? 'border-red-100 text-red-600 hover:bg-red-50' : 'border-emerald-100 text-emerald-700 hover:bg-emerald-50'}`}
+              >
+                {busyId === moreTarget.id ? (
+                  <LoaderCircle className="size-5 animate-spin" />
+                ) : moreTarget.isActive ? (
+                  <ToggleRight className="size-5" />
+                ) : (
+                  <ToggleLeft className="size-5" />
+                )}
+                {moreTarget.isActive ? '停用耗材' : '启用耗材'}
+              </button>
+            ) : null}
+          </div>
+        </Modal>
       ) : null}
       {stockTarget ? (
         <StockInDialog

@@ -134,7 +134,7 @@ export function AdminShell({ admin, children }: AdminShellProps) {
     <div className="flex h-full flex-col bg-[#151816] text-white">
       <div className="flex h-20 items-center justify-between border-b border-white/8 px-6">
         <Link href="/admin" className="flex items-center gap-3">
-          <span className="grid size-9 place-items-center rounded-xl bg-lime-300 text-sm font-black text-[#151816]">
+          <span className="grid size-9 place-items-center rounded-md bg-lime-300 text-sm font-black text-[#151816]">
             3D
           </span>
           <span>
@@ -171,7 +171,7 @@ export function AdminShell({ admin, children }: AdminShellProps) {
             return (
               <div
                 key={item.label}
-                className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-white/26"
+                className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm text-white/26"
               >
                 <Icon className="size-[18px]" />
                 <span>{item.label}</span>
@@ -186,7 +186,7 @@ export function AdminShell({ admin, children }: AdminShellProps) {
               key={item.href}
               href={item.href}
               onClick={() => setMobileOpen(false)}
-              className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition ${
+              className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-sm transition ${
                 active
                   ? 'bg-lime-300 font-semibold text-[#151816]'
                   : 'text-white/62 hover:bg-white/6 hover:text-white'
@@ -201,7 +201,7 @@ export function AdminShell({ admin, children }: AdminShellProps) {
       </nav>
 
       <div className="border-t border-white/8 p-4">
-        <div className="flex items-center gap-3 rounded-xl bg-white/4 p-3">
+        <div className="flex items-center gap-3 rounded-md bg-white/4 p-3">
           <span className="grid size-9 shrink-0 place-items-center rounded-full bg-white/10 text-sm font-semibold">
             {initials(admin.name)}
           </span>
@@ -248,7 +248,7 @@ export function AdminShell({ admin, children }: AdminShellProps) {
           <button
             type="button"
             aria-label="打开菜单"
-            className="rounded-xl border border-black/8 bg-white p-2.5"
+            className="rounded-md border border-black/8 bg-white p-2.5"
             onClick={() => setMobileOpen(true)}
           >
             <Menu className="size-5" />

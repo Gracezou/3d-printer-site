@@ -377,16 +377,16 @@ export function OrderDetailManager({
   if (!order)
     return (
       <div className="mx-auto max-w-3xl px-6 py-20">
-        <p className="rounded-2xl bg-rose-50 p-5 text-rose-700">
+        <p className="rounded-lg bg-rose-50 p-5 text-rose-700">
           {error || '订单不存在'}
         </p>
       </div>
     );
 
   return (
-    <div className="mx-auto max-w-[1280px] px-4 py-7 sm:px-7 lg:px-10 lg:py-10">
+    <div className="admin-page">
       {notice ? (
-        <div className="fixed top-5 right-5 z-[90] rounded-2xl bg-[#151816] px-5 py-3 text-sm font-medium text-white shadow-xl">
+        <div className="fixed top-5 right-5 z-[90] rounded-lg bg-[#151816] px-5 py-3 text-sm font-medium text-white shadow-xl">
           {notice}
         </div>
       ) : null}
@@ -399,10 +399,7 @@ export function OrderDetailManager({
       </Link>
       <div className="mt-5 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
-          <p className="text-xs font-semibold tracking-[0.18em] text-neutral-400">
-            ORDER DETAIL
-          </p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight">
+          <h1 className="text-2xl font-semibold tracking-tight">
             {order.orderNo}
           </h1>
           <p className="mt-2 text-sm text-neutral-500">
@@ -415,7 +412,7 @@ export function OrderDetailManager({
         </span>
       </div>
       {error ? (
-        <div className="mt-5 flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700">
+        <div className="mt-5 flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           <CircleAlert className="size-4" />
           {error}
         </div>
@@ -423,7 +420,7 @@ export function OrderDetailManager({
 
       <div className="mt-7 grid gap-5 lg:grid-cols-[minmax(0,1.7fr)_minmax(320px,1fr)]">
         <div className="space-y-5">
-          <section className="rounded-2xl border border-black/6 bg-white p-5 shadow-sm">
+          <section className="rounded-lg border border-black/6 bg-white p-5 shadow-sm">
             <h2 className="font-semibold">商品与 BOM 快照</h2>
             <div className="mt-4 divide-y divide-black/6">
               {order.items.map((item) => (
@@ -449,7 +446,7 @@ export function OrderDetailManager({
                       {item.refundableQuantity} 件
                     </p>
                   ) : null}
-                  <div className="mt-3 rounded-xl bg-neutral-50 p-3">
+                  <div className="mt-3 rounded-md bg-neutral-50 p-3">
                     <p className="text-xs font-semibold text-neutral-500">
                       耗材需求快照
                     </p>
@@ -468,14 +465,14 @@ export function OrderDetailManager({
             </div>
           </section>
 
-          <section className="rounded-2xl border border-black/6 bg-white p-5 shadow-sm">
+          <section className="rounded-lg border border-black/6 bg-white p-5 shadow-sm">
             <h2 className="font-semibold">支付记录</h2>
             {order.payments.length ? (
               <div className="mt-4 space-y-3">
                 {order.payments.map((payment) => (
                   <div
                     key={payment.id}
-                    className="rounded-xl bg-neutral-50 p-4 text-sm"
+                    className="rounded-md bg-neutral-50 p-4 text-sm"
                   >
                     <div className="flex justify-between gap-3">
                       <span className="font-medium">
@@ -504,14 +501,14 @@ export function OrderDetailManager({
             )}
           </section>
 
-          <section className="rounded-2xl border border-black/6 bg-white p-5 shadow-sm">
+          <section className="rounded-lg border border-black/6 bg-white p-5 shadow-sm">
             <h2 className="font-semibold">退款记录</h2>
             {order.refunds.length ? (
               <div className="mt-4 space-y-3">
                 {order.refunds.map((refund) => (
                   <div
                     key={refund.id}
-                    className="rounded-xl bg-neutral-50 p-4 text-sm"
+                    className="rounded-md bg-neutral-50 p-4 text-sm"
                   >
                     <div className="flex justify-between gap-3">
                       <span className="font-medium">
@@ -576,7 +573,7 @@ export function OrderDetailManager({
         </div>
 
         <div className="space-y-5">
-          <section className="rounded-2xl border border-black/6 bg-white p-5 shadow-sm">
+          <section className="rounded-lg border border-black/6 bg-white p-5 shadow-sm">
             <h2 className="font-semibold">金额明细</h2>
             <dl className="mt-4 space-y-2.5 text-sm">
               <div className="flex justify-between">
@@ -610,7 +607,7 @@ export function OrderDetailManager({
             </dl>
           </section>
 
-          <section className="rounded-2xl border border-black/6 bg-white p-5 shadow-sm">
+          <section className="rounded-lg border border-black/6 bg-white p-5 shadow-sm">
             <h2 className="font-semibold">收货信息</h2>
             <p className="mt-4 text-sm font-medium">
               {order.receiverName} · {order.receiverPhone}
@@ -624,7 +621,7 @@ export function OrderDetailManager({
             {order.shipments.map((shipment) => (
               <div
                 key={shipment.id}
-                className="mt-4 rounded-xl bg-indigo-50 p-3 text-sm text-indigo-800"
+                className="mt-4 rounded-md bg-indigo-50 p-3 text-sm text-indigo-800"
               >
                 <p className="font-medium">
                   {shipment.carrierName} · {shipment.trackingNo}
@@ -636,7 +633,7 @@ export function OrderDetailManager({
             ))}
           </section>
 
-          <section className="rounded-2xl border border-black/6 bg-white p-5 shadow-sm">
+          <section className="rounded-lg border border-black/6 bg-white p-5 shadow-sm">
             <h2 className="font-semibold">订单备注</h2>
             <p className="mt-3 text-xs text-neutral-500">买家备注</p>
             <p className="mt-1 text-sm">{order.buyerRemark || '无'}</p>
@@ -649,7 +646,7 @@ export function OrderDetailManager({
               onChange={(event) => setAdminRemark(event.target.value)}
               maxLength={2000}
               rows={4}
-              className="mt-2 w-full resize-none rounded-xl border border-black/8 p-3 text-sm outline-none disabled:bg-neutral-50"
+              className="mt-2 w-full resize-none rounded-md border border-black/8 p-3 text-sm outline-none disabled:bg-neutral-50"
             />
             {permissions.remark ? (
               <button
@@ -664,7 +661,7 @@ export function OrderDetailManager({
           </section>
 
           {order.status === 'pending_shipment' && permissions.ship ? (
-            <section className="rounded-2xl border border-orange-200 bg-orange-50 p-5">
+            <section className="rounded-lg border border-orange-200 bg-orange-50 p-5">
               <h2 className="flex items-center gap-2 font-semibold text-orange-900">
                 <Truck className="size-4" />
                 订单发货
@@ -674,20 +671,20 @@ export function OrderDetailManager({
                   value={carrierCode}
                   onChange={(e) => setCarrierCode(e.target.value)}
                   placeholder="快递代码"
-                  className="h-10 rounded-xl border border-orange-200 bg-white px-3 text-sm"
+                  className="h-10 rounded-md border border-orange-200 bg-white px-3 text-sm"
                 />
                 <input
                   value={carrierName}
                   onChange={(e) => setCarrierName(e.target.value)}
                   placeholder="快递公司"
-                  className="h-10 rounded-xl border border-orange-200 bg-white px-3 text-sm"
+                  className="h-10 rounded-md border border-orange-200 bg-white px-3 text-sm"
                 />
               </div>
               <input
                 value={trackingNo}
                 onChange={(e) => setTrackingNo(e.target.value)}
                 placeholder="快递单号"
-                className="mt-2 h-10 w-full rounded-xl border border-orange-200 bg-white px-3 text-sm"
+                className="mt-2 h-10 w-full rounded-md border border-orange-200 bg-white px-3 text-sm"
               />
               <button
                 disabled={
@@ -697,7 +694,7 @@ export function OrderDetailManager({
                   !trackingNo.trim()
                 }
                 onClick={() => void ship()}
-                className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-orange-600 text-sm font-semibold text-white disabled:opacity-50"
+                className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-orange-600 text-sm font-semibold text-white disabled:opacity-50"
               >
                 <PackageCheck className="size-4" />
                 确认发货
@@ -706,7 +703,7 @@ export function OrderDetailManager({
           ) : null}
 
           {order.status === 'pending_payment' && permissions.cancel ? (
-            <section className="rounded-2xl border border-rose-200 bg-rose-50 p-5">
+            <section className="rounded-lg border border-rose-200 bg-rose-50 p-5">
               <h2 className="font-semibold text-rose-900">取消待支付订单</h2>
               <p className="mt-2 text-xs leading-5 text-rose-700">
                 取消会原子释放耗材预扣和折扣码使用次数，操作不可撤销。
@@ -714,7 +711,7 @@ export function OrderDetailManager({
               <button
                 disabled={busy !== ''}
                 onClick={() => void cancelOrder()}
-                className="mt-3 h-10 w-full rounded-xl border border-rose-300 text-sm font-semibold text-rose-700 disabled:opacity-50"
+                className="mt-3 h-10 w-full rounded-md border border-rose-300 text-sm font-semibold text-rose-700 disabled:opacity-50"
               >
                 确认取消订单
               </button>
@@ -726,7 +723,7 @@ export function OrderDetailManager({
           !['pending_payment', 'cancelled', 'refunding'].includes(
             order.status,
           ) ? (
-            <section className="rounded-2xl border border-indigo-200 bg-indigo-50 p-5">
+            <section className="rounded-lg border border-indigo-200 bg-indigo-50 p-5">
               <h2 className="flex items-center gap-2 font-semibold text-indigo-950">
                 <RotateCcw className="size-4" />
                 订单退款
@@ -748,7 +745,7 @@ export function OrderDetailManager({
                     return (
                       <div
                         key={item.id}
-                        className="rounded-xl border border-indigo-200 bg-white p-3"
+                        className="rounded-md border border-indigo-200 bg-white p-3"
                       >
                         <label className="flex items-start gap-2 text-sm font-medium text-indigo-950">
                           <input
@@ -824,7 +821,7 @@ export function OrderDetailManager({
                 maxLength={200}
                 rows={3}
                 placeholder="请填写退款原因"
-                className="mt-2 w-full resize-none rounded-xl border border-indigo-200 bg-white p-3 text-sm"
+                className="mt-2 w-full resize-none rounded-md border border-indigo-200 bg-white p-3 text-sm"
               />
               <button
                 disabled={
@@ -835,7 +832,7 @@ export function OrderDetailManager({
                   )
                 }
                 onClick={() => void refundOrder()}
-                className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-indigo-700 text-sm font-semibold text-white disabled:opacity-50"
+                className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-indigo-700 text-sm font-semibold text-white disabled:opacity-50"
               >
                 <RotateCcw className="size-4" />
                 确认退款

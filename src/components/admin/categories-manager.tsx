@@ -6,11 +6,12 @@ import {
   ChevronRight,
   CircleAlert,
   Eye,
-  EyeOff,
   Folder,
   FolderOpen,
   ImageIcon,
   LoaderCircle,
+  MoreHorizontal,
+  Search,
   Pencil,
   Plus,
   RefreshCw,
@@ -24,6 +25,9 @@ import {
   type FormEvent,
   type ReactNode,
 } from 'react';
+
+import { useAdminQueryState } from '@/lib/use-admin-query-state';
+import { AdminDrawer } from '@/components/admin/admin-drawer';
 
 import { notifyAdminUnauthorized } from '@/lib/admin-session-client';
 
@@ -73,7 +77,7 @@ async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 const inputClass =
-  'h-11 w-full rounded-xl border border-black/10 bg-white px-3 text-sm outline-none transition placeholder:text-neutral-300 focus:border-neutral-500 focus:ring-2 focus:ring-neutral-100';
+  'h-11 sm:h-9 w-full rounded-md border border-black/10 bg-white px-3 text-sm outline-none transition placeholder:text-neutral-300 focus:border-neutral-500 focus:ring-2 focus:ring-neutral-100';
 
 function Modal({
   title,
@@ -97,7 +101,7 @@ function Modal({
       <section
         role="dialog"
         aria-modal="true"
-        className="relative max-h-[92vh] w-full max-w-xl overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl"
+        className="relative max-h-[92vh] w-full max-w-xl overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-lg"
       >
         <div className="flex items-start justify-between border-b border-black/6 px-5 py-5 sm:px-7">
           <div>
@@ -110,7 +114,7 @@ function Modal({
             type="button"
             aria-label="关闭"
             onClick={onClose}
-            className="rounded-xl bg-neutral-100 p-2 text-neutral-500 hover:bg-neutral-200"
+            className="rounded-md bg-neutral-100 p-2 text-neutral-500 hover:bg-neutral-200"
           >
             <X className="size-5" />
           </button>
@@ -200,10 +204,11 @@ function CategoryEditor({
   }
 
   return (
-    <Modal
+    <AdminDrawer
       title={category ? '编辑分类' : '新增分类'}
       description="分类最多支持两级，Slug 将用于前台分类页面地址。"
       onClose={onClose}
+      busy={submitting}
     >
       <form onSubmit={submit}>
         <div className="space-y-5 px-5 py-6 sm:px-7">
@@ -266,10 +271,7 @@ function CategoryEditor({
                 ))}
             </select>
           </Field>
-          <Field
-            label="分类图片 URL"
-            hint="图片上传功能将在 T035 接入，目前可填写已有图片地址。"
-          >
+          <Field label="分类图片 URL" hint="填写可公开访问的分类图片地址。">
             <input
               type="url"
               value={form.imageUrl}
@@ -302,7 +304,7 @@ function CategoryEditor({
               className={inputClass}
             />
           </Field>
-          <label className="flex cursor-pointer items-center justify-between rounded-2xl border border-black/8 p-4">
+          <label className="flex cursor-pointer items-center justify-between rounded-lg border border-black/8 p-4">
             <span>
               <span className="block text-sm font-medium">前台显示</span>
               <span className="mt-1 block text-xs text-neutral-400">
@@ -322,22 +324,23 @@ function CategoryEditor({
             />
           </label>
           {error ? (
-            <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">
+            <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">
               {error}
             </p>
           ) : null}
         </div>
-        <div className="flex justify-end gap-3 border-t border-black/6 bg-neutral-50 px-5 py-4 sm:px-7">
+        <div className="admin-save-bar">
           <button
             type="button"
+            data-drawer-close
             onClick={onClose}
-            className="h-10 rounded-xl border border-black/10 bg-white px-4 text-sm font-medium"
+            className="h-10 rounded-md border border-black/10 bg-white px-4 text-sm font-medium"
           >
             取消
           </button>
           <button
             disabled={submitting}
-            className="flex h-10 items-center gap-2 rounded-xl bg-[#151816] px-5 text-sm font-semibold text-white disabled:opacity-50"
+            className="flex h-10 items-center gap-2 rounded-md bg-[#151816] px-5 text-sm font-semibold text-white disabled:opacity-50"
           >
             {submitting ? (
               <LoaderCircle className="size-4 animate-spin" />
@@ -346,7 +349,7 @@ function CategoryEditor({
           </button>
         </div>
       </form>
-    </Modal>
+    </AdminDrawer>
   );
 }
 
@@ -364,7 +367,7 @@ function DeleteConfirmation({
   return (
     <Modal title="确认删除分类" onClose={onClose}>
       <div className="px-5 py-6 sm:px-7">
-        <div className="flex gap-3 rounded-2xl bg-red-50 p-4 text-red-800">
+        <div className="flex gap-3 rounded-lg bg-red-50 p-4 text-red-800">
           <CircleAlert className="mt-0.5 size-5 shrink-0" />
           <div className="text-sm leading-6">
             <p>
@@ -383,11 +386,11 @@ function DeleteConfirmation({
           </div>
         </div>
       </div>
-      <div className="flex justify-end gap-3 border-t border-black/6 bg-neutral-50 px-5 py-4 sm:px-7">
+      <div className="flex justify-end gap-3 border-t border-black/6 bg-neutral-50 px-4 py-3 sm:px-7">
         <button
           type="button"
           onClick={onClose}
-          className="h-10 rounded-xl border border-black/10 bg-white px-4 text-sm font-medium"
+          className="h-10 rounded-md border border-black/10 bg-white px-4 text-sm font-medium"
         >
           取消
         </button>
@@ -395,7 +398,7 @@ function DeleteConfirmation({
           type="button"
           disabled={deleting || category.children.length > 0}
           onClick={onConfirm}
-          className="flex h-10 items-center gap-2 rounded-xl bg-red-600 px-5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex h-10 items-center gap-2 rounded-md bg-red-600 px-5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
         >
           {deleting ? <LoaderCircle className="size-4 animate-spin" /> : null}
           确认删除
@@ -424,13 +427,14 @@ function ActionButton({
       title={title}
       disabled={disabled}
       onClick={onClick}
-      className={`rounded-lg p-2 transition disabled:opacity-25 ${
+      className={`inline-flex items-center gap-1 rounded-md px-2 py-2 text-xs transition disabled:opacity-25 ${
         danger
           ? 'text-neutral-400 hover:bg-red-50 hover:text-red-600'
           : 'text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900'
       }`}
     >
       {children}
+      <span>{title}</span>
     </button>
   );
 }
@@ -443,6 +447,10 @@ export function CategoriesManager({ canEdit }: { canEdit: boolean }) {
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CategoryNode | null>(null);
   const [busyId, setBusyId] = useState('');
+  const [keyword, setKeyword] = useAdminQueryState<string>('keyword', '');
+  const [collapsed, setCollapsed] = useAdminQueryState<string>('collapsed', '');
+  const collapsedIds = new Set(collapsed.split(',').filter(Boolean));
+  const [moreTarget, setMoreTarget] = useState<CategoryNode | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -554,16 +562,25 @@ export function CategoriesManager({ canEdit }: { canEdit: boolean }) {
     0,
   );
 
-  function row(
-    category: CategoryNode,
-    siblings: CategoryNode[],
-    level: 1 | 2,
-  ): ReactNode {
-    const index = siblings.findIndex((item) => item.id === category.id);
+  const matches = (category: CategoryNode) =>
+    (category.name + ' ' + category.slug)
+      .toLowerCase()
+      .includes(keyword.trim().toLowerCase());
+  const filteredRoots = roots.filter(
+    (root) => matches(root) || root.children.some(matches),
+  );
+  const moreSiblings = moreTarget?.parentId
+    ? (roots.find((root) => root.id === moreTarget.parentId)?.children ?? [])
+    : roots;
+  const moreIndex = moreSiblings.findIndex(
+    (item) => item.id === moreTarget?.id,
+  );
+
+  function row(category: CategoryNode, level: 1 | 2): ReactNode {
     return (
       <div
         key={category.id}
-        className={`grid grid-cols-[minmax(260px,1fr)_130px_120px_160px] items-center border-t border-black/5 px-5 py-3.5 transition hover:bg-neutral-50/70 ${
+        className={`grid grid-cols-[minmax(260px,1fr)_130px_120px_260px] items-center border-t border-black/5 px-5 py-3.5 transition hover:bg-neutral-50/70 ${
           !category.isVisible ? 'opacity-55' : ''
         }`}
       >
@@ -571,13 +588,38 @@ export function CategoriesManager({ canEdit }: { canEdit: boolean }) {
           className="flex min-w-0 items-center gap-3"
           style={{ paddingLeft: level === 2 ? 36 : 0 }}
         >
+          {level === 1 && category.children.length > 0 ? (
+            <button
+              type="button"
+              aria-label={
+                collapsedIds.has(category.id) ? '展开子分类' : '收起子分类'
+              }
+              aria-expanded={Boolean(keyword) || !collapsedIds.has(category.id)}
+              disabled={Boolean(keyword)}
+              onClick={() => {
+                const next = new Set(collapsedIds);
+                if (next.has(category.id)) next.delete(category.id);
+                else next.add(category.id);
+                setCollapsed([...next].join(','));
+              }}
+              className="rounded p-1 hover:bg-neutral-100"
+            >
+              <ChevronRight
+                className={
+                  (!collapsedIds.has(category.id) || keyword
+                    ? 'rotate-90 '
+                    : '') + 'size-4 transition'
+                }
+              />
+            </button>
+          ) : null}
           {level === 2 ? (
             <span className="-ml-7 flex items-center text-neutral-300">
               <ChevronRight className="size-4" />
             </span>
           ) : null}
           <span
-            className={`grid size-10 shrink-0 place-items-center rounded-xl ${
+            className={`grid size-10 shrink-0 place-items-center rounded-md ${
               level === 1
                 ? 'bg-lime-100 text-lime-800'
                 : 'bg-neutral-100 text-neutral-500'
@@ -606,39 +648,17 @@ export function CategoriesManager({ canEdit }: { canEdit: boolean }) {
         <div className="text-sm text-neutral-500">
           {category.productCount} 个商品
         </div>
-        <div className="flex justify-end gap-0.5">
+        <div className="flex justify-end gap-2">
           {canEdit ? (
             <>
               <ActionButton
-                title="上移"
-                disabled={index === 0 || busyId !== ''}
-                onClick={() => void move(category, siblings, -1)}
-              >
-                <ArrowUp className="size-4" />
-              </ActionButton>
-              <ActionButton
-                title="下移"
-                disabled={index === siblings.length - 1 || busyId !== ''}
-                onClick={() => void move(category, siblings, 1)}
-              >
-                <ArrowDown className="size-4" />
-              </ActionButton>
-              <ActionButton
-                title={category.isVisible ? '隐藏' : '显示'}
+                title="编辑"
                 disabled={busyId !== ''}
                 onClick={() =>
-                  void updateOne(
-                    category,
-                    { isVisible: !category.isVisible },
-                    category.isVisible ? '分类已隐藏' : '分类已显示',
-                  )
+                  setEditor({ category, defaultParentId: category.parentId })
                 }
               >
-                {category.isVisible ? (
-                  <Eye className="size-4" />
-                ) : (
-                  <EyeOff className="size-4" />
-                )}
+                <Pencil className="size-4" />
               </ActionButton>
               {level === 1 ? (
                 <ActionButton
@@ -652,25 +672,15 @@ export function CategoriesManager({ canEdit }: { canEdit: boolean }) {
                 </ActionButton>
               ) : null}
               <ActionButton
-                title="编辑"
+                title="更多"
                 disabled={busyId !== ''}
-                onClick={() =>
-                  setEditor({ category, defaultParentId: category.parentId })
-                }
+                onClick={() => setMoreTarget(category)}
               >
-                <Pencil className="size-4" />
-              </ActionButton>
-              <ActionButton
-                title="删除"
-                disabled={busyId !== ''}
-                danger
-                onClick={() => setDeleteTarget(category)}
-              >
-                <Trash2 className="size-4" />
+                <MoreHorizontal className="size-4" />
               </ActionButton>
             </>
           ) : (
-            <span className="text-xs text-neutral-400">
+            <span className="text-xs text-neutral-500">
               {category.isVisible ? '显示中' : '已隐藏'}
             </span>
           )}
@@ -680,18 +690,15 @@ export function CategoriesManager({ canEdit }: { canEdit: boolean }) {
   }
 
   return (
-    <div className="mx-auto max-w-[1200px] px-4 py-7 sm:px-7 lg:px-10 lg:py-10">
+    <div className="admin-page">
       {notice ? (
-        <div className="fixed top-5 right-5 z-[90] rounded-2xl bg-[#151816] px-5 py-3 text-sm font-medium text-white shadow-xl">
+        <div className="fixed top-5 right-5 z-[90] rounded-lg bg-[#151816] px-5 py-3 text-sm font-medium text-white shadow-xl">
           {notice}
         </div>
       ) : null}
       <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
         <div>
-          <p className="text-xs font-semibold tracking-[0.18em] text-neutral-400">
-            CATALOG
-          </p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-neutral-900">
+          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">
             分类管理
           </h1>
           <p className="mt-2 text-sm text-neutral-500">
@@ -702,7 +709,7 @@ export function CategoriesManager({ canEdit }: { canEdit: boolean }) {
           <button
             type="button"
             onClick={() => setEditor({ category: null, defaultParentId: null })}
-            className="flex h-11 items-center justify-center gap-2 rounded-xl bg-[#151816] px-5 text-sm font-semibold text-white shadow-sm hover:bg-black"
+            className="flex h-11 items-center justify-center gap-2 rounded-md bg-[#151816] px-5 text-sm font-semibold text-white shadow-sm hover:bg-black sm:h-9"
           >
             <Plus className="size-4" />
             新增一级分类
@@ -710,77 +717,128 @@ export function CategoriesManager({ canEdit }: { canEdit: boolean }) {
         ) : null}
       </div>
 
-      <div className="mt-7 grid gap-3 sm:grid-cols-3">
-        <div className="rounded-2xl border border-black/6 bg-white p-4">
-          <p className="text-xs text-neutral-400">全部分类</p>
-          <p className="mt-1 text-2xl font-semibold">{result?.total ?? '—'}</p>
-        </div>
-        <div className="rounded-2xl border border-black/6 bg-white p-4">
-          <p className="text-xs text-neutral-400">一级分类</p>
-          <p className="mt-1 text-2xl font-semibold">
-            {loading ? '—' : roots.length}
-          </p>
-        </div>
-        <div className="rounded-2xl border border-black/6 bg-white p-4">
-          <p className="text-xs text-neutral-400">前台显示</p>
-          <p className="mt-1 text-2xl font-semibold">
-            {loading ? '—' : visibleCount}
-          </p>
-        </div>
+      <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-neutral-500">
+        <span>全部 {result?.total ?? '—'}</span>
+        <span>一级 {roots.length}</span>
+        <span>显示中 {visibleCount}</span>
       </div>
 
-      <div className="mt-5 overflow-hidden rounded-2xl border border-black/6 bg-white shadow-[0_1px_2px_rgba(0,0,0,.03)]">
-        <div className="flex items-center justify-between border-b border-black/6 px-5 py-4">
-          <div>
-            <h2 className="font-semibold">分类树</h2>
-            <p className="mt-1 text-xs text-neutral-400">
-              上下箭头仅调整同级分类顺序
-            </p>
+      <div className="mt-5 overflow-hidden rounded-lg border border-black/6 bg-white shadow-none">
+        <div className="flex items-center justify-between border-b border-black/6 px-4 py-3">
+          <div className="relative max-w-sm flex-1">
+            <Search className="absolute top-3 left-3 size-4 text-neutral-400" />
+            <input
+              aria-label="搜索分类"
+              value={keyword}
+              onChange={(event) => setKeyword(event.target.value)}
+              placeholder="搜索分类名称或地址"
+              className="h-10 w-full rounded-md border border-neutral-200 pr-3 pl-9 text-sm"
+            />
           </div>
           <button
             type="button"
             title="刷新"
             onClick={() => void load()}
-            className="grid size-10 place-items-center rounded-xl border border-black/10 text-neutral-500 hover:bg-neutral-50"
+            className="grid size-10 place-items-center rounded-md border border-black/10 text-neutral-500 hover:bg-neutral-50"
           >
             <RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>
         {error ? (
-          <div className="m-4 flex items-center gap-2 rounded-xl bg-red-50 p-4 text-sm text-red-700">
+          <div className="m-4 flex items-center gap-2 rounded-md bg-red-50 p-4 text-sm text-red-700">
             <CircleAlert className="size-4" />
             {error}
           </div>
         ) : null}
         <div className="overflow-x-auto">
           <div className="min-w-[760px]">
-            <div className="grid grid-cols-[minmax(260px,1fr)_130px_120px_160px] bg-neutral-50/70 px-5 py-3 text-xs text-neutral-400">
+            <div className="grid grid-cols-[minmax(260px,1fr)_130px_120px_260px] bg-neutral-50/70 px-5 py-3 text-xs text-neutral-400">
               <span>分类名称</span>
               <span>层级</span>
               <span>商品</span>
               <span className="text-right">操作</span>
             </div>
-            {loading ? (
+            {loading && !result ? (
               <div className="grid h-56 place-items-center text-neutral-400">
                 <LoaderCircle className="size-6 animate-spin" />
               </div>
             ) : null}
-            {!loading && roots.length === 0 ? (
+            {!loading && filteredRoots.length === 0 ? (
               <div className="flex h-60 flex-col items-center justify-center text-neutral-400">
                 <Folder className="size-9" />
-                <p className="mt-3 text-sm">暂无分类，请先创建一级分类</p>
+                <p className="mt-3 text-sm">暂无匹配分类</p>
               </div>
             ) : null}
-            {!loading
-              ? roots.flatMap((root) => [
-                  row(root, roots, 1),
-                  ...root.children.map((child) => row(child, root.children, 2)),
-                ])
-              : null}
+            {filteredRoots.flatMap((root) => [
+              row(root, 1),
+              ...(keyword || !collapsedIds.has(root.id)
+                ? root.children
+                    .filter((child) => matches(root) || matches(child))
+                    .map((child) => row(child, 2))
+                : []),
+            ])}
           </div>
         </div>
       </div>
 
+      {moreTarget ? (
+        <Modal
+          title={moreTarget.name + ' · 更多操作'}
+          onClose={() => setMoreTarget(null)}
+        >
+          <div className="grid gap-2 p-5">
+            <p className="mb-2 text-sm text-neutral-500">
+              当前状态：{moreTarget.isVisible ? '前台显示' : '已隐藏'} ·{' '}
+              {moreTarget.productCount} 个商品
+            </p>
+            <ActionButton
+              title="同级上移"
+              disabled={moreIndex <= 0 || busyId !== ''}
+              onClick={() => {
+                void move(moreTarget, moreSiblings, -1);
+                setMoreTarget(null);
+              }}
+            >
+              <ArrowUp className="size-4" />
+            </ActionButton>
+            <ActionButton
+              title="同级下移"
+              disabled={moreIndex >= moreSiblings.length - 1 || busyId !== ''}
+              onClick={() => {
+                void move(moreTarget, moreSiblings, 1);
+                setMoreTarget(null);
+              }}
+            >
+              <ArrowDown className="size-4" />
+            </ActionButton>
+            <ActionButton
+              title={moreTarget.isVisible ? '隐藏分类' : '显示分类'}
+              disabled={busyId !== ''}
+              onClick={() => {
+                void updateOne(
+                  moreTarget,
+                  { isVisible: !moreTarget.isVisible },
+                  '分类显示状态已更新',
+                );
+                setMoreTarget(null);
+              }}
+            >
+              <Eye className="size-4" />
+            </ActionButton>
+            <ActionButton
+              title="删除分类"
+              danger
+              disabled={busyId !== ''}
+              onClick={() => {
+                setDeleteTarget(moreTarget);
+                setMoreTarget(null);
+              }}
+            >
+              <Trash2 className="size-4" />
+            </ActionButton>
+          </div>
+        </Modal>
+      ) : null}
       {editor ? (
         <CategoryEditor
           state={editor}

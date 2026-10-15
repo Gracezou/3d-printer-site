@@ -13,6 +13,8 @@ import {
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 
+import { useAdminQueryState } from '@/lib/use-admin-query-state';
+
 import { notifyAdminUnauthorized } from '@/lib/admin-session-client';
 import { orderStatusLabels as statusLabels } from '@/messages/zh-CN';
 
@@ -68,12 +70,13 @@ export function OrdersManager({ canExport }: { canExport: boolean }) {
   const [result, setResult] = useState<ListResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [keywordInput, setKeywordInput] = useState('');
-  const [keyword, setKeyword] = useState('');
-  const [status, setStatus] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [page, setPage] = useState(1);
+  const [keyword, setKeyword] = useAdminQueryState<string>('keyword', '');
+  const [keywordInput, setKeywordInput] = useState(keyword);
+  useEffect(() => setKeywordInput(keyword), [keyword]);
+  const [status, setStatus] = useAdminQueryState<string>('status', '');
+  const [startDate, setStartDate] = useAdminQueryState<string>('startDate', '');
+  const [endDate, setEndDate] = useAdminQueryState<string>('endDate', '');
+  const [page, setPage] = useAdminQueryState<number>('page', 1);
 
   const searchParams = useCallback(
     (includePage = true) => {
@@ -117,15 +120,10 @@ export function OrdersManager({ canExport }: { canExport: boolean }) {
   const totalPages = Math.max(1, Math.ceil((result?.total ?? 0) / 20));
 
   return (
-    <div className="mx-auto max-w-[1480px] px-4 py-7 sm:px-7 lg:px-10 lg:py-10">
+    <div className="admin-page">
       <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
         <div>
-          <p className="text-xs font-semibold tracking-[0.18em] text-neutral-400">
-            ORDERS
-          </p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight">
-            订单管理
-          </h1>
+          <h1 className="text-2xl font-semibold tracking-tight">订单管理</h1>
           <p className="mt-2 text-sm text-neutral-500">
             查询订单、处理备注、取消与发货，金额与商品信息均为下单快照。
           </p>
@@ -134,7 +132,7 @@ export function OrdersManager({ canExport }: { canExport: boolean }) {
           <button
             type="button"
             onClick={() => void load()}
-            className="inline-flex h-10 items-center gap-2 rounded-xl border border-black/8 bg-white px-4 text-sm font-medium"
+            className="inline-flex h-10 items-center gap-2 rounded-md border border-black/8 bg-white px-4 text-sm font-medium"
           >
             <RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} />
             刷新
@@ -142,7 +140,7 @@ export function OrdersManager({ canExport }: { canExport: boolean }) {
           {canExport ? (
             <a
               href={`/api/admin/orders/export?${searchParams(false)}`}
-              className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#151816] px-4 text-sm font-medium text-white"
+              className="inline-flex h-10 items-center gap-2 rounded-md bg-[#151816] px-4 text-sm font-medium text-white"
             >
               <Download className="size-4" /> 导出 CSV
             </a>
@@ -151,7 +149,7 @@ export function OrdersManager({ canExport }: { canExport: boolean }) {
       </div>
 
       <form
-        className="mt-7 grid gap-3 rounded-2xl border border-black/6 bg-white p-4 shadow-sm md:grid-cols-[minmax(220px,1fr)_180px_160px_160px_auto]"
+        className="mt-7 grid gap-3 rounded-lg border border-black/6 bg-white p-4 shadow-sm md:grid-cols-[minmax(220px,1fr)_180px_160px_160px_auto]"
         onSubmit={(event) => {
           event.preventDefault();
           setPage(1);
@@ -164,7 +162,7 @@ export function OrdersManager({ canExport }: { canExport: boolean }) {
             value={keywordInput}
             onChange={(event) => setKeywordInput(event.target.value)}
             placeholder="订单号或收货手机号"
-            className="h-10 w-full rounded-xl border border-black/8 pl-10 text-sm outline-none focus:border-neutral-400"
+            className="h-10 w-full rounded-md border border-black/8 pl-10 text-sm outline-none focus:border-neutral-400"
           />
         </label>
         <select
@@ -173,7 +171,7 @@ export function OrdersManager({ canExport }: { canExport: boolean }) {
             setStatus(event.target.value);
             setPage(1);
           }}
-          className="h-10 rounded-xl border border-black/8 px-3 text-sm outline-none"
+          className="h-10 rounded-md border border-black/8 px-3 text-sm outline-none"
         >
           <option value="">全部状态</option>
           {Object.entries(statusLabels).map(([value, label]) => (
@@ -190,7 +188,7 @@ export function OrdersManager({ canExport }: { canExport: boolean }) {
             setStartDate(event.target.value);
             setPage(1);
           }}
-          className="h-10 rounded-xl border border-black/8 px-3 text-sm"
+          className="h-10 rounded-md border border-black/8 px-3 text-sm"
         />
         <input
           type="date"
@@ -200,20 +198,20 @@ export function OrdersManager({ canExport }: { canExport: boolean }) {
             setEndDate(event.target.value);
             setPage(1);
           }}
-          className="h-10 rounded-xl border border-black/8 px-3 text-sm"
+          className="h-10 rounded-md border border-black/8 px-3 text-sm"
         />
-        <button className="h-10 rounded-xl bg-lime-300 px-5 text-sm font-semibold">
+        <button className="h-10 rounded-md bg-lime-300 px-5 text-sm font-semibold">
           查询
         </button>
       </form>
 
       {error ? (
-        <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700">
+        <div className="mt-5 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           {error}
         </div>
       ) : null}
 
-      <div className="mt-5 overflow-hidden rounded-2xl border border-black/6 bg-white shadow-sm">
+      <div className="mt-5 overflow-hidden rounded-lg border border-black/6 bg-white shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1040px] text-left text-sm">
             <thead className="bg-neutral-50 text-xs text-neutral-500">
@@ -240,13 +238,13 @@ export function OrdersManager({ canExport }: { canExport: boolean }) {
               ) : result?.list.length ? (
                 result.list.map((order) => (
                   <tr key={order.id} className="hover:bg-neutral-50/70">
-                    <td className="px-5 py-4">
+                    <td className="px-4 py-3">
                       <p className="font-semibold">{order.orderNo}</p>
                       <p className="mt-1 text-xs text-neutral-400">
                         共 {order.itemCount} 件
                       </p>
                     </td>
-                    <td className="px-5 py-4">
+                    <td className="px-4 py-3">
                       <p>
                         {order.receiverName} · {order.receiverPhone}
                       </p>
@@ -254,23 +252,23 @@ export function OrdersManager({ canExport }: { canExport: boolean }) {
                         账号 {order.userEmail}
                       </p>
                     </td>
-                    <td className="px-5 py-4">
+                    <td className="px-4 py-3">
                       <p className="font-semibold">¥{order.payableAmount}</p>
                       <p className="mt-1 text-xs text-neutral-400">
                         实付 ¥{order.paidAmount}
                       </p>
                     </td>
-                    <td className="px-5 py-4">
+                    <td className="px-4 py-3">
                       <span
                         className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusStyles[order.status] ?? 'bg-neutral-100'}`}
                       >
                         {statusLabels[order.status] ?? order.status}
                       </span>
                     </td>
-                    <td className="px-5 py-4 text-neutral-600">
+                    <td className="px-4 py-3 text-neutral-600">
                       {formatDate(order.createdAt)}
                     </td>
-                    <td className="px-5 py-4 text-right">
+                    <td className="px-4 py-3 text-right">
                       <Link
                         href={`/admin/orders/${order.id}`}
                         className="inline-flex items-center gap-1.5 rounded-lg border border-black/8 px-3 py-2 text-xs font-medium"
@@ -295,7 +293,7 @@ export function OrdersManager({ canExport }: { canExport: boolean }) {
             </tbody>
           </table>
         </div>
-        <div className="flex items-center justify-between border-t border-black/6 px-5 py-4 text-sm">
+        <div className="flex items-center justify-between border-t border-black/6 px-4 py-3 text-sm">
           <span className="text-neutral-500">
             共 {result?.total ?? 0} 笔订单
           </span>

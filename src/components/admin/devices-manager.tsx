@@ -74,7 +74,7 @@ interface ApiEnvelope<T> {
 type ApiRequest = <T>(url: string, init?: RequestInit) => Promise<T>;
 
 const inputClass =
-  'h-11 w-full rounded-xl border border-black/10 bg-white px-3 text-sm outline-none transition placeholder:text-neutral-300 focus:border-neutral-500 focus:ring-2 focus:ring-neutral-100';
+  'h-11 sm:h-9 w-full rounded-md border border-black/10 bg-white px-3 text-sm outline-none transition placeholder:text-neutral-300 focus:border-neutral-500 focus:ring-2 focus:ring-neutral-100';
 
 function splitAliases(value: string): string[] {
   return [
@@ -113,7 +113,7 @@ function Modal({
       <section
         role="dialog"
         aria-modal="true"
-        className="relative max-h-[92vh] w-full max-w-3xl overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl"
+        className="relative max-h-[92vh] w-full max-w-3xl overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-lg"
       >
         <div className="flex items-start justify-between border-b border-black/6 px-5 py-5 sm:px-7">
           <div>
@@ -126,7 +126,7 @@ function Modal({
             type="button"
             aria-label="关闭"
             onClick={onClose}
-            className="rounded-xl bg-neutral-100 p-2 text-neutral-500 hover:bg-neutral-200"
+            className="rounded-md bg-neutral-100 p-2 text-neutral-500 hover:bg-neutral-200"
           >
             <X className="size-5" />
           </button>
@@ -169,17 +169,17 @@ function FormActions({
   onClose: () => void;
 }) {
   return (
-    <div className="flex justify-end gap-3 border-t border-black/6 bg-neutral-50 px-5 py-4 sm:px-7">
+    <div className="flex justify-end gap-3 border-t border-black/6 bg-neutral-50 px-4 py-3 sm:px-7">
       <button
         type="button"
         onClick={onClose}
-        className="h-10 rounded-xl border border-black/10 bg-white px-4 text-sm font-medium"
+        className="h-10 rounded-md border border-black/10 bg-white px-4 text-sm font-medium"
       >
         取消
       </button>
       <button
         disabled={submitting}
-        className="flex h-10 items-center gap-2 rounded-xl bg-neutral-950 px-5 text-sm font-semibold text-white disabled:opacity-50"
+        className="flex h-10 items-center gap-2 rounded-md bg-neutral-950 px-5 text-sm font-semibold text-white disabled:opacity-50"
       >
         {submitting ? <LoaderCircle className="size-4 animate-spin" /> : null}
         保存
@@ -287,14 +287,11 @@ export function DevicesManager() {
     ) ?? 0;
 
   return (
-    <div className="px-4 py-8 sm:px-7 lg:px-10">
-      <div className="mx-auto max-w-7xl">
+    <div className="admin-page">
+      <div>
         <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-xs font-semibold tracking-[0.2em] text-neutral-400 uppercase">
-              Device catalog
-            </p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-neutral-950">
+            <h1 className="text-2xl font-semibold tracking-tight text-neutral-950">
               机型管理
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-neutral-500">
@@ -306,7 +303,7 @@ export function DevicesManager() {
               type="button"
               onClick={() => void load()}
               disabled={loading}
-              className="flex h-11 items-center gap-2 rounded-xl border border-black/10 bg-white px-4 text-sm font-medium disabled:opacity-50"
+              className="flex h-11 items-center gap-2 rounded-md border border-black/10 bg-white px-4 text-sm font-medium disabled:opacity-50 sm:h-9"
             >
               <RefreshCw
                 className={`size-4 ${loading ? 'animate-spin' : ''}`}
@@ -316,7 +313,7 @@ export function DevicesManager() {
             <button
               type="button"
               onClick={() => setBrandEditor('new')}
-              className="flex h-11 items-center gap-2 rounded-xl bg-neutral-950 px-4 text-sm font-semibold text-white"
+              className="flex h-11 items-center gap-2 rounded-md bg-neutral-950 px-4 text-sm font-semibold text-white sm:h-9"
             >
               <Plus className="size-4" />
               新增品牌
@@ -332,7 +329,7 @@ export function DevicesManager() {
           ].map(([label, value]) => (
             <div
               key={label}
-              className="rounded-2xl border border-black/6 bg-white p-5 shadow-sm"
+              className="rounded-lg border border-black/6 bg-white p-5 shadow-sm"
             >
               <p className="text-sm text-neutral-500">{label}</p>
               <p className="mt-2 text-3xl font-semibold text-neutral-950">
@@ -342,23 +339,23 @@ export function DevicesManager() {
           ))}
         </div>
 
-        <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+        <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
           <strong>命名规范：</strong> {zhCN.naming.adminHint}
         </div>
 
         {notice ? (
-          <p className="mt-5 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700">
+          <p className="mt-5 rounded-md bg-emerald-50 p-3 text-sm text-emerald-700">
             {notice}
           </p>
         ) : null}
         {error ? (
-          <p className="mt-5 rounded-xl bg-red-50 p-3 text-sm text-red-700">
+          <p className="mt-5 rounded-md bg-red-50 p-3 text-sm text-red-700">
             {error}
           </p>
         ) : null}
 
         {loading && !result ? (
-          <div className="mt-6 flex h-48 items-center justify-center rounded-2xl border border-black/6 bg-white text-neutral-400">
+          <div className="mt-6 flex h-48 items-center justify-center rounded-lg border border-black/6 bg-white text-neutral-400">
             <LoaderCircle className="mr-2 size-5 animate-spin" />
             正在加载机型库
           </div>
@@ -367,11 +364,11 @@ export function DevicesManager() {
             {result.brands.map((brand) => (
               <section
                 key={brand.id}
-                className={`overflow-hidden rounded-2xl border border-black/6 bg-white shadow-sm ${
+                className={`overflow-hidden rounded-lg border border-black/6 bg-white shadow-sm ${
                   brand.isVisible ? '' : 'opacity-60'
                 }`}
               >
-                <div className="flex flex-col gap-4 border-b border-black/6 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-4 border-b border-black/6 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <div className="flex items-center gap-2">
                       <h2 className="text-lg font-semibold">{brand.name}</h2>
@@ -431,10 +428,10 @@ export function DevicesManager() {
                     {brand.models.map((model) => (
                       <div
                         key={model.id}
-                        className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(220px,1.4fr)_1fr_1fr_auto] md:items-center"
+                        className="grid gap-3 px-4 py-3 md:grid-cols-[minmax(220px,1.4fr)_1fr_1fr_auto] md:items-center"
                       >
                         <div className="flex min-w-0 items-start gap-3">
-                          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-lime-100 text-lime-800">
+                          <span className="grid size-10 shrink-0 place-items-center rounded-md bg-lime-100 text-lime-800">
                             <Cpu className="size-5" />
                           </span>
                           <div className="min-w-0">
@@ -517,7 +514,7 @@ export function DevicesManager() {
             ))}
           </div>
         ) : (
-          <div className="mt-6 rounded-2xl border border-dashed border-black/12 bg-white px-6 py-14 text-center">
+          <div className="mt-6 rounded-lg border border-dashed border-black/12 bg-white px-6 py-14 text-center">
             <Cpu className="mx-auto size-8 text-neutral-300" />
             <h2 className="mt-4 font-semibold">尚未录入设备品牌</h2>
             <p className="mt-1 text-sm text-neutral-500">
@@ -555,7 +552,7 @@ export function DevicesManager() {
       {deleteTarget ? (
         <Modal title="确认删除" onClose={() => setDeleteTarget(null)}>
           <div className="px-5 py-6 sm:px-7">
-            <div className="flex gap-3 rounded-2xl bg-red-50 p-4 text-sm leading-6 text-red-800">
+            <div className="flex gap-3 rounded-lg bg-red-50 p-4 text-sm leading-6 text-red-800">
               <CircleAlert className="mt-0.5 size-5 shrink-0" />
               <p>
                 确定删除 <strong>{deleteTarget.name}</strong>
@@ -563,11 +560,11 @@ export function DevicesManager() {
               </p>
             </div>
           </div>
-          <div className="flex justify-end gap-3 border-t border-black/6 bg-neutral-50 px-5 py-4 sm:px-7">
+          <div className="flex justify-end gap-3 border-t border-black/6 bg-neutral-50 px-4 py-3 sm:px-7">
             <button
               type="button"
               onClick={() => setDeleteTarget(null)}
-              className="h-10 rounded-xl border border-black/10 bg-white px-4 text-sm font-medium"
+              className="h-10 rounded-md border border-black/10 bg-white px-4 text-sm font-medium"
             >
               取消
             </button>
@@ -575,7 +572,7 @@ export function DevicesManager() {
               type="button"
               disabled={busy}
               onClick={() => void remove()}
-              className="flex h-10 items-center gap-2 rounded-xl bg-red-600 px-5 text-sm font-semibold text-white disabled:opacity-50"
+              className="flex h-10 items-center gap-2 rounded-md bg-red-600 px-5 text-sm font-semibold text-white disabled:opacity-50"
             >
               {busy ? <LoaderCircle className="size-4 animate-spin" /> : null}
               确认删除
@@ -691,7 +688,7 @@ function BrandEditor({
               className={inputClass}
             />
           </Field>
-          <label className="flex items-center justify-between rounded-2xl border border-black/8 p-4">
+          <label className="flex items-center justify-between rounded-lg border border-black/8 p-4">
             <span>
               <span className="block text-sm font-medium">前台显示</span>
               <span className="mt-1 block text-xs text-neutral-400">
@@ -708,7 +705,7 @@ function BrandEditor({
             />
           </label>
           {error ? (
-            <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">
+            <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">
               {error}
             </p>
           ) : null}
@@ -924,7 +921,7 @@ function ModelEditor({
             <p className="mb-2 text-sm font-medium text-neutral-700">
               关联保护壳商品
             </p>
-            <div className="max-h-44 space-y-1 overflow-y-auto rounded-xl border border-black/8 p-2">
+            <div className="max-h-44 space-y-1 overflow-y-auto rounded-md border border-black/8 p-2">
               {products.length ? (
                 products.map((product) => (
                   <label
@@ -955,7 +952,7 @@ function ModelEditor({
             ).map(([key, label]) => (
               <label
                 key={key}
-                className="flex items-center justify-between rounded-xl border border-black/8 p-3 text-sm font-medium"
+                className="flex items-center justify-between rounded-md border border-black/8 p-3 text-sm font-medium"
               >
                 <span>{label}</span>
                 <input
@@ -970,7 +967,7 @@ function ModelEditor({
             ))}
           </div>
           {error ? (
-            <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700 sm:col-span-2">
+            <p className="rounded-md bg-red-50 p-3 text-sm text-red-700 sm:col-span-2">
               {error}
             </p>
           ) : null}

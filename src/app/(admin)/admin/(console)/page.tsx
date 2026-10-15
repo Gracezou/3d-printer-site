@@ -58,13 +58,10 @@ export default async function AdminDashboardPage() {
   ];
 
   return (
-    <div className="mx-auto max-w-[1480px] px-4 py-8 sm:px-7 lg:px-10 lg:py-10">
+    <div className="admin-page">
       <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
         <div>
-          <p className="text-xs font-semibold tracking-[0.18em] text-neutral-400">
-            OVERVIEW
-          </p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-neutral-900">
+          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">
             早上好，{admin.name}
           </h1>
           <p className="mt-2 text-sm text-neutral-500">
@@ -74,16 +71,16 @@ export default async function AdminDashboardPage() {
         <p className="text-sm text-neutral-400">3D 打印生产运营后台</p>
       </div>
 
-      <div className="mt-9 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {metrics.map((metric) => {
           const Icon = metric.icon;
           return (
             <div
               key={metric.label}
-              className="rounded-2xl border border-black/6 bg-white p-5 shadow-[0_1px_2px_rgba(0,0,0,.03)]"
+              className="rounded-lg border border-black/6 bg-white p-5 shadow-[0_1px_2px_rgba(0,0,0,.03)]"
             >
               <span
-                className={`grid size-10 place-items-center rounded-xl ${metric.tone}`}
+                className={`grid size-10 place-items-center rounded-md ${metric.tone}`}
               >
                 <Icon className="size-5" />
               </span>
@@ -102,7 +99,7 @@ export default async function AdminDashboardPage() {
       </div>
 
       <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(320px,1fr)]">
-        <section className="rounded-2xl border border-black/6 bg-white p-6 shadow-sm">
+        <section className="rounded-lg border border-black/6 bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-xs font-semibold tracking-[0.16em] text-neutral-400">
@@ -147,7 +144,7 @@ export default async function AdminDashboardPage() {
               ))}
             </div>
           ) : (
-            <div className="mt-5 rounded-xl bg-emerald-50 p-5 text-sm text-emerald-700">
+            <div className="mt-5 rounded-md bg-emerald-50 p-5 text-sm text-emerald-700">
               当前没有低库存耗材。
             </div>
           )}
@@ -162,7 +159,7 @@ export default async function AdminDashboardPage() {
         <div className="space-y-4">
           <Link
             href="/admin/production"
-            className="group flex items-center justify-between rounded-2xl bg-[#151816] p-6 text-white transition hover:bg-black"
+            className="group flex items-center justify-between rounded-lg bg-[#151816] p-6 text-white transition hover:bg-black"
           >
             <div>
               <p className="text-xs font-semibold tracking-[0.16em] text-lime-300">
@@ -179,7 +176,7 @@ export default async function AdminDashboardPage() {
           </Link>
           <Link
             href="/admin/orders?status=pending_shipment"
-            className="flex items-center justify-between rounded-2xl border border-black/6 bg-white p-6 shadow-sm"
+            className="flex items-center justify-between rounded-lg border border-black/6 bg-white p-6 shadow-sm"
           >
             <div>
               <p className="text-xs font-semibold tracking-[0.16em] text-orange-500">

@@ -1,0 +1,51 @@
+@layer components {
+  .admin-page {
+    margin-inline: auto;
+    width: 100%;
+    max-width: 1480px;
+    padding: 20px 16px;
+  }
+  .admin-save-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    border-top: 1px solid #e5e5e5;
+    background: white;
+    padding: 12px 16px;
+  }
+  .admin-split {
+    display: grid;
+    align-items: start;
+    gap: 16px;
+  }
+  .admin-drawer {
+    inset: 0 0 0 auto;
+    margin: 0;
+    height: 100dvh;
+    max-height: 100dvh;
+    width: min(100%, 640px);
+    max-width: 100%;
+    padding: 0;
+    border: 0;
+    background: white;
+    color: #171717;
+  }
+  .admin-drawer::backdrop {
+    background: rgb(0 0 0 / 35%);
+  }
+  @media (min-width: 640px) {
+    .admin-page {
+      padding: 24px;
+    }
+  }
+  @media (min-width: 1024px) {
+    .admin-split {
+      grid-template-columns: 220px minmax(0, 1fr);
+    }
+  }
+}

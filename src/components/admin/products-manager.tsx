@@ -20,6 +20,8 @@ import {
 import Link from 'next/link';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 
+import { useAdminQueryState } from '@/lib/use-admin-query-state';
+
 import { notifyAdminUnauthorized } from '@/lib/admin-session-client';
 
 interface ProductListItem {
@@ -105,13 +107,13 @@ function Modal({
         className="absolute inset-0 bg-black/45 backdrop-blur-[2px]"
         onClick={onClose}
       />
-      <section className="relative w-full max-w-lg rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl">
+      <section className="relative w-full max-w-lg rounded-t-3xl bg-white shadow-2xl sm:rounded-lg">
         <div className="flex items-center justify-between border-b border-black/6 px-6 py-5">
           <h2 className="text-xl font-semibold">{title}</h2>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl bg-neutral-100 p-2 text-neutral-500"
+            className="rounded-md bg-neutral-100 p-2 text-neutral-500"
           >
             <X className="size-5" />
           </button>
@@ -142,11 +144,15 @@ export function ProductsManager({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const [keywordInput, setKeywordInput] = useState('');
-  const [keyword, setKeyword] = useState('');
-  const [categoryId, setCategoryId] = useState('');
-  const [status, setStatus] = useState('');
-  const [page, setPage] = useState(1);
+  const [keyword, setKeyword] = useAdminQueryState<string>('keyword', '');
+  const [keywordInput, setKeywordInput] = useState(keyword);
+  useEffect(() => setKeywordInput(keyword), [keyword]);
+  const [categoryId, setCategoryId] = useAdminQueryState<string>(
+    'categoryId',
+    '',
+  );
+  const [status, setStatus] = useAdminQueryState<string>('status', '');
+  const [page, setPage] = useAdminQueryState<number>('page', 1);
   const [busyId, setBusyId] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<ProductListItem | null>(
     null,
@@ -221,20 +227,15 @@ export function ProductsManager({
 
   const totalPages = Math.max(1, Math.ceil((result?.total ?? 0) / 20));
   return (
-    <div className="mx-auto max-w-[1480px] px-4 py-7 sm:px-7 lg:px-10 lg:py-10">
+    <div className="admin-page">
       {notice ? (
-        <div className="fixed top-5 right-5 z-[90] rounded-2xl bg-[#151816] px-5 py-3 text-sm font-medium text-white shadow-xl">
+        <div className="fixed top-5 right-5 z-[90] rounded-lg bg-[#151816] px-5 py-3 text-sm font-medium text-white shadow-xl">
           {notice}
         </div>
       ) : null}
       <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
         <div>
-          <p className="text-xs font-semibold tracking-[0.18em] text-neutral-400">
-            PRODUCTS
-          </p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight">
-            商品管理
-          </h1>
+          <h1 className="text-2xl font-semibold tracking-tight">商品管理</h1>
           <p className="mt-2 text-sm text-neutral-500">
             管理商品资料、销售状态、变体组合与耗材 BOM。
           </p>
@@ -242,7 +243,7 @@ export function ProductsManager({
         {permissions.edit ? (
           <Link
             href="/admin/products/new"
-            className="flex h-11 items-center justify-center gap-2 rounded-xl bg-[#151816] px-5 text-sm font-semibold text-white hover:bg-black"
+            className="flex h-11 items-center justify-center gap-2 rounded-md bg-[#151816] px-5 text-sm font-semibold text-white hover:bg-black sm:h-9"
           >
             <Plus className="size-4" />
             新增商品
@@ -250,34 +251,11 @@ export function ProductsManager({
         ) : null}
       </div>
 
-      <div className="mt-7 grid gap-3 sm:grid-cols-3">
-        <div className="rounded-2xl border border-black/6 bg-white p-4">
-          <p className="text-xs text-neutral-400">商品总数</p>
-          <p className="mt-1 text-2xl font-semibold">{result?.total ?? '—'}</p>
-        </div>
-        <div className="rounded-2xl border border-black/6 bg-white p-4">
-          <p className="text-xs text-neutral-400">当前页在售</p>
-          <p className="mt-1 text-2xl font-semibold text-emerald-700">
-            {loading
-              ? '—'
-              : (result?.list.filter((item) => item.status === 'on_sale')
-                  .length ?? 0)}
-          </p>
-        </div>
-        <div className="rounded-2xl border border-black/6 bg-white p-4">
-          <p className="text-xs text-neutral-400">当前页变体</p>
-          <p className="mt-1 text-2xl font-semibold">
-            {loading
-              ? '—'
-              : (result?.list.reduce(
-                  (total, item) => total + item.variantCount,
-                  0,
-                ) ?? 0)}
-          </p>
-        </div>
+      <div className="mt-4 text-xs text-neutral-500">
+        共 {result?.total ?? '—'} 件商品
       </div>
 
-      <div className="mt-5 overflow-hidden rounded-2xl border border-black/6 bg-white shadow-[0_1px_2px_rgba(0,0,0,.03)]">
+      <div className="mt-5 overflow-hidden rounded-lg border border-black/6 bg-white shadow-none">
         <form
           className="flex flex-col gap-3 border-b border-black/6 p-4 lg:flex-row"
           onSubmit={(event) => {
@@ -291,7 +269,7 @@ export function ProductsManager({
             <input
               value={keywordInput}
               onChange={(event) => setKeywordInput(event.target.value)}
-              className="h-11 w-full rounded-xl border border-black/10 pr-3 pl-10 text-sm outline-none focus:border-neutral-500"
+              className="h-11 w-full rounded-md border border-black/10 pr-3 pl-10 text-sm outline-none focus:border-neutral-500 sm:h-9"
               placeholder="搜索商品名称或 Slug"
             />
           </div>
@@ -301,7 +279,7 @@ export function ProductsManager({
               setCategoryId(event.target.value);
               setPage(1);
             }}
-            className="h-11 rounded-xl border border-black/10 bg-white px-3 text-sm lg:w-48"
+            className="h-11 rounded-md border border-black/10 bg-white px-3 text-sm sm:h-9 lg:w-48"
           >
             <option value="">全部分类</option>
             {categories.map((root) => (
@@ -321,28 +299,28 @@ export function ProductsManager({
               setStatus(event.target.value);
               setPage(1);
             }}
-            className="h-11 rounded-xl border border-black/10 bg-white px-3 text-sm lg:w-36"
+            className="h-11 rounded-md border border-black/10 bg-white px-3 text-sm sm:h-9 lg:w-36"
           >
             <option value="">全部状态</option>
             <option value="draft">草稿</option>
             <option value="on_sale">在售</option>
             <option value="off_shelf">已下架</option>
           </select>
-          <button className="h-11 rounded-xl bg-neutral-100 px-5 text-sm font-medium">
+          <button className="h-11 rounded-md bg-neutral-100 px-5 text-sm font-medium sm:h-9">
             查询
           </button>
           <button
             type="button"
             title="刷新"
             onClick={() => void load()}
-            className="grid size-11 place-items-center rounded-xl border border-black/10 text-neutral-500"
+            className="grid size-11 place-items-center rounded-md border border-black/10 text-neutral-500"
           >
             <RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </form>
 
         {error ? (
-          <div className="m-4 flex items-center gap-2 rounded-xl bg-red-50 p-4 text-sm text-red-700">
+          <div className="m-4 flex items-center gap-2 rounded-md bg-red-50 p-4 text-sm text-red-700">
             <CircleAlert className="size-4" />
             {error}
           </div>
@@ -360,7 +338,7 @@ export function ProductsManager({
               </tr>
             </thead>
             <tbody>
-              {loading ? (
+              {loading && !result ? (
                 <tr>
                   <td colSpan={6}>
                     <div className="grid h-56 place-items-center text-neutral-400">
@@ -379,107 +357,103 @@ export function ProductsManager({
                   </td>
                 </tr>
               ) : null}
-              {!loading
-                ? result?.list.map((product) => (
-                    <tr
-                      key={product.id}
-                      className="border-t border-black/5 hover:bg-neutral-50/70"
-                    >
-                      <td className="px-5 py-4">
-                        <div className="flex items-center gap-3">
-                          <span className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-xl bg-neutral-100 text-neutral-300">
-                            {product.mainImageUrl ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={product.mainImageUrl}
-                                alt=""
-                                className="size-full object-cover"
-                              />
-                            ) : (
-                              <ImageIcon className="size-5" />
-                            )}
-                          </span>
-                          <div className="min-w-0">
-                            <p className="flex items-center gap-1.5 font-semibold">
-                              {product.name}
-                              {product.isFeatured ? (
-                                <Star className="size-3.5 fill-amber-400 text-amber-400" />
-                              ) : null}
-                            </p>
-                            <p className="mt-1 font-mono text-xs text-neutral-400">
-                              /products/{product.slug}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 text-neutral-500">
-                        {product.categoryName ?? '未分类'}
-                      </td>
-                      <td className="px-4 py-4 font-semibold tabular-nums">
-                        {priceRange(product)}
-                      </td>
-                      <td className="px-4 py-4">
-                        <p>{product.variantCount} 个</p>
-                        <p className="mt-1 text-xs text-neutral-400">
-                          {product.activeVariantCount} 个启用
+              {result?.list.map((product) => (
+                <tr
+                  key={product.id}
+                  className="border-t border-black/5 hover:bg-neutral-50/70"
+                >
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <span className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-md bg-neutral-100 text-neutral-300">
+                        {product.mainImageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={product.mainImageUrl}
+                            alt=""
+                            className="size-full object-cover"
+                          />
+                        ) : (
+                          <ImageIcon className="size-5" />
+                        )}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="flex items-center gap-1.5 font-semibold">
+                          {product.name}
+                          {product.isFeatured ? (
+                            <Star className="size-3.5 fill-amber-400 text-amber-400" />
+                          ) : null}
                         </p>
-                      </td>
-                      <td className="px-4 py-4">
-                        <span
-                          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${statusClasses[product.status]}`}
+                        <p className="mt-1 font-mono text-xs text-neutral-400">
+                          /products/{product.slug}
+                        </p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-4 text-neutral-500">
+                    {product.categoryName ?? '未分类'}
+                  </td>
+                  <td className="px-4 py-4 font-semibold tabular-nums">
+                    {priceRange(product)}
+                  </td>
+                  <td className="px-4 py-4">
+                    <p>{product.variantCount} 个</p>
+                    <p className="mt-1 text-xs text-neutral-400">
+                      {product.activeVariantCount} 个启用
+                    </p>
+                  </td>
+                  <td className="px-4 py-4">
+                    <span
+                      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${statusClasses[product.status]}`}
+                    >
+                      {statusLabels[product.status]}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex justify-end gap-1">
+                      {permissions.publish ? (
+                        <button
+                          type="button"
+                          title={product.status === 'on_sale' ? '下架' : '上架'}
+                          disabled={busyId === product.id}
+                          onClick={() => void changeStatus(product)}
+                          className={`rounded-lg p-2 ${product.status === 'on_sale' ? 'text-emerald-600 hover:bg-amber-50 hover:text-amber-700' : 'text-neutral-400 hover:bg-emerald-50 hover:text-emerald-700'}`}
                         >
-                          {statusLabels[product.status]}
-                        </span>
-                      </td>
-                      <td className="px-5 py-4">
-                        <div className="flex justify-end gap-1">
-                          {permissions.publish ? (
-                            <button
-                              type="button"
-                              title={
-                                product.status === 'on_sale' ? '下架' : '上架'
-                              }
-                              disabled={busyId === product.id}
-                              onClick={() => void changeStatus(product)}
-                              className={`rounded-lg p-2 ${product.status === 'on_sale' ? 'text-emerald-600 hover:bg-amber-50 hover:text-amber-700' : 'text-neutral-400 hover:bg-emerald-50 hover:text-emerald-700'}`}
-                            >
-                              {busyId === product.id ? (
-                                <LoaderCircle className="size-4 animate-spin" />
-                              ) : product.status === 'on_sale' ? (
-                                <EyeOff className="size-4" />
-                              ) : (
-                                <Eye className="size-4" />
-                              )}
-                            </button>
-                          ) : null}
-                          {permissions.edit ? (
-                            <Link
-                              href={`/admin/products/${product.id}`}
-                              title="编辑"
-                              className="rounded-lg p-2 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900"
-                            >
-                              <Pencil className="size-4" />
-                            </Link>
-                          ) : null}
-                          {permissions.edit ? (
-                            <button
-                              type="button"
-                              title="删除"
-                              onClick={() => setDeleteTarget(product)}
-                              className="rounded-lg p-2 text-neutral-400 hover:bg-red-50 hover:text-red-600"
-                            >
-                              <Trash2 className="size-4" />
-                            </button>
-                          ) : null}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                : null}
+                          {busyId === product.id ? (
+                            <LoaderCircle className="size-4 animate-spin" />
+                          ) : product.status === 'on_sale' ? (
+                            <EyeOff className="size-4" />
+                          ) : (
+                            <Eye className="size-4" />
+                          )}
+                        </button>
+                      ) : null}
+                      {permissions.edit ? (
+                        <Link
+                          href={`/admin/products/${product.id}`}
+                          title="编辑"
+                          className="rounded-lg p-2 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900"
+                        >
+                          <Pencil className="size-4" />
+                        </Link>
+                      ) : null}
+                      {permissions.edit ? (
+                        <button
+                          type="button"
+                          title="删除"
+                          onClick={() => setDeleteTarget(product)}
+                          className="rounded-lg p-2 text-neutral-400 hover:bg-red-50 hover:text-red-600"
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
+                      ) : null}
+                    </div>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
-        <div className="flex items-center justify-between border-t border-black/6 px-5 py-4 text-sm text-neutral-500">
+        <div className="flex items-center justify-between border-t border-black/6 px-4 py-3 text-sm text-neutral-500">
           <span>共 {result?.total ?? 0} 条</span>
           <div className="flex items-center gap-2">
             <button
@@ -508,7 +482,7 @@ export function ProductsManager({
       {deleteTarget ? (
         <Modal title="确认删除商品" onClose={() => setDeleteTarget(null)}>
           <div className="px-6 py-6">
-            <div className="rounded-2xl bg-red-50 p-4 text-sm leading-6 text-red-800">
+            <div className="rounded-lg bg-red-50 p-4 text-sm leading-6 text-red-800">
               确定删除 <strong>{deleteTarget.name}</strong>
               ？商品将立即下架并从后台列表隐藏，历史订单不会受影响。
             </div>
@@ -517,7 +491,7 @@ export function ProductsManager({
             <button
               type="button"
               onClick={() => setDeleteTarget(null)}
-              className="h-10 rounded-xl border border-black/10 bg-white px-4 text-sm font-medium"
+              className="h-10 rounded-md border border-black/10 bg-white px-4 text-sm font-medium"
             >
               取消
             </button>
@@ -525,7 +499,7 @@ export function ProductsManager({
               type="button"
               disabled={busyId === deleteTarget.id}
               onClick={() => void remove()}
-              className="flex h-10 items-center gap-2 rounded-xl bg-red-600 px-5 text-sm font-semibold text-white disabled:opacity-50"
+              className="flex h-10 items-center gap-2 rounded-md bg-red-600 px-5 text-sm font-semibold text-white disabled:opacity-50"
             >
               {busyId === deleteTarget.id ? (
                 <LoaderCircle className="size-4 animate-spin" />

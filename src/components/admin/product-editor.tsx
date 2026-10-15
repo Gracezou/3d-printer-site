@@ -31,7 +31,10 @@ import {
   type ReactNode,
 } from 'react';
 
+import { useUnsavedChanges } from '@/lib/use-unsaved-changes';
+
 import { notifyAdminUnauthorized } from '@/lib/admin-session-client';
+import { generateProductSlug } from '@/lib/admin-generated-fields';
 import { zhCN } from '@/messages/zh-CN';
 
 import {
@@ -43,6 +46,7 @@ import {
 interface CategoryNode {
   id: string;
   name: string;
+  slug: string;
   children: CategoryNode[];
 }
 
@@ -132,7 +136,7 @@ interface ProductForm {
 }
 
 const inputClass =
-  'h-11 w-full rounded-xl border border-black/10 bg-white px-3 text-sm outline-none transition placeholder:text-neutral-300 focus:border-neutral-500 focus:ring-2 focus:ring-neutral-100';
+  'h-11 sm:h-9 w-full rounded-md border border-black/10 bg-white px-3 text-sm outline-none transition placeholder:text-neutral-300 focus:border-neutral-500 focus:ring-2 focus:ring-neutral-100';
 
 async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -184,7 +188,7 @@ function AssetUploadButton({
   }
 
   return (
-    <label className="flex h-11 shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-black/10 bg-neutral-50 px-4 text-sm font-medium transition hover:bg-neutral-100">
+    <label className="flex h-11 shrink-0 cursor-pointer items-center gap-2 rounded-md border border-black/10 bg-neutral-50 px-4 text-sm font-medium transition hover:bg-neutral-100 sm:h-9">
       {uploading ? (
         <LoaderCircle className="size-4 animate-spin" />
       ) : (
@@ -245,10 +249,10 @@ function Section({
   children: ReactNode;
 }) {
   return (
-    <section className="overflow-hidden rounded-2xl border border-black/6 bg-white shadow-[0_1px_2px_rgba(0,0,0,.03)]">
+    <section className="overflow-hidden rounded-lg border border-black/6 bg-white shadow-none">
       <div className="flex items-center justify-between gap-4 border-b border-black/6 px-5 py-5 sm:px-7">
         <div className="flex items-center gap-3">
-          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-neutral-100 text-neutral-600">
+          <span className="grid size-10 shrink-0 place-items-center rounded-md bg-neutral-100 text-neutral-600">
             {icon}
           </span>
           <div>
@@ -372,7 +376,7 @@ function GeneratorModal({
         className="absolute inset-0 bg-black/45 backdrop-blur-[2px]"
         onClick={onClose}
       />
-      <section className="relative max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl">
+      <section className="relative max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:rounded-lg">
         <div className="flex items-start justify-between border-b border-black/6 px-6 py-5">
           <div>
             <h2 className="text-xl font-semibold">批量生成变体</h2>
@@ -383,7 +387,7 @@ function GeneratorModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl bg-neutral-100 p-2 text-neutral-500"
+            className="rounded-md bg-neutral-100 p-2 text-neutral-500"
           >
             <X className="size-5" />
           </button>
@@ -392,7 +396,7 @@ function GeneratorModal({
           {dimensions.map((dimension, index) => (
             <div
               key={index}
-              className="grid gap-3 rounded-2xl border border-black/6 p-4 sm:grid-cols-[150px_1fr_auto]"
+              className="grid gap-3 rounded-lg border border-black/6 p-4 sm:grid-cols-[150px_1fr_auto]"
             >
               <input
                 value={dimension.name}
@@ -430,7 +434,7 @@ function GeneratorModal({
                     current.filter((_, itemIndex) => itemIndex !== index),
                   )
                 }
-                className="grid size-11 place-items-center rounded-xl text-neutral-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-30"
+                className="grid size-11 place-items-center rounded-md text-neutral-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-30"
               >
                 <Trash2 className="size-4" />
               </button>
@@ -444,12 +448,12 @@ function GeneratorModal({
                 { name: '', valuesText: '' },
               ])
             }
-            className="flex h-10 items-center gap-2 rounded-xl border border-dashed border-black/15 px-4 text-sm text-neutral-500"
+            className="flex h-10 items-center gap-2 rounded-md border border-dashed border-black/15 px-4 text-sm text-neutral-500"
           >
             <Plus className="size-4" />
             添加属性维度
           </button>
-          <div className="rounded-2xl bg-lime-50 p-4 text-sm text-lime-900">
+          <div className="rounded-lg bg-lime-50 p-4 text-sm text-lime-900">
             将生成 <strong>{combinations.length}</strong>{' '}
             个组合；已存在的相同属性组合会跳过。新变体默认停用，请配置价格和 BOM
             后再启用。
@@ -459,7 +463,7 @@ function GeneratorModal({
           <button
             type="button"
             onClick={onClose}
-            className="h-10 rounded-xl border border-black/10 bg-white px-4 text-sm font-medium"
+            className="h-10 rounded-md border border-black/10 bg-white px-4 text-sm font-medium"
           >
             取消
           </button>
@@ -467,7 +471,7 @@ function GeneratorModal({
             type="button"
             disabled={combinations.length === 0}
             onClick={generate}
-            className="flex h-10 items-center gap-2 rounded-xl bg-[#151816] px-5 text-sm font-semibold text-white disabled:opacity-40"
+            className="flex h-10 items-center gap-2 rounded-md bg-[#151816] px-5 text-sm font-semibold text-white disabled:opacity-40"
           >
             <Sparkles className="size-4" />
             生成组合
@@ -511,6 +515,7 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [generatorOpen, setGeneratorOpen] = useState(false);
   const [previewMarkdown, setPreviewMarkdown] = useState(false);
+  const [slugSuffix] = useState(() => Date.now().toString(36).slice(-6));
   const [form, setForm] = useState<ProductForm>({
     categoryId: '',
     name: '',
@@ -525,10 +530,24 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
     sortOrder: '0',
   });
 
+  const [baseSnapshot, setBaseSnapshot] = useState(() =>
+    JSON.stringify({ ...form, slug: '' }),
+  );
+  const [variantSnapshot, setVariantSnapshot] = useState('[]');
+  const baseDirty =
+    JSON.stringify({ ...form, slug: productId ? form.slug : '' }) !==
+    baseSnapshot;
+  const variantsDirty = JSON.stringify(variants) !== variantSnapshot;
+  const confirmDiscard = useUnsavedChanges(baseDirty || variantsDirty);
+
   const applyProduct = useCallback(
-    (detail: ProductDetail, preserveVariantDrafts = false) => {
+    (
+      detail: ProductDetail,
+      preserveVariantDrafts = false,
+      preserveBaseDraft = false,
+    ) => {
       setProduct(detail);
-      setForm({
+      const nextForm = {
         categoryId: detail.categoryId ?? '',
         name: detail.name,
         slug: detail.slug,
@@ -543,20 +562,24 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
         })),
         isFeatured: detail.isFeatured,
         sortOrder: String(detail.sortOrder),
-      });
+      };
+      if (!preserveBaseDraft) {
+        setForm(nextForm);
+        setBaseSnapshot(JSON.stringify(nextForm));
+      }
       if (!preserveVariantDrafts) {
-        setVariants(
-          detail.variants.map((variant) => ({
-            ...variant,
-            comparePrice: variant.comparePrice ?? '',
-            printHours: variant.printHours ?? '',
-            imageUrl: variant.imageUrl ?? '',
-            bom: variant.bom.map((item) => ({
-              materialId: item.materialId,
-              grams: item.grams,
-            })),
+        const nextVariants = detail.variants.map((variant) => ({
+          ...variant,
+          comparePrice: variant.comparePrice ?? '',
+          printHours: variant.printHours ?? '',
+          imageUrl: variant.imageUrl ?? '',
+          bom: variant.bom.map((item) => ({
+            materialId: item.materialId,
+            grams: item.grams,
           })),
-        );
+        }));
+        setVariants(nextVariants);
+        setVariantSnapshot(JSON.stringify(nextVariants));
       }
     },
     [],
@@ -592,6 +615,26 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
   useEffect(() => {
     void load();
   }, [load]);
+  useEffect(() => {
+    if (productId) return;
+    const flatCategories = categories.flatMap((root) => [
+      root,
+      ...root.children,
+    ]);
+    const selectedCategory = flatCategories.find(
+      (category) => category.id === form.categoryId,
+    );
+    const generatedSlug = generateProductSlug(
+      selectedCategory?.slug,
+      form.name,
+      slugSuffix,
+    );
+    setForm((current) =>
+      current.slug === generatedSlug
+        ? current
+        : { ...current, slug: generatedSlug },
+    );
+  }, [categories, form.categoryId, form.name, productId, slugSuffix]);
   useEffect(() => {
     if (!notice) return;
     const timeout = window.setTimeout(() => setNotice(''), 3000);
@@ -687,8 +730,8 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
           }),
         },
       );
-      applyProduct(detail);
-      setNotice('变体与 BOM 已保存，可售数量已刷新');
+      applyProduct(detail, false, true);
+      setNotice('变体与 BOM 已保存，可售数量已刷新；基础信息单独保存');
     } catch (caught: unknown) {
       setError(caught instanceof Error ? caught.message : '变体保存失败');
     } finally {
@@ -697,7 +740,7 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
   }
 
   async function changeStatus(): Promise<void> {
-    if (!productId || !product) return;
+    if (!productId || !product || (baseDirty && !confirmDiscard())) return;
     setPublishing(true);
     setError('');
     const status = product.status === 'on_sale' ? 'off_shelf' : 'on_sale';
@@ -727,9 +770,9 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
 
   const flatCategories = categories.flatMap((root) => [root, ...root.children]);
   return (
-    <div className="mx-auto max-w-[1380px] px-4 py-7 sm:px-7 lg:px-10 lg:py-10">
+    <div className="admin-page">
       {notice ? (
-        <div className="fixed top-5 right-5 z-[90] flex items-center gap-2 rounded-2xl bg-[#151816] px-5 py-3 text-sm font-medium text-white shadow-xl">
+        <div className="fixed top-5 right-5 z-[90] flex items-center gap-2 rounded-lg bg-[#151816] px-5 py-3 text-sm font-medium text-white shadow-xl">
           <Check className="size-4 text-lime-300" />
           {notice}
         </div>
@@ -758,7 +801,7 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
               type="button"
               disabled={publishing}
               onClick={() => void changeStatus()}
-              className={`flex h-11 items-center gap-2 rounded-xl border px-5 text-sm font-semibold ${product?.status === 'on_sale' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-emerald-200 bg-emerald-50 text-emerald-800'}`}
+              className={`flex h-11 items-center gap-2 rounded-md border px-5 text-sm font-semibold sm:h-9 ${product?.status === 'on_sale' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-emerald-200 bg-emerald-50 text-emerald-800'}`}
             >
               {publishing ? (
                 <LoaderCircle className="size-4 animate-spin" />
@@ -771,10 +814,10 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
             </button>
           ) : null}
           <button
-            type="button"
+            type="submit"
+            form="product-base"
             disabled={savingBase}
-            onClick={() => void saveBase()}
-            className="flex h-11 items-center gap-2 rounded-xl bg-[#151816] px-5 text-sm font-semibold text-white disabled:opacity-50"
+            className="flex h-11 items-center gap-2 rounded-md bg-[#151816] px-5 text-sm font-semibold text-white disabled:opacity-50 sm:h-9"
           >
             {savingBase ? (
               <LoaderCircle className="size-4 animate-spin" />
@@ -786,13 +829,14 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
         </div>
       </div>
       {error ? (
-        <div className="mt-5 flex items-start gap-2 rounded-2xl bg-red-50 p-4 text-sm text-red-700">
+        <div className="mt-5 flex items-start gap-2 rounded-lg bg-red-50 p-4 text-sm text-red-700">
           <CircleAlert className="mt-0.5 size-4 shrink-0" />
           {error}
         </div>
       ) : null}
 
       <form
+        id="product-base"
         onSubmit={(event) => void saveBase(event)}
         className="mt-7 space-y-5"
       >
@@ -814,17 +858,18 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
             </Field>
             <Field
               label="Slug"
-              hint="前台地址使用，仅支持小写字母、数字和连字符。"
+              hint={
+                productId
+                  ? '商品创建后保持地址不变，避免已有链接失效。'
+                  : '根据分类、商品名称和唯一短码自动生成。'
+              }
             >
               <input
                 required
+                readOnly
                 maxLength={150}
                 value={form.slug}
-                onChange={(event) =>
-                  patchForm('slug', event.target.value.toLowerCase())
-                }
-                className={inputClass}
-                placeholder="totoro-figure"
+                className={`${inputClass} bg-neutral-50 font-mono text-neutral-600`}
               />
             </Field>
             <Field label="商品分类">
@@ -864,7 +909,7 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
                 className={inputClass}
               />
             </Field>
-            <label className="flex cursor-pointer items-center justify-between rounded-2xl border border-black/8 p-4 sm:col-span-2 lg:col-span-1">
+            <label className="flex cursor-pointer items-center justify-between rounded-lg border border-black/8 p-4 sm:col-span-2 lg:col-span-1">
               <span>
                 <span className="block text-sm font-medium">首页推荐</span>
                 <span className="mt-1 block text-xs text-neutral-400">
@@ -908,7 +953,7 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
         >
           <div className="px-5 py-6 sm:px-7">
             {previewMarkdown ? (
-              <div className="min-h-72 rounded-2xl border border-black/6 bg-neutral-50 p-5">
+              <div className="min-h-72 rounded-lg border border-black/6 bg-neutral-50 p-5">
                 <MarkdownPreview value={form.description} />
               </div>
             ) : (
@@ -917,7 +962,7 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
                 onChange={(event) =>
                   patchForm('description', event.target.value)
                 }
-                className="min-h-72 w-full rounded-2xl border border-black/10 p-4 font-mono text-sm leading-7 outline-none focus:border-neutral-500"
+                className="min-h-72 w-full rounded-lg border border-black/10 p-4 font-mono text-sm leading-7 outline-none focus:border-neutral-500"
                 placeholder="# 商品介绍&#10;&#10;- 特点一&#10;- 特点二"
               />
             )}
@@ -980,7 +1025,7 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
                           ),
                         )
                       }
-                      className="grid size-11 shrink-0 place-items-center rounded-xl text-neutral-400 hover:bg-red-50 hover:text-red-600"
+                      className="grid size-11 shrink-0 place-items-center rounded-md text-neutral-400 hover:bg-red-50 hover:text-red-600"
                     >
                       <Trash2 className="size-4" />
                     </button>
@@ -989,7 +1034,7 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
                 <button
                   type="button"
                   onClick={() => patchForm('gallery', [...form.gallery, ''])}
-                  className="flex h-10 items-center gap-2 rounded-xl border border-dashed border-black/15 px-4 text-sm text-neutral-500"
+                  className="flex h-10 items-center gap-2 rounded-md border border-dashed border-black/15 px-4 text-sm text-neutral-500"
                 >
                   <Plus className="size-4" />
                   添加图片地址
@@ -1079,7 +1124,7 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
                       form.specs.filter((_, itemIndex) => itemIndex !== index),
                     )
                   }
-                  className="grid size-11 place-items-center rounded-xl text-neutral-400 hover:bg-red-50 hover:text-red-600"
+                  className="grid size-11 place-items-center rounded-md text-neutral-400 hover:bg-red-50 hover:text-red-600"
                 >
                   <Trash2 className="size-4" />
                 </button>
@@ -1090,13 +1135,25 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
               onClick={() =>
                 patchForm('specs', [...form.specs, { key: '', value: '' }])
               }
-              className="flex h-10 items-center gap-2 rounded-xl border border-dashed border-black/15 px-4 text-sm text-neutral-500"
+              className="flex h-10 items-center gap-2 rounded-md border border-dashed border-black/15 px-4 text-sm text-neutral-500"
             >
               <Plus className="size-4" />
               添加规格参数
             </button>
           </div>
         </Section>
+        <div className="admin-save-bar">
+          <span className="mr-auto text-xs text-neutral-500">
+            {baseDirty ? '基础信息有未保存修改' : '基础信息已保存'}
+          </span>
+          <button
+            disabled={savingBase}
+            className="flex items-center gap-2 rounded-md bg-neutral-900 px-4 py-2 text-sm text-white disabled:opacity-50"
+          >
+            <Save className="size-4" />
+            {savingBase ? '保存中…' : productId ? '保存基础信息' : '创建商品'}
+          </button>
+        </div>
       </form>
 
       {productId ? (
@@ -1110,7 +1167,7 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
                 <button
                   type="button"
                   onClick={() => setGeneratorOpen(true)}
-                  className="flex h-9 items-center gap-2 rounded-xl border border-black/10 px-3 text-xs font-medium"
+                  className="flex h-9 items-center gap-2 rounded-md border border-black/10 px-3 text-xs font-medium"
                 >
                   <Sparkles className="size-3.5" />
                   批量生成
@@ -1126,7 +1183,7 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
                       new Set(current).add(variants.length),
                     );
                   }}
-                  className="flex h-9 items-center gap-2 rounded-xl bg-neutral-100 px-3 text-xs font-medium"
+                  className="flex h-9 items-center gap-2 rounded-md bg-neutral-100 px-3 text-xs font-medium"
                 >
                   <Plus className="size-3.5" />
                   手动添加
@@ -1145,7 +1202,7 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
                 const open = expanded.has(index);
                 return (
                   <div key={variant.id ?? index}>
-                    <div className="grid grid-cols-[minmax(220px,1fr)_120px_100px_110px_auto] items-center gap-3 px-5 py-4 sm:px-7">
+                    <div className="grid grid-cols-[minmax(220px,1fr)_120px_100px_110px_auto] items-center gap-3 px-4 py-3 sm:px-7">
                       <button
                         type="button"
                         onClick={() =>
@@ -1159,7 +1216,7 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
                         className="flex min-w-0 items-center gap-3 text-left"
                       >
                         <span
-                          className={`grid size-9 shrink-0 place-items-center rounded-xl ${variant.isActive ? 'bg-lime-100 text-lime-800' : 'bg-neutral-100 text-neutral-400'}`}
+                          className={`grid size-9 shrink-0 place-items-center rounded-md ${variant.isActive ? 'bg-lime-100 text-lime-800' : 'bg-neutral-100 text-neutral-400'}`}
                         >
                           {open ? (
                             <ChevronUp className="size-4" />
@@ -1310,7 +1367,7 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
                             </Field>
                           </div>
                         </div>
-                        <div className="mt-5 rounded-2xl border border-black/6 bg-white p-4">
+                        <div className="mt-5 rounded-lg border border-black/6 bg-white p-4">
                           <div className="flex items-center justify-between">
                             <div>
                               <h3 className="text-sm font-semibold">
@@ -1330,7 +1387,7 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
                                   ],
                                 })
                               }
-                              className="flex h-9 items-center gap-2 rounded-xl bg-neutral-100 px-3 text-xs font-medium"
+                              className="flex h-9 items-center gap-2 rounded-md bg-neutral-100 px-3 text-xs font-medium"
                             >
                               <Plus className="size-3.5" />
                               添加耗材
@@ -1339,7 +1396,7 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
                           <div className="mt-4 space-y-2">
                             {variant.bom.length === 0 ? (
                               <p
-                                className={`rounded-xl p-3 text-sm ${variant.isActive ? 'bg-red-50 text-red-700' : 'bg-neutral-50 text-neutral-400'}`}
+                                className={`rounded-md p-3 text-sm ${variant.isActive ? 'bg-red-50 text-red-700' : 'bg-neutral-50 text-neutral-400'}`}
                               >
                                 {variant.isActive
                                   ? '启用变体必须至少配置一种耗材。'
@@ -1413,7 +1470,7 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
                                         ),
                                       })
                                     }
-                                    className="grid size-11 place-items-center rounded-xl text-neutral-400 hover:bg-red-50 hover:text-red-600"
+                                    className="grid size-11 place-items-center rounded-md text-neutral-400 hover:bg-red-50 hover:text-red-600"
                                   >
                                     <Trash2 className="size-4" />
                                   </button>
@@ -1436,7 +1493,7 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
                 );
               })}
             </div>
-            <div className="flex items-center justify-between border-t border-black/6 bg-neutral-50 px-5 py-4 sm:px-7">
+            <div className="flex items-center justify-between border-t border-black/6 bg-neutral-50 px-4 py-3 sm:px-7">
               <p className="text-xs text-neutral-400">
                 保存后会覆盖当前商品的全部变体和 BOM。
               </p>
@@ -1444,7 +1501,7 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
                 type="button"
                 disabled={savingVariants}
                 onClick={() => void saveVariants()}
-                className="flex h-10 items-center gap-2 rounded-xl bg-[#151816] px-5 text-sm font-semibold text-white disabled:opacity-50"
+                className="flex h-10 items-center gap-2 rounded-md bg-[#151816] px-5 text-sm font-semibold text-white disabled:opacity-50"
               >
                 {savingVariants ? (
                   <LoaderCircle className="size-4 animate-spin" />
@@ -1457,7 +1514,7 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
           </Section>
         </div>
       ) : (
-        <div className="mt-5 rounded-2xl border border-dashed border-black/12 bg-white p-8 text-center text-sm text-neutral-500">
+        <div className="mt-5 rounded-lg border border-dashed border-black/12 bg-white p-8 text-center text-sm text-neutral-500">
           保存商品基础信息后，即可配置变体和耗材 BOM。
         </div>
       )}

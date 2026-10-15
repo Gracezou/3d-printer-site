@@ -191,20 +191,15 @@ export function ProductionBoard({ canUpdate }: { canUpdate: boolean }) {
   }
 
   return (
-    <div className="mx-auto max-w-[1800px] px-4 py-8 sm:px-7 lg:px-10 lg:py-10">
+    <div className="admin-page">
       {notice ? (
-        <div className="fixed top-5 right-5 z-[90] rounded-2xl bg-[#151816] px-5 py-3 text-sm font-medium text-white shadow-xl">
+        <div className="fixed top-5 right-5 z-[90] rounded-lg bg-[#151816] px-5 py-3 text-sm font-medium text-white shadow-xl">
           {notice}
         </div>
       ) : null}
       <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
         <div>
-          <p className="text-xs font-semibold tracking-[0.18em] text-neutral-400">
-            PRODUCTION
-          </p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight">
-            生产看板
-          </h1>
+          <h1 className="text-2xl font-semibold tracking-tight">生产看板</h1>
           <p className="mt-2 text-sm text-neutral-500">
             按生产阶段推进任务，打印失败会按订单 BOM 再次扣减完整耗材。
           </p>
@@ -213,7 +208,7 @@ export function ProductionBoard({ canUpdate }: { canUpdate: boolean }) {
           <select
             value={materialId}
             onChange={(event) => setMaterialId(event.target.value)}
-            className="h-10 min-w-48 rounded-xl border border-black/8 bg-white px-3 text-sm"
+            className="h-10 min-w-48 rounded-md border border-black/8 bg-white px-3 text-sm"
           >
             <option value="">全部耗材</option>
             {data?.materialOptions.map((material) => (
@@ -225,7 +220,7 @@ export function ProductionBoard({ canUpdate }: { canUpdate: boolean }) {
           <button
             type="button"
             onClick={() => void load()}
-            className="grid size-10 place-items-center rounded-xl border border-black/8 bg-white"
+            className="grid size-10 place-items-center rounded-md border border-black/8 bg-white"
             aria-label="刷新"
           >
             <RefreshCcw className="size-4" />
@@ -234,7 +229,7 @@ export function ProductionBoard({ canUpdate }: { canUpdate: boolean }) {
       </div>
 
       {error ? (
-        <div className="mt-5 flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700">
+        <div className="mt-5 flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           <AlertTriangle className="size-4" />
           {error}
         </div>
@@ -253,7 +248,7 @@ export function ProductionBoard({ canUpdate }: { canUpdate: boolean }) {
             return (
               <section
                 key={column.status}
-                className="min-w-0 rounded-2xl border border-black/6 bg-white/60 p-3"
+                className="min-w-0 rounded-lg border border-black/6 bg-white/60 p-3"
               >
                 <div className="flex items-center justify-between px-1 py-1">
                   <h2 className="font-semibold">{column.label}</h2>
@@ -267,7 +262,7 @@ export function ProductionBoard({ canUpdate }: { canUpdate: boolean }) {
                   {jobs.map((job) => (
                     <article
                       key={job.id}
-                      className="rounded-xl border border-black/6 bg-white p-4 shadow-sm"
+                      className="rounded-md border border-black/6 bg-white p-4 shadow-sm"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
@@ -366,7 +361,7 @@ export function ProductionBoard({ canUpdate }: { canUpdate: boolean }) {
                     </article>
                   ))}
                   {!jobs.length ? (
-                    <div className="grid min-h-28 place-items-center rounded-xl border border-dashed border-black/8 text-xs text-neutral-400">
+                    <div className="grid min-h-28 place-items-center rounded-md border border-dashed border-black/8 text-xs text-neutral-400">
                       <span className="text-center">
                         <PackageOpen className="mx-auto mb-2 size-4" />
                         暂无任务
