@@ -27,6 +27,7 @@ import {
 import { BizError } from '@/lib/errors';
 import { logger, maskEmail } from '@/lib/logger';
 import type { DbTransaction } from '@/lib/services/admin-log.service';
+import { enqueueOrderEmail } from '@/lib/services/business-email.service';
 import {
   allocateRefund,
   ZeroRefundAmountError,
@@ -806,6 +807,15 @@ export async function approveReturnRequest(
             updatedAt: new Date(),
           })
           .where(eq(returnRequests.id, requestId));
+        if (status === 'rejected') {
+          await enqueueOrderEmail(
+            tx,
+            'return_rejected',
+            claimed.orderId,
+            requestId,
+            claimed.requestNo,
+          );
+        }
       }
       await logReview(tx, context, 'return.review.refund_error', requestId, {
         refundId: refund?.id,
@@ -840,7 +850,12 @@ export async function rejectReturnRequest(
           eq(returnRequests.status, 'pending'),
         ),
       )
-      .returning({ id: returnRequests.id, status: returnRequests.status });
+      .returning({
+        id: returnRequests.id,
+        status: returnRequests.status,
+        orderId: returnRequests.orderId,
+        requestNo: returnRequests.requestNo,
+      });
     if (!updated) {
       const [existing] = await tx
         .select({ id: returnRequests.id })
@@ -853,6 +868,13 @@ export async function rejectReturnRequest(
     await logReview(tx, context, 'return.review.reject', requestId, {
       reviewRemark,
     });
+    await enqueueOrderEmail(
+      tx,
+      'return_rejected',
+      updated.orderId,
+      updated.id,
+      updated.requestNo,
+    );
     return updated;
   });
 }

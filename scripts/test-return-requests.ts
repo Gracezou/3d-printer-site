@@ -8,6 +8,7 @@ import {
   adminOperationLogs,
   adminRoles,
   adminUsers,
+  emailMessages,
   materialStockMovements,
   materials,
   orderItems,
@@ -1279,6 +1280,14 @@ async function main(): Promise<void> {
       'Return request integration passed: ownership, evidence trust boundary, recovery state machine, shared refund accounting, concurrency, and manual void verified.\n',
     );
   } finally {
+    await db
+      .delete(emailMessages)
+      .where(
+        inArray(emailMessages.recipientEmail, [
+          `b3-a-${suffix}@example.test`,
+          `b3-b-${suffix}@example.test`,
+        ]),
+      );
     if (adminId) {
       await db
         .delete(adminOperationLogs)

@@ -13,6 +13,7 @@ import {
 import type { BomSnapshotItem } from '@/lib/db/schema/order';
 import { BizError } from '@/lib/errors';
 import { toFixed2 } from '@/lib/money';
+import { enqueueOrderEmail } from '@/lib/services/business-email.service';
 import {
   type DbTransaction,
   withAdminLog,
@@ -230,6 +231,14 @@ async function transitionJob(
         )
         .returning();
       if (!updated) await throwJobTransitionError(tx, jobId);
+      if (nextStatus === 'printing') {
+        await enqueueOrderEmail(
+          tx,
+          'production_started',
+          updated.orderId,
+          updated.orderId,
+        );
+      }
       return updated;
     },
     {

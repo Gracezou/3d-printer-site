@@ -78,8 +78,7 @@ export function ModelRequestForm({
             想要 {deviceName} 的保护壳？
           </h2>
           <p className="mt-3 text-sm leading-7 text-white/60">
-            留下邮箱帮助我们判断开模优先级。本期仅收集意向；开模后的自动通知能力将在
-            v0.3.1 提供。
+            留下邮箱帮助我们判断开模优先级。该机型有可购买的保护壳后，我们会向这个邮箱发送通知。
           </p>
         </div>
 

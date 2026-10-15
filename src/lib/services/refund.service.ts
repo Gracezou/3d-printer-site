@@ -17,6 +17,7 @@ import { BizError, ERROR_DEFINITIONS } from '@/lib/errors';
 import { logger } from '@/lib/logger';
 import { toFixed2 } from '@/lib/money';
 import type { DbTransaction } from '@/lib/services/admin-log.service';
+import { enqueueOrderEmail } from '@/lib/services/business-email.service';
 import {
   allocateRefund,
   ZeroRefundAmountError,
@@ -958,7 +959,25 @@ async function finalizeRefund(
         payload: { refundId: pending.refundId },
         ip: context.ip,
       });
+      const [request] = await tx
+        .select({ requestNo: returnRequests.requestNo })
+        .from(returnRequests)
+        .where(eq(returnRequests.id, context.returnRequestId))
+        .limit(1);
+      await enqueueOrderEmail(
+        tx,
+        'return_approved',
+        orderId,
+        context.returnRequestId,
+        request?.requestNo,
+      );
     }
+    await enqueueOrderEmail(
+      tx,
+      'refund_succeeded',
+      orderId,
+      pending.refundId,
+    );
     return {
       id: pending.refundId,
       outRefundNo: record.outRefundNo,

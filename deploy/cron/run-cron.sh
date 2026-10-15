@@ -15,10 +15,15 @@ set +a
 : "${CRON_SECRET:?CRON_SECRET is required}"
 
 case "${1:-}" in
-  release-expired|auto-complete|cleanup-return-evidence|low-stock-alert) endpoint="$1" ;;
+  release-expired|auto-complete|cleanup-return-evidence|low-stock-alert|business-email) endpoint="$1" ;;
   *) echo "Unknown cron endpoint: ${1:-}" >&2; exit 2 ;;
 esac
 
-curl --fail --silent --show-error --max-time 55 \
+curl_max_time=55
+if [ "$endpoint" = "business-email" ]; then
+  curl_max_time=120
+fi
+
+curl --fail --silent --show-error --max-time "$curl_max_time" \
   -H "Authorization: Bearer $CRON_SECRET" \
   "${APP_BASE_URL%/}/api/cron/$endpoint"

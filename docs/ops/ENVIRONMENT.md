@@ -31,6 +31,13 @@
 | `NEXT_PUBLIC_SITE_URL` | 站点公开 | 站点对外根地址（不带末尾斜杠） | 是 | dev/stage/生产/沙箱 | 否（公开） | `http://localhost:5003`（本地） | `src/app/api/payments/alipay/return/route.ts:10` |
 | `NEXT_PUBLIC_ICP_LICENSE` | 站点公开 | 工信部 ICP 备案号（前台页脚） | 否 | dev/stage/生产 | 否（公开） | 留空或备案号占位 | `src/components/shop/site-footer.tsx:11` |
 | `CRON_SECRET` | 定时任务 | Cron 接口 Bearer Token | 是（启用定时任务时） | stage/生产/服务器 cron | 是 | `openssl rand -base64 48`（≥32 字符） | `src/lib/auth/cron.ts:15`；`deploy/cron/run-cron.sh` |
+| `BUSINESS_MAIL_ENABLED` | 业务邮件 | 是否启用独立订单/售后/开模邮件派发；未完成配置时保持 `false` | 否（默认 false） | dev/stage/生产 | 否 | `false` | `src/lib/services/business-email.service.ts` |
+| `BUSINESS_SMTP_HOST` | 业务邮件 | 独立通知邮件 SMTP 主机 | 启用业务邮件时 | dev/stage/生产 | 否 | `smtp.example.com` | `src/lib/services/business-email.service.ts` |
+| `BUSINESS_SMTP_PORT` | 业务邮件 | SMTP 端口；465 使用 TLS，其余端口强制 STARTTLS | 启用业务邮件时 | dev/stage/生产 | 否 | `587` | `src/lib/services/business-email.service.ts` |
+| `BUSINESS_SMTP_USER` | 业务邮件 | SMTP 认证账号 | 启用业务邮件时 | dev/stage/生产 | 是 | `<notify-smtp-user>` | `src/lib/services/business-email.service.ts` |
+| `BUSINESS_SMTP_PASSWORD` | 业务邮件 | SMTP 认证密码 | 启用业务邮件时 | dev/stage/生产 | 是 | `<notify-smtp-password>` | `src/lib/services/business-email.service.ts` |
+| `BUSINESS_MAIL_FROM` | 业务邮件 | 发件地址，推荐使用独立 `notify.` 子域 | 启用业务邮件时 | dev/stage/生产 | 否 | `no-reply@notify.example.com` | `src/lib/services/business-email.service.ts` |
+| `BUSINESS_MAIL_ALLOWED_RECIPIENTS` | 业务邮件 | 逗号分隔的允许收件邮箱；Stage 开启时必填，阻断向真实用户误发 | Stage 启用业务邮件时 | stage/生产 | 是 | `tester@example.com` | `src/lib/services/business-email.service.ts` |
 | `ENABLE_MOCK_PAYMENT` | 功能开关 | 是否启用本地 Mock 支付；生产必须 false | 否（默认 false） | dev/stage/生产/沙箱 | 否 | `false` | `src/lib/services/payment/provider.factory.ts:18` |
 | `DEMO_ADMIN_PASSWORD` | 功能开关 | 演示运营员密码；留空则随机生成 | 否 | dev | 是 | 留空（随机生成） | `scripts/demo-data.ts:858` |
 | `ALLOW_DEMO_DATA` | 功能开关 | 生产模式默认禁止播种演示数据 | 否（默认 false） | dev | 否 | `false` | `scripts/demo-data.ts:836` |

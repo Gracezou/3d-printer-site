@@ -27,6 +27,7 @@ import { BizError } from '@/lib/errors';
 import { maskEmail } from '@/lib/logger';
 import { toFixed2 } from '@/lib/money';
 import { withAdminLog } from '@/lib/services/admin-log.service';
+import { enqueueOrderEmail } from '@/lib/services/business-email.service';
 import { releaseDiscount } from '@/lib/services/promotion.service';
 import type {
   AdminOrderListQuery,
@@ -290,6 +291,7 @@ export async function shipAdminOrder(
           remark: input.remark || null,
         })
         .returning();
+      await enqueueOrderEmail(tx, 'order_shipped', orderId, shipment.id);
       return { order: updated, shipment };
     },
     {

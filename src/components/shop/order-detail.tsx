@@ -447,7 +447,7 @@ export function OrderDetail({ orderNo }: { orderNo: string }) {
                 <h3 className="text-sm font-semibold">提交售后申请</h3>
                 <p className="mt-1 text-xs leading-5 text-stone-500">
                   普通原因仅支持尚未开印的商品；尺寸不符或装配问题可提交人工审核。
-                  审核结果请在订单中心查看，本期不发送邮件。
+                  审核结果请以订单中心为准，邮件通知也会发送到你的登录邮箱。
                 </p>
                 <select
                   value={returnReason}

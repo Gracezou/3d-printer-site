@@ -1,6 +1,7 @@
 export * from './admin';
 export * from './config';
 export * from './device';
+export * from './email';
 export * from './material';
 export * from './order';
 export * from './product';

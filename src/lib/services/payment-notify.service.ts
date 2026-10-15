@@ -10,6 +10,7 @@ import {
   printJobs,
 } from '@/lib/db/schema';
 import { logger } from '@/lib/logger';
+import { enqueueOrderEmail } from '@/lib/services/business-email.service';
 import type { PaymentProvider } from '@/lib/services/payment/provider.interface';
 
 export type NotifyResponse = 'success' | 'failure';
@@ -139,6 +140,7 @@ async function commitVerifiedPayment(
           )
           .onConflictDoNothing({ target: printJobs.orderItemId });
       }
+      await enqueueOrderEmail(tx, 'payment_paid', payment.orderId, payment.id);
       return { duplicate: false, manualReview: false };
     });
 
