@@ -84,6 +84,6 @@ if [[ -n "$unexpected_supabase_imports" ]]; then
 fi
 
 echo "[5/5] Auditing dependencies (high severity threshold)"
-pnpm audit --audit-level high --registry https://registry.npmjs.org
+pnpm exec tsx scripts/audit-dependencies.ts
 
 echo "Security audit passed."

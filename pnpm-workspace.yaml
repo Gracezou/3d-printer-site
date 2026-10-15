@@ -6,3 +6,15 @@ overrides:
   js-yaml: 4.3.2
   postcss: '>=8.5.18'
   urllib: '>=4.9.1'
+  # Security fixes pinned within existing release lines; see docs/v0.3.0/DEPENDENCY-SECURITY.md.
+  'undici@7.29.0': 7.29.1
+  'brace-expansion@1.1.18': 1.1.20
+  'brace-expansion@2.1.4': 2.1.6
+  'brace-expansion@5.0.9': 5.0.11
+  'source-map-js@1.2.1': 1.2.2
+  'next>sharp': 0.35.5
+  # 2.x drops Node 18; this repository already requires Node >=20.
+  'vitest>tinypool': 2.1.2
+
+patchedDependencies:
+  braces@3.0.3: patches/braces@3.0.3.patch

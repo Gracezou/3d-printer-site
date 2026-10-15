@@ -1,6 +1,7 @@
 .git
 .github
 .next
+.local
 .env
 .env.*
 !.env.example
