@@ -12,7 +12,8 @@ import {
   Truck,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { orderListReturnHref } from '@/lib/order-list-navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { zhCN } from '@/messages/zh-CN';
@@ -130,6 +131,7 @@ async function apiRequest<T>(
 
 export function OrderDetail({ orderNo }: { orderNo: string }) {
   const router = useRouter();
+  const returnHref = orderListReturnHref(useSearchParams().get('from'));
   const [order, setOrder] = useState<OrderDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -281,7 +283,7 @@ export function OrderDetail({ orderNo }: { orderNo: string }) {
             重新加载
           </button>
           <Link
-            href="/account/orders"
+            href={returnHref}
             className="inline-flex min-h-11 items-center underline"
           >
             返回订单列表
@@ -305,7 +307,7 @@ export function OrderDetail({ orderNo }: { orderNo: string }) {
   return (
     <main className="mx-auto min-h-[70vh] max-w-6xl px-5 py-10 sm:px-8 sm:py-14">
       <Link
-        href="/account/orders"
+        href={returnHref}
         className="inline-flex items-center gap-2 text-sm text-stone-500 hover:text-stone-950"
       >
         <ArrowLeft className="size-4" /> 返回订单列表

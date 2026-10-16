@@ -336,6 +336,177 @@ test('order links and action buttons share size and shape', async ({
   expect(dimensions).toEqual(Array(3).fill(['44px', '8px', '14px']));
 });
 
+const orderFixture = (orderNo: string, status = 'pending_payment') => ({
+  orderNo,
+  status,
+  statusText:
+    status === 'pending_payment'
+      ? '待支付'
+      : status === 'shipped'
+        ? '待收货'
+        : '已完成',
+  payableAmount: '56.00',
+  paidAmount: status === 'pending_payment' ? '0.00' : '56.00',
+  refundedAmount: '0.00',
+  latestReturn: null,
+  reservedUntil: null,
+  createdAt: '2026-10-16T00:00:00Z',
+  items: cartItems,
+});
+
+test('order filters, pagination and detail return retain URL state', async ({
+  page,
+}) => {
+  await page.route('**/api/orders?*', async (route) => {
+    const params = new URL(route.request().url()).searchParams;
+    await respond(route, {
+      list: [
+        orderFixture(
+          'E2E-ORDER',
+          params.get('status') === 'shipped' ? 'shipped' : 'pending_payment',
+        ),
+      ],
+      total: 20,
+      page: Number(params.get('page')),
+      pageSize: 10,
+    });
+  });
+  await page.goto('/account/orders');
+  await page.getByRole('button', { name: '待收货', exact: true }).click();
+  await page.getByRole('button', { name: '下一页订单' }).click();
+  await expect(page).toHaveURL(/status=shipped&page=2/);
+  await page.reload();
+  await expect(
+    page.getByRole('button', { name: '待收货', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByText('2 / 2', { exact: true })).toBeVisible();
+  await page.getByRole('link', { name: '查看详情', exact: true }).click();
+  await page.getByRole('link', { name: '返回订单列表', exact: true }).click();
+  await expect(page).toHaveURL(/status=shipped&page=2/);
+  await expect(page.getByText('2 / 2', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '全部', exact: true }).click();
+  await expect(page).toHaveURL(/\/account\/orders$/);
+  await page.goBack();
+  await expect(page.getByText('2 / 2', { exact: true })).toBeVisible();
+});
+
+test('order cards expand items, distinguish refunded money and have one primary action', async ({
+  page,
+}) => {
+  await page.route('**/api/orders?*', (route) =>
+    respond(route, {
+      list: [
+        {
+          ...orderFixture('E2E-MULTI', 'completed'),
+          refundedAmount: '12.00',
+          items: [...cartItems, { ...cartItems[0], productName: '第三件商品' }],
+        },
+        orderFixture('E2E-PENDING'),
+        orderFixture('E2E-SHIPPED', 'shipped'),
+      ],
+      total: 3,
+      page: 1,
+      pageSize: 10,
+    }),
+  );
+  await page.setViewportSize({ width: 360, height: 900 });
+  await page.goto('/account/orders');
+  const card = page.locator('article').filter({ hasText: 'E2E-MULTI' });
+  await expect(card.getByText('第三件商品')).toHaveCount(0);
+  await card.getByRole('button', { name: '展开全部 3 款商品' }).click();
+  await expect(card.getByText('第三件商品')).toBeVisible();
+  await expect(card).toContainText('实付');
+  await expect(card).toContainText('¥56.00');
+  await expect(card).toContainText('已退款');
+  await expect(card).toContainText('¥12.00');
+  for (const item of await page.locator('article').all())
+    await expect(
+      item.locator('a.bg-store-ink, button.bg-store-ink'),
+    ).toHaveCount(1);
+  await card.getByRole('button', { name: '收起商品' }).click();
+  await expect(card.getByText('第三件商品')).toHaveCount(0);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: 'test-results/orders-360.png',
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.reload();
+  await expect(page.locator('article')).toHaveCount(3);
+  await page.screenshot({
+    path: 'test-results/orders-1440.png',
+    fullPage: false,
+  });
+  await page.locator('article').last().scrollIntoViewIfNeeded();
+  await page.screenshot({ path: 'test-results/orders-1440-bottom.png' });
+});
+
+test('order mutations only lock their own card and failures retry locally', async ({
+  page,
+}) => {
+  let cancelCalls = 0;
+  let confirmed = false;
+  let cancelled = false;
+  await page.route('**/api/orders?*', (route) =>
+    respond(route, {
+      list: [
+        orderFixture('E2E-CANCEL', cancelled ? 'cancelled' : 'pending_payment'),
+        orderFixture('E2E-CONFIRM', confirmed ? 'completed' : 'shipped'),
+      ],
+      total: 2,
+      page: 1,
+      pageSize: 10,
+    }),
+  );
+  await page.route('**/api/orders/E2E-CANCEL/cancel', async (route) => {
+    cancelCalls++;
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    if (cancelCalls === 1) return respond(route, null, 500);
+    cancelled = true;
+    return respond(route, { success: true });
+  });
+  await page.route('**/api/orders/E2E-CONFIRM/confirm', (route) => {
+    confirmed = true;
+    return respond(route, { success: true });
+  });
+  page.on('dialog', (dialog) => dialog.accept());
+  await page.goto('/account/orders');
+  const first = page.locator('article').filter({ hasText: 'E2E-CANCEL' });
+  const second = page.locator('article').filter({ hasText: 'E2E-CONFIRM' });
+  await first.getByRole('button', { name: '取消订单', exact: true }).click();
+  await expect(first.getByRole('button', { name: '处理中…' })).toBeDisabled();
+  await expect(first.getByRole('link', { name: '去支付' })).toHaveAttribute(
+    'aria-disabled',
+    'true',
+  );
+  await expect(second.getByRole('button', { name: '确认收货' })).toBeEnabled();
+  await second.getByRole('button', { name: '确认收货' }).click();
+  await expect(second.getByRole('status')).toContainText('已确认收货');
+  await expect(first.getByRole('alert')).toContainText('模拟网络失败');
+  await expect(second.getByRole('alert')).toHaveCount(0);
+  await first.getByRole('button', { name: '重试此操作' }).click();
+  await expect(first.getByRole('status')).toContainText('订单已取消');
+  expect(cancelCalls).toBe(2);
+  await expect(
+    first.getByRole('button', { name: '取消订单', exact: true }),
+  ).toHaveCount(0);
+});
+
+test('out-of-range order pages recover after the final item disappears', async ({
+  page,
+}) => {
+  await page.route('**/api/orders?*', (route) =>
+    respond(route, { list: [], total: 0, page: 1, pageSize: 10 }),
+  );
+  await page.goto('/account/orders?status=pending_payment&page=2');
+  await expect(page).toHaveURL(/\/account\/orders\?status=pending_payment$/);
+  await expect(page.getByText('当前分类暂无订单')).toBeVisible();
+});
+
 for (const width of [360, 390, 768, 1440]) {
   test(`shop layouts fit ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });

@@ -10,10 +10,14 @@ import {
   PackageOpen,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ProductDevice } from '@/lib/product-devices';
 import { DeviceFit } from './device-fit';
+import {
+  orderListHref,
+  parseOrderListQuery,
+} from '@/lib/order-list-navigation';
 
 import { customerOrderStatusLabels } from '@/messages/zh-CN';
 
@@ -91,11 +95,18 @@ async function apiRequest<T>(
 
 export function OrdersManager() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { status, page } = parseOrderListQuery(searchParams);
+  const listHref = orderListHref(status, page);
   const [result, setResult] = useState<OrderListResult | null>(null);
-  const [status, setStatus] = useState('all');
-  const [page, setPage] = useState(1);
+  const [resultKey, setResultKey] = useState('');
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState('');
+  const [busy, setBusy] = useState<Set<string>>(new Set());
+  const locks = useRef(new Set<string>());
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [feedback, setFeedback] = useState<
+    Record<string, { text: string; action?: 'cancel' | 'confirm' }>
+  >({});
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const loadVersion = useRef(0);
@@ -113,16 +124,29 @@ export function OrdersManager() {
       const next = await apiRequest<OrderListResult>(
         `/api/orders?${params}`,
         undefined,
-        () => router.replace('/auth/login?next=%2Faccount%2Forders'),
+        () =>
+          router.replace(`/auth/login?next=${encodeURIComponent(listHref)}`),
       );
-      if (version === loadVersion.current) setResult(next);
+      if (version === loadVersion.current) {
+        const pages = Math.max(1, Math.ceil(next.total / 10));
+        if (page > pages) {
+          router.replace(orderListHref(status, pages), { scroll: false });
+          return;
+        }
+        setResult(next);
+        setResultKey(listHref);
+      }
     } catch (caught: unknown) {
       if (version === loadVersion.current)
         setError(caught instanceof Error ? caught.message : '订单加载失败');
     } finally {
       if (version === loadVersion.current) setLoading(false);
     }
-  }, [page, router, status]);
+  }, [page, router, status, listHref]);
+  const reloadRef = useRef(load);
+  useEffect(() => {
+    reloadRef.current = load;
+  }, [load]);
 
   useEffect(() => {
     void load();
@@ -137,32 +161,65 @@ export function OrdersManager() {
   }, [notice]);
 
   async function operate(order: OrderSummary, action: 'cancel' | 'confirm') {
+    if (locks.current.has(order.orderNo)) return;
     const confirmed = window.confirm(
       action === 'cancel'
         ? '确认取消订单？已预扣的库存和折扣码占用将立即释放。'
         : '确认已经收到商品？确认后订单将完成。',
     );
     if (!confirmed) return;
-    setBusy(order.orderNo);
-    setError('');
+    locks.current.add(order.orderNo);
+    setBusy(new Set(locks.current));
+    setFeedback((current) => ({
+      ...current,
+      [order.orderNo]: { text: '正在处理…' },
+    }));
     try {
       await apiRequest(
         `/api/orders/${order.orderNo}/${action}`,
         {
           method: 'POST',
         },
-        () => router.replace('/auth/login?next=%2Faccount%2Forders'),
+        () =>
+          router.replace(`/auth/login?next=${encodeURIComponent(listHref)}`),
       );
-      setNotice(action === 'cancel' ? '订单已取消' : '已确认收货');
-      await load();
+      const text = action === 'cancel' ? '订单已取消' : '已确认收货';
+      setFeedback((current) => ({ ...current, [order.orderNo]: { text } }));
+      setNotice(`订单 ${order.orderNo}：${text}`);
+      // Do not offer an already completed action if the following reload fails.
+      setResult((current) =>
+        current
+          ? {
+              ...current,
+              list: current.list.map((item) =>
+                item.orderNo === order.orderNo
+                  ? {
+                      ...item,
+                      status: action === 'cancel' ? 'cancelled' : 'completed',
+                      statusText: action === 'cancel' ? '已取消' : '已完成',
+                    }
+                  : item,
+              ),
+            }
+          : current,
+      );
+      await reloadRef.current();
     } catch (caught: unknown) {
-      setError(caught instanceof Error ? caught.message : '操作失败');
+      setFeedback((current) => ({
+        ...current,
+        [order.orderNo]: {
+          text: caught instanceof Error ? caught.message : '操作失败',
+          action,
+        },
+      }));
     } finally {
-      setBusy('');
+      locks.current.delete(order.orderNo);
+      setBusy(new Set(locks.current));
     }
   }
 
-  const totalPages = Math.max(1, Math.ceil((result?.total ?? 0) / 10));
+  const visibleResult = resultKey === listHref ? result : null;
+  const totalPages = Math.max(1, Math.ceil((visibleResult?.total ?? 0) / 10));
 
   return (
     <div aria-busy={loading}>
@@ -174,15 +231,17 @@ export function OrdersManager() {
           {notice}
         </div>
       ) : null}
-      <div className="flex gap-2 overflow-x-auto border-b border-stone-900/8 pb-3">
+      <div
+        aria-label="订单状态筛选"
+        className="flex gap-2 overflow-x-auto border-b border-stone-900/8 pb-3"
+      >
         {tabs.map((tab) => (
           <button
             key={tab.value}
             type="button"
             aria-pressed={status === tab.value}
             onClick={() => {
-              setStatus(tab.value);
-              setPage(1);
+              router.push(orderListHref(tab.value, 1), { scroll: false });
             }}
             className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition ${
               status === tab.value
@@ -210,19 +269,19 @@ export function OrdersManager() {
           </button>
         </div>
       ) : null}
-      {loading && result ? (
+      {loading && visibleResult ? (
         <p role="status" className="mt-3 text-sm text-stone-600">
           正在更新订单…
         </p>
       ) : null}
 
-      {loading && !result ? (
+      {(loading || resultKey !== listHref) && !visibleResult && !error ? (
         <div className="grid min-h-80 place-items-center text-sm text-stone-400">
           <LoaderCircle className="size-6 animate-spin" />
         </div>
-      ) : result?.list.length ? (
+      ) : visibleResult?.list.length ? (
         <div className="mt-5 space-y-4">
-          {result.list.map((order) => (
+          {visibleResult.list.map((order) => (
             <article
               key={order.orderNo}
               className="overflow-hidden rounded-3xl border border-stone-900/8 bg-white shadow-sm"
@@ -247,7 +306,10 @@ export function OrdersManager() {
                 </div>
               </div>
               <div className="divide-y divide-stone-900/6 px-5 sm:px-6">
-                {order.items.slice(0, 3).map((item, index) => (
+                {(expanded.has(order.orderNo)
+                  ? order.items
+                  : order.items.slice(0, 2)
+                ).map((item, index) => (
                   <div
                     key={`${item.productName}-${item.variantName}-${index}`}
                     className="flex items-center gap-4 py-4"
@@ -282,13 +344,34 @@ export function OrdersManager() {
                     </span>
                   </div>
                 ))}
+                {order.items.length > 2 ? (
+                  <button
+                    type="button"
+                    aria-expanded={expanded.has(order.orderNo)}
+                    onClick={() =>
+                      setExpanded((current) => {
+                        const next = new Set(current);
+                        if (next.has(order.orderNo)) next.delete(order.orderNo);
+                        else next.add(order.orderNo);
+                        return next;
+                      })
+                    }
+                    className="min-h-11 text-sm font-medium text-stone-600 underline"
+                  >
+                    {expanded.has(order.orderNo)
+                      ? '收起商品'
+                      : `展开全部 ${order.items.length} 款商品`}
+                  </button>
+                ) : null}
               </div>
               <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4 sm:px-6">
                 <p className="w-full text-sm text-stone-600">
                   {order.latestReturn?.status === 'pending'
                     ? '售后审核中，可进入订单详情查看进度。'
                     : order.status === 'pending_payment'
-                      ? '请在订单保留时间内完成支付。'
+                      ? order.reservedUntil
+                        ? `请在 ${formatDate(order.reservedUntil)} 前完成支付。`
+                        : '请在订单保留时间内完成支付。'
                       : order.status === 'shipped'
                         ? '商品已发出，可查看物流；收到后请确认收货。'
                         : [
@@ -299,29 +382,70 @@ export function OrdersManager() {
                           ? '正在安排制作与发货，进度会在订单详情更新。'
                           : '查看订单详情可了解交付及售后记录。'}
                 </p>
-                <p className="text-sm text-stone-500">
-                  合计{' '}
+                <div className="w-full text-sm text-stone-500">
+                  {order.status === 'pending_payment'
+                    ? '待支付'
+                    : Number(order.paidAmount) > 0
+                      ? '实付'
+                      : '订单金额'}{' '}
                   <span className="text-lg font-semibold text-stone-950">
-                    ¥{order.payableAmount}
+                    ¥
+                    {order.status !== 'pending_payment' &&
+                    Number(order.paidAmount) > 0
+                      ? order.paidAmount
+                      : order.payableAmount}
                   </span>
-                </p>
-                <div className="flex flex-wrap gap-2">
+                  {Number(order.refundedAmount) > 0 ? (
+                    <span className="ml-4 inline-block">
+                      已退款{' '}
+                      <span className="font-semibold text-stone-700">
+                        ¥{order.refundedAmount}
+                      </span>
+                    </span>
+                  ) : null}
+                </div>
+                {feedback[order.orderNo] ? (
+                  <div
+                    role={feedback[order.orderNo].action ? 'alert' : 'status'}
+                    className={`w-full rounded-lg p-3 text-sm ${feedback[order.orderNo].action ? 'bg-rose-50 text-rose-700' : 'bg-stone-50 text-stone-600'}`}
+                  >
+                    {feedback[order.orderNo].text}
+                    {feedback[order.orderNo].action ? (
+                      <button
+                        type="button"
+                        disabled={busy.has(order.orderNo)}
+                        onClick={() =>
+                          void operate(order, feedback[order.orderNo].action!)
+                        }
+                        className="ml-3 underline"
+                      >
+                        重试此操作
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+                <div className="ml-auto flex w-full flex-wrap justify-end gap-2 sm:w-auto">
                   <Link
-                    href={`/account/orders/${order.orderNo}`}
-                    className="inline-flex h-11 items-center justify-center rounded-lg border border-stone-900/12 px-4 text-sm font-semibold transition hover:bg-stone-50"
+                    href={`/account/orders/${order.orderNo}?from=${encodeURIComponent(listHref)}`}
+                    className={`inline-flex h-11 items-center justify-center rounded-lg border px-4 text-sm font-semibold transition ${['pending_payment', 'shipped'].includes(order.status) ? 'border-stone-900/12 hover:bg-stone-50' : 'bg-store-ink border-transparent text-white hover:opacity-90'}`}
                   >
                     查看详情
                   </Link>
                   {order.status === 'pending_payment' ? (
                     <>
                       <button
-                        disabled={busy !== ''}
+                        disabled={busy.has(order.orderNo)}
                         onClick={() => void operate(order, 'cancel')}
                         className="inline-flex h-11 items-center justify-center rounded-lg border border-stone-900/12 px-4 text-sm font-semibold text-stone-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-40"
                       >
-                        {busy === order.orderNo ? '处理中…' : '取消订单'}
+                        {busy.has(order.orderNo) ? '处理中…' : '取消订单'}
                       </button>
                       <Link
+                        aria-disabled={busy.has(order.orderNo)}
+                        tabIndex={busy.has(order.orderNo) ? -1 : undefined}
+                        onClick={(event) => {
+                          if (busy.has(order.orderNo)) event.preventDefault();
+                        }}
                         href={`/checkout/pay/${order.orderNo}`}
                         className="bg-store-ink inline-flex h-11 items-center justify-center rounded-lg border border-transparent px-4 text-sm font-semibold text-white transition hover:opacity-90"
                       >
@@ -331,11 +455,11 @@ export function OrdersManager() {
                   ) : null}
                   {order.status === 'shipped' ? (
                     <button
-                      disabled={busy !== ''}
+                      disabled={busy.has(order.orderNo)}
                       onClick={() => void operate(order, 'confirm')}
                       className="bg-store-ink inline-flex h-11 items-center justify-center rounded-lg border border-transparent px-4 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-40"
                     >
-                      {busy === order.orderNo ? '处理中…' : '确认收货'}
+                      {busy.has(order.orderNo) ? '处理中…' : '确认收货'}
                     </button>
                   ) : null}
                 </div>
@@ -352,12 +476,14 @@ export function OrdersManager() {
         </div>
       )}
 
-      {(result?.total ?? 0) > 0 ? (
+      {(visibleResult?.total ?? 0) > 0 ? (
         <div className="mt-6 flex items-center justify-center gap-3">
           <button
             aria-label="上一页订单"
             disabled={page <= 1}
-            onClick={() => setPage((value) => value - 1)}
+            onClick={() =>
+              router.push(orderListHref(status, page - 1), { scroll: false })
+            }
             className="rounded-full border border-stone-900/10 bg-white p-2.5 disabled:opacity-30"
           >
             <ChevronLeft className="size-4" />
@@ -368,7 +494,9 @@ export function OrdersManager() {
           <button
             aria-label="下一页订单"
             disabled={page >= totalPages}
-            onClick={() => setPage((value) => value + 1)}
+            onClick={() =>
+              router.push(orderListHref(status, page + 1), { scroll: false })
+            }
             className="rounded-full border border-stone-900/10 bg-white p-2.5 disabled:opacity-30"
           >
             <ChevronRight className="size-4" />
