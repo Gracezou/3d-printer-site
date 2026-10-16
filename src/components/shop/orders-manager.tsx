@@ -1,5 +1,7 @@
 'use client';
 
+import { zhCN } from '@/messages/zh-CN';
+
 import {
   ChevronLeft,
   ChevronRight,
@@ -9,11 +11,14 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ProductDevice } from '@/lib/product-devices';
+import { DeviceFit } from './device-fit';
 
 import { customerOrderStatusLabels } from '@/messages/zh-CN';
 
 interface OrderItemSummary {
+  deviceModels?: ProductDevice[];
   productName: string;
   variantName: string;
   imageUrl: string | null;
@@ -48,7 +53,10 @@ interface ApiEnvelope<T> {
 
 const tabs = [
   { value: 'all', label: '全部' },
-  { value: 'pending_payment', label: customerOrderStatusLabels.pending_payment },
+  {
+    value: 'pending_payment',
+    label: customerOrderStatusLabels.pending_payment,
+  },
   { value: 'in_production', label: customerOrderStatusLabels.in_production },
   { value: 'shipped', label: customerOrderStatusLabels.shipped },
   { value: 'completed', label: customerOrderStatusLabels.completed },
@@ -90,8 +98,10 @@ export function OrdersManager() {
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const loadVersion = useRef(0);
 
   const load = useCallback(async () => {
+    const version = ++loadVersion.current;
     setLoading(true);
     setError('');
     try {
@@ -100,21 +110,26 @@ export function OrdersManager() {
         page: String(page),
         pageSize: '10',
       });
-      setResult(
-        await apiRequest<OrderListResult>(
-          `/api/orders?${params}`,
-          undefined,
-          () => router.replace('/auth/login?next=%2Faccount%2Forders'),
-        ),
+      const next = await apiRequest<OrderListResult>(
+        `/api/orders?${params}`,
+        undefined,
+        () => router.replace('/auth/login?next=%2Faccount%2Forders'),
       );
+      if (version === loadVersion.current) setResult(next);
     } catch (caught: unknown) {
-      setError(caught instanceof Error ? caught.message : '订单加载失败');
+      if (version === loadVersion.current)
+        setError(caught instanceof Error ? caught.message : '订单加载失败');
     } finally {
-      setLoading(false);
+      if (version === loadVersion.current) setLoading(false);
     }
   }, [page, router, status]);
 
-  useEffect(() => void load(), [load]);
+  useEffect(() => {
+    void load();
+    return () => {
+      loadVersion.current += 1;
+    };
+  }, [load]);
   useEffect(() => {
     if (!notice) return;
     const timer = window.setTimeout(() => setNotice(''), 3000);
@@ -150,9 +165,12 @@ export function OrdersManager() {
   const totalPages = Math.max(1, Math.ceil((result?.total ?? 0) / 10));
 
   return (
-    <div>
+    <div aria-busy={loading}>
       {notice ? (
-        <div className="bg-store-ink fixed top-24 right-5 z-[60] rounded-2xl px-5 py-3 text-sm font-medium text-white shadow-xl">
+        <div
+          role="status"
+          className="bg-store-ink mb-4 rounded-lg px-5 py-3 text-sm font-medium text-white"
+        >
           {notice}
         </div>
       ) : null}
@@ -161,6 +179,7 @@ export function OrdersManager() {
           <button
             key={tab.value}
             type="button"
+            aria-pressed={status === tab.value}
             onClick={() => {
               setStatus(tab.value);
               setPage(1);
@@ -177,9 +196,24 @@ export function OrdersManager() {
       </div>
 
       {error ? (
-        <div className="mt-5 flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+        <div
+          role="alert"
+          className="mt-5 flex flex-wrap items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700"
+        >
           <CircleAlert className="size-4" /> {error}
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="min-h-11 underline"
+          >
+            重新加载订单
+          </button>
         </div>
+      ) : null}
+      {loading && result ? (
+        <p role="status" className="mt-3 text-sm text-stone-600">
+          正在更新订单…
+        </p>
       ) : null}
 
       {loading && !result ? (
@@ -203,7 +237,8 @@ export function OrdersManager() {
                 <div className="flex flex-wrap items-center gap-2">
                   {order.latestReturn ? (
                     <span className="rounded-full bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-800">
-                      售后 {order.latestReturn.status}
+                      售后{' '}
+                      {zhCN.returnStatus[order.latestReturn.status] ?? '处理中'}
                     </span>
                   ) : null}
                   <span className="bg-store-success-soft text-store-success-ink rounded-full px-3 py-1.5 text-xs font-semibold">
@@ -240,6 +275,7 @@ export function OrdersManager() {
                       <p className="mt-1 truncate text-xs text-stone-500">
                         {item.variantName}
                       </p>
+                      <DeviceFit devices={item.deviceModels} current />
                     </div>
                     <span className="text-sm text-stone-500">
                       × {item.quantity}
@@ -248,6 +284,21 @@ export function OrdersManager() {
                 ))}
               </div>
               <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4 sm:px-6">
+                <p className="w-full text-sm text-stone-600">
+                  {order.latestReturn?.status === 'pending'
+                    ? '售后审核中，可进入订单详情查看进度。'
+                    : order.status === 'pending_payment'
+                      ? '请在订单保留时间内完成支付。'
+                      : order.status === 'shipped'
+                        ? '商品已发出，可查看物流；收到后请确认收货。'
+                        : [
+                              'paid',
+                              'in_production',
+                              'pending_shipment',
+                            ].includes(order.status)
+                          ? '正在安排制作与发货，进度会在订单详情更新。'
+                          : '查看订单详情可了解交付及售后记录。'}
+                </p>
                 <p className="text-sm text-stone-500">
                   合计{' '}
                   <span className="text-lg font-semibold text-stone-950">
@@ -257,7 +308,7 @@ export function OrdersManager() {
                 <div className="flex flex-wrap gap-2">
                   <Link
                     href={`/account/orders/${order.orderNo}`}
-                    className="inline-flex h-9 items-center rounded-full border border-stone-900/12 px-4 text-xs font-semibold"
+                    className="inline-flex h-11 items-center justify-center rounded-lg border border-stone-900/12 px-4 text-sm font-semibold transition hover:bg-stone-50"
                   >
                     查看详情
                   </Link>
@@ -266,13 +317,13 @@ export function OrdersManager() {
                       <button
                         disabled={busy !== ''}
                         onClick={() => void operate(order, 'cancel')}
-                        className="h-9 rounded-full border border-rose-200 px-4 text-xs font-semibold text-rose-700 disabled:opacity-40"
+                        className="inline-flex h-11 items-center justify-center rounded-lg border border-stone-900/12 px-4 text-sm font-semibold text-stone-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-40"
                       >
-                        取消订单
+                        {busy === order.orderNo ? '处理中…' : '取消订单'}
                       </button>
                       <Link
                         href={`/checkout/pay/${order.orderNo}`}
-                        className="bg-store-ink inline-flex h-9 items-center rounded-full px-4 text-xs font-semibold text-white"
+                        className="bg-store-ink inline-flex h-11 items-center justify-center rounded-lg border border-transparent px-4 text-sm font-semibold text-white transition hover:opacity-90"
                       >
                         去支付
                       </Link>
@@ -282,9 +333,9 @@ export function OrdersManager() {
                     <button
                       disabled={busy !== ''}
                       onClick={() => void operate(order, 'confirm')}
-                      className="bg-store-ink h-9 rounded-full px-4 text-xs font-semibold text-white disabled:opacity-40"
+                      className="bg-store-ink inline-flex h-11 items-center justify-center rounded-lg border border-transparent px-4 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-40"
                     >
-                      确认收货
+                      {busy === order.orderNo ? '处理中…' : '确认收货'}
                     </button>
                   ) : null}
                 </div>
@@ -304,6 +355,7 @@ export function OrdersManager() {
       {(result?.total ?? 0) > 0 ? (
         <div className="mt-6 flex items-center justify-center gap-3">
           <button
+            aria-label="上一页订单"
             disabled={page <= 1}
             onClick={() => setPage((value) => value - 1)}
             className="rounded-full border border-stone-900/10 bg-white p-2.5 disabled:opacity-30"
@@ -314,6 +366,7 @@ export function OrdersManager() {
             {page} / {totalPages}
           </span>
           <button
+            aria-label="下一页订单"
             disabled={page >= totalPages}
             onClick={() => setPage((value) => value + 1)}
             className="rounded-full border border-stone-900/10 bg-white p-2.5 disabled:opacity-30"

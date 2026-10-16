@@ -138,7 +138,9 @@ export function LoginForm({ returnTo }: LoginFormProps) {
       )}
 
       {message ? (
-        <p className="mt-4 text-sm text-neutral-600">{message}</p>
+        <p role="status" className="mt-4 text-sm text-neutral-600">
+          {message}
+        </p>
       ) : null}
     </div>
   );

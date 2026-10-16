@@ -24,6 +24,7 @@ import {
   getReturnRules,
 } from '@/lib/services/return-policy';
 import type { CustomerOrderListQuery } from '@/lib/validators/order';
+import { productDevicesSelection } from '@/lib/services/product-devices';
 
 function statusFilter(
   status: CustomerOrderListQuery['status'],
@@ -77,16 +78,17 @@ export async function listCustomerOrders(
   const [itemRows, returnRows] = orderIds.length
     ? await Promise.all([
         db
-        .select({
-          orderId: orderItems.orderId,
-          productName: orderItems.productName,
-          variantName: orderItems.variantName,
-          imageUrl: orderItems.imageUrl,
-          quantity: orderItems.quantity,
-        })
-        .from(orderItems)
-        .where(inArray(orderItems.orderId, orderIds))
-        .orderBy(orderItems.createdAt),
+          .select({
+            orderId: orderItems.orderId,
+            deviceModels: productDevicesSelection(orderItems.productId),
+            productName: orderItems.productName,
+            variantName: orderItems.variantName,
+            imageUrl: orderItems.imageUrl,
+            quantity: orderItems.quantity,
+          })
+          .from(orderItems)
+          .where(inArray(orderItems.orderId, orderIds))
+          .orderBy(orderItems.createdAt),
         db
           .select({
             orderId: returnRequests.orderId,
@@ -129,6 +131,7 @@ export async function listCustomerOrders(
       latestReturn: latestReturnByOrder.get(id) ?? null,
       items: (itemsByOrder.get(id) ?? []).map((item) => ({
         productName: item.productName,
+        deviceModels: item.deviceModels,
         variantName: item.variantName,
         imageUrl: item.imageUrl,
         quantity: item.quantity,
@@ -177,68 +180,73 @@ export async function getCustomerOrderDetail(userId: string, orderNo: string) {
 
   const [items, shipmentRows, refundedRows, requestRows, rules] =
     await Promise.all([
-    db
-      .select({
-        id: orderItems.id,
-        productName: orderItems.productName,
-        variantName: orderItems.variantName,
-        imageUrl: orderItems.imageUrl,
-        unitPrice: orderItems.unitPrice,
-        quantity: orderItems.quantity,
-        subtotal: orderItems.subtotal,
-        printStatus: printJobs.status,
-        printerName: printJobs.printerName,
-        printStartedAt: printJobs.startedAt,
-        printFinishedAt: printJobs.finishedAt,
-      })
-      .from(orderItems)
-      .leftJoin(printJobs, eq(printJobs.orderItemId, orderItems.id))
-      .where(eq(orderItems.orderId, order.id))
-      .orderBy(orderItems.createdAt),
-    db
-      .select({
-        carrierCode: shipments.carrierCode,
-        carrierName: shipments.carrierName,
-        trackingNo: shipments.trackingNo,
-        shippedAt: shipments.shippedAt,
-      })
-      .from(shipments)
-      .where(eq(shipments.orderId, order.id))
-      .orderBy(desc(shipments.shippedAt))
-      .limit(1),
-    db
-      .select({
-        orderItemId: refundItems.orderItemId,
-        quantity: sql<number>`sum(${refundItems.quantity})::int`,
-      })
-      .from(refundItems)
-      .innerJoin(refunds, eq(refunds.id, refundItems.refundId))
-      .where(and(eq(refunds.orderId, order.id), eq(refunds.status, 'success')))
-      .groupBy(refundItems.orderItemId),
-    db
-      .select({
-        requestNo: returnRequests.requestNo,
-        reasonCode: returnRequests.reasonCode,
-        reasonText: returnRequests.reasonText,
-        status: returnRequests.status,
-        reviewRemark: returnRequests.reviewRemark,
-        createdAt: returnRequests.createdAt,
-        reviewedAt: returnRequests.reviewedAt,
-      })
-      .from(returnRequests)
-      .where(
-        and(
-          eq(returnRequests.orderId, order.id),
-          eq(returnRequests.userId, userId),
-        ),
-      )
-      .orderBy(desc(returnRequests.createdAt)),
-    getReturnRules(db),
-  ]);
+      db
+        .select({
+          id: orderItems.id,
+          deviceModels: productDevicesSelection(orderItems.productId),
+          productName: orderItems.productName,
+          variantName: orderItems.variantName,
+          imageUrl: orderItems.imageUrl,
+          unitPrice: orderItems.unitPrice,
+          quantity: orderItems.quantity,
+          subtotal: orderItems.subtotal,
+          printStatus: printJobs.status,
+          printerName: printJobs.printerName,
+          printStartedAt: printJobs.startedAt,
+          printFinishedAt: printJobs.finishedAt,
+        })
+        .from(orderItems)
+        .leftJoin(printJobs, eq(printJobs.orderItemId, orderItems.id))
+        .where(eq(orderItems.orderId, order.id))
+        .orderBy(orderItems.createdAt),
+      db
+        .select({
+          carrierCode: shipments.carrierCode,
+          carrierName: shipments.carrierName,
+          trackingNo: shipments.trackingNo,
+          shippedAt: shipments.shippedAt,
+        })
+        .from(shipments)
+        .where(eq(shipments.orderId, order.id))
+        .orderBy(desc(shipments.shippedAt))
+        .limit(1),
+      db
+        .select({
+          orderItemId: refundItems.orderItemId,
+          quantity: sql<number>`sum(${refundItems.quantity})::int`,
+        })
+        .from(refundItems)
+        .innerJoin(refunds, eq(refunds.id, refundItems.refundId))
+        .where(
+          and(eq(refunds.orderId, order.id), eq(refunds.status, 'success')),
+        )
+        .groupBy(refundItems.orderItemId),
+      db
+        .select({
+          requestNo: returnRequests.requestNo,
+          reasonCode: returnRequests.reasonCode,
+          reasonText: returnRequests.reasonText,
+          status: returnRequests.status,
+          reviewRemark: returnRequests.reviewRemark,
+          createdAt: returnRequests.createdAt,
+          reviewedAt: returnRequests.reviewedAt,
+        })
+        .from(returnRequests)
+        .where(
+          and(
+            eq(returnRequests.orderId, order.id),
+            eq(returnRequests.userId, userId),
+          ),
+        )
+        .orderBy(desc(returnRequests.createdAt)),
+      getReturnRules(db),
+    ]);
   const refundedByItem = new Map(
     refundedRows.map((item) => [item.orderItemId, item.quantity]),
   );
-  const hasPendingReturn = requestRows.some((request) => request.status === 'pending');
+  const hasPendingReturn = requestRows.some(
+    (request) => request.status === 'pending',
+  );
 
   return {
     orderNo: order.orderNo,

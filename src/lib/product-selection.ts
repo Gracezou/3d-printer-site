@@ -29,20 +29,22 @@ export function selectCompatibleAttributes(
     return next;
   }
 
-  const candidates = variants
-    .filter(
-      (variant) =>
-        variant.selection[dimension] === value &&
-        (availability.get(variant.id) ?? 0) > 0,
-    )
-    .sort((left, right) => {
-      const score = (variant: SelectableVariant) =>
-        Object.entries(current).filter(
-          ([key, selected]) =>
-            key !== dimension && variant.selection[key] === selected,
-        ).length;
-      return score(right) - score(left);
-    });
-
-  return candidates[0] ? { ...candidates[0].selection } : current;
+  let candidates = variants.filter(
+    (variant) =>
+      variant.selection[dimension] === value &&
+      (availability.get(variant.id) ?? 0) > 0,
+  );
+  if (!candidates.length) return current;
+  const next: Record<string, string> = { [dimension]: value };
+  for (const [key, selected] of Object.entries(current)) {
+    if (key === dimension) continue;
+    const compatible = candidates.filter(
+      (variant) => variant.selection[key] === selected,
+    );
+    if (compatible.length) {
+      next[key] = selected;
+      candidates = compatible;
+    }
+  }
+  return next;
 }

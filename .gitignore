@@ -16,3 +16,5 @@ deploy/targets/*.env
 *.tsbuildinfo
 .DS_Store
 *.log
+playwright-report/
+test-results/

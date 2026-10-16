@@ -9,6 +9,7 @@ import {
   listStorefrontProducts,
 } from '@/lib/services/storefront.service';
 import type { StorefrontProductListQuery } from '@/lib/validators/storefront';
+import { getPublicDeviceCatalog } from '@/lib/services/device.service';
 
 interface ProductListingProps {
   eyebrow: string;
@@ -21,6 +22,7 @@ function pageHref(query: StorefrontProductListQuery, page: number): string {
   const params = new URLSearchParams();
   if (query.keyword) params.set('keyword', query.keyword);
   if (query.categoryId) params.set('categoryId', query.categoryId);
+  if (query.deviceModelId) params.set('deviceModelId', query.deviceModelId);
   if (query.minPrice) params.set('minPrice', query.minPrice);
   if (query.maxPrice) params.set('maxPrice', query.maxPrice);
   if (query.materialType) params.set('materialType', query.materialType);
@@ -42,19 +44,20 @@ export async function ProductListing({
   description,
   query,
 }: ProductListingProps) {
-  const [result, categories] = await Promise.all([
+  const [result, categories, brands] = await Promise.all([
     listStorefrontProducts(query),
     getStorefrontCategories(),
+    getPublicDeviceCatalog(),
   ]);
 
   return (
     <main>
       <section className="bg-store-mist border-b border-stone-900/8">
-        <div className="mx-auto max-w-7xl px-5 py-14 sm:px-8 sm:py-20">
+        <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8 sm:py-10">
           <p className="text-store-muted text-xs font-bold tracking-[0.22em]">
             {eyebrow}
           </p>
-          <h1 className="mt-4 text-4xl font-semibold tracking-[-0.04em] sm:text-6xl">
+          <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">
             {title}
           </h1>
           <p className="mt-5 max-w-2xl text-sm leading-7 text-stone-600 sm:text-base">
@@ -64,7 +67,11 @@ export async function ProductListing({
       </section>
 
       <div className="mx-auto max-w-7xl px-5 py-10 sm:px-8 sm:py-14">
-        <ProductFilterForm categories={categories} query={query} />
+        <ProductFilterForm
+          categories={categories}
+          brands={brands}
+          query={query}
+        />
 
         <div className="mt-10 flex items-center justify-between gap-4">
           <p className="text-sm text-stone-500">
@@ -82,7 +89,11 @@ export async function ProductListing({
         {result.list.length > 0 ? (
           <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-10 md:grid-cols-3 lg:grid-cols-4">
             {result.list.map((product) => (
-              <ProductCard key={product.id} product={product} />
+              <ProductCard
+                key={product.id}
+                product={product}
+                deviceModelId={query.deviceModelId}
+              />
             ))}
           </div>
         ) : (

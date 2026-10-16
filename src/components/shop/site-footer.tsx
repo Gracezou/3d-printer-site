@@ -8,7 +8,8 @@ interface SiteFooterProps {
 }
 
 export function SiteFooter({ siteInfo }: SiteFooterProps) {
-  const icpLicense = process.env.NEXT_PUBLIC_ICP_LICENSE?.trim();
+  const icpLicense =
+    process.env.NEXT_PUBLIC_ICP_LICENSE?.trim() || zhCN.legal.icpLicense;
 
   return (
     <footer className="bg-store-ink text-white">
@@ -54,18 +55,14 @@ export function SiteFooter({ siteInfo }: SiteFooterProps) {
           <p>
             © {new Date().getFullYear()} {zhCN.brand.name}
           </p>
-          {icpLicense ? (
-            <a
-              href="https://beian.miit.gov.cn/"
-              target="_blank"
-              rel="noreferrer"
-              className="transition hover:text-white/70"
-            >
-              {icpLicense}
-            </a>
-          ) : (
-            <p>备案号待配置</p>
-          )}
+          <a
+            href="https://beian.miit.gov.cn/"
+            target="_blank"
+            rel="noreferrer"
+            className="transition hover:text-white/70"
+          >
+            {icpLicense}
+          </a>
         </div>
       </div>
     </footer>

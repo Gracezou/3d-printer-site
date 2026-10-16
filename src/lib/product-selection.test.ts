@@ -11,7 +11,7 @@ const variants = [
 ];
 
 describe('product selection', () => {
-  it('switches sparse combinations as a complete valid SKU', () => {
+  it('clears conflicting attributes without silently choosing a different color', () => {
     const stock = new Map([
       ['small-black', 3],
       ['large-color', 2],
@@ -24,7 +24,7 @@ describe('product selection', () => {
         'size',
         '大号',
       ),
-    ).toEqual({ size: '大号', color: '拼色' });
+    ).toEqual({ size: '大号' });
   });
 
   it('allows the selected dimension to be cleared', () => {
@@ -46,5 +46,41 @@ describe('product selection', () => {
     ]);
     expect(optionHasStock(variants, stock, 'color', '黑色')).toBe(true);
     expect(optionHasStock(variants, stock, 'color', '拼色')).toBe(false);
+  });
+
+  it('can reach each valid combination regardless of selection order', () => {
+    const stock = new Map(variants.map((variant) => [variant.id, 2]));
+    for (const target of variants) {
+      for (const keys of [
+        ['size', 'color'],
+        ['color', 'size'],
+      ]) {
+        let selected: Record<string, string> = {};
+        for (const key of keys)
+          selected = selectCompatibleAttributes(
+            variants,
+            stock,
+            selected,
+            key,
+            target.selection[key as 'size' | 'color'],
+          );
+        expect(selected).toEqual(target.selection);
+      }
+    }
+  });
+
+  it('retains compatible dimensions but does not fill unselected dimensions', () => {
+    const options = [
+      { id: 'one', selection: { size: 'M', color: '黑色', material: 'PLA' } },
+    ];
+    expect(
+      selectCompatibleAttributes(
+        options,
+        new Map([['one', 2]]),
+        { color: '黑色' },
+        'size',
+        'M',
+      ),
+    ).toEqual({ color: '黑色', size: 'M' });
   });
 });

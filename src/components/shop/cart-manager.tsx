@@ -5,13 +5,16 @@ import { Minus, Plus, RefreshCcw, ShoppingBag, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { flushSync } from 'react-dom';
+import { CartMutationQueue } from '@/lib/cart-mutation-queue';
 
 import { CHECKOUT_STORAGE_KEY } from '@/lib/checkout-storage';
+import type { ProductDevice } from '@/lib/product-devices';
+import { DeviceFit } from './device-fit';
 
 import { dispatchCartUpdated } from './cart-indicator';
 
 interface CartItem {
+  deviceModels?: ProductDevice[];
   id: string;
   variantId: string;
   productName: string;
@@ -51,9 +54,89 @@ export function CartManager() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
-  const updateTimers = useRef(new Map<string, number>());
+  const itemsRef = useRef<CartItem[]>([]);
+  const confirmedItems = useRef(new Map<string, CartItem>());
+  const positions = useRef(new Map<string, number>());
+  const loadVersion = useRef(0);
+  const [itemErrors, setItemErrors] = useState<Record<string, string>>({});
+
+  const publishItems = useCallback((next: CartItem[]) => {
+    itemsRef.current = next;
+    setItems(next);
+    dispatchCartUpdated(next.reduce((sum, item) => sum + item.quantity, 0));
+  }, []);
+
+  const mutations = useMemo(
+    () =>
+      new CartMutationQueue({
+        async send(id, quantity) {
+          const response = await fetch(`/api/cart/items/${id}`, {
+            method: quantity === null ? 'DELETE' : 'PATCH',
+            ...(quantity === null
+              ? {}
+              : {
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ quantity }),
+                }),
+          });
+          if (response.status === 401)
+            router.replace('/auth/login?next=%2Fcart');
+          const body = (await response.json()) as CartMutationResponse;
+          if (!response.ok || body.code !== 0)
+            throw new Error(body.message || '购物车更新失败');
+        },
+        committed(id, quantity) {
+          const item = confirmedItems.current.get(id);
+          if (quantity === null) confirmedItems.current.delete(id);
+          else if (item)
+            confirmedItems.current.set(id, {
+              ...item,
+              quantity,
+              subtotal: new Decimal(item.unitPrice).mul(quantity).toFixed(2),
+              isAvailable:
+                item.unavailableReason !== 'off_shelf' &&
+                quantity <= item.availableQty,
+              unavailableReason:
+                item.unavailableReason === 'off_shelf'
+                  ? 'off_shelf'
+                  : quantity <= item.availableQty
+                    ? null
+                    : 'out_of_stock',
+            });
+        },
+        failed(id, caught) {
+          const restored = confirmedItems.current.get(id);
+          if (restored) {
+            const next = itemsRef.current.filter((item) => item.id !== id);
+            next.push(restored);
+            next.sort(
+              (a, b) =>
+                (positions.current.get(a.id) ?? 0) -
+                (positions.current.get(b.id) ?? 0),
+            );
+            publishItems(next);
+          }
+          setItemErrors((current) => ({
+            ...current,
+            [id]:
+              caught instanceof Error
+                ? caught.message
+                : '保存失败，请重试该商品操作',
+          }));
+        },
+        idle(id) {
+          setPendingIds((current) => {
+            const next = new Set(current);
+            next.delete(id);
+            return next;
+          });
+        },
+      }),
+    [publishItems, router],
+  );
 
   const loadCart = useCallback(async () => {
+    const version = ++loadVersion.current;
     setLoading(true);
     setError(null);
     try {
@@ -63,11 +146,16 @@ export function CartManager() {
         return;
       }
       const body = (await response.json()) as CartResponse;
+      if (version !== loadVersion.current) return;
       if (!response.ok || !body.data) throw new Error(body.message);
-      setItems(body.data.items);
-      dispatchCartUpdated(
-        body.data.items.reduce((sum, item) => sum + item.quantity, 0),
+      setItemErrors({});
+      confirmedItems.current = new Map(
+        body.data.items.map((item) => [item.id, item]),
       );
+      positions.current = new Map(
+        body.data.items.map((item, index) => [item.id, index]),
+      );
+      publishItems(body.data.items);
       setSelectedIds(
         (current) =>
           new Set(
@@ -79,21 +167,14 @@ export function CartManager() {
           ),
       );
     } catch (caught: unknown) {
+      if (version !== loadVersion.current) return;
       setError(caught instanceof Error ? caught.message : '购物车加载失败');
     } finally {
-      setLoading(false);
+      if (version === loadVersion.current) setLoading(false);
     }
-  }, [router]);
+  }, [publishItems, router]);
 
   useEffect(() => void loadCart(), [loadCart]);
-
-  useEffect(
-    () => () => {
-      for (const timer of updateTimers.current.values())
-        window.clearTimeout(timer);
-    },
-    [],
-  );
 
   const availableItems = items.filter((item) => item.isAvailable);
   const allSelected =
@@ -108,35 +189,11 @@ export function CartManager() {
     [items, selectedIds],
   );
 
-  async function commitQuantity(itemId: string, quantity: number) {
-    setPendingIds((current) => new Set(current).add(itemId));
-    setError(null);
-    try {
-      const response = await fetch(`/api/cart/items/${itemId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ quantity }),
-      });
-      const body = (await response.json()) as CartMutationResponse;
-      if (!response.ok) throw new Error(body.message);
-      dispatchCartUpdated(body.data?.cartCount);
-    } catch (caught: unknown) {
-      setError(caught instanceof Error ? caught.message : '购物车更新失败');
-      await loadCart();
-    } finally {
-      setPendingIds((current) => {
-        const next = new Set(current);
-        next.delete(itemId);
-        return next;
-      });
-    }
-  }
-
   function scheduleQuantity(item: CartItem, quantity: number): void {
-    const previousTimer = updateTimers.current.get(item.id);
-    if (previousTimer) window.clearTimeout(previousTimer);
-    setItems((current) =>
-      current.map((currentItem) =>
+    setPendingIds((current) => new Set(current).add(item.id));
+    setItemErrors((current) => ({ ...current, [item.id]: '' }));
+    publishItems(
+      itemsRef.current.map((currentItem) =>
         currentItem.id === item.id
           ? {
               ...currentItem,
@@ -151,63 +208,23 @@ export function CartManager() {
           : currentItem,
       ),
     );
-    dispatchCartUpdated(
-      items.reduce(
-        (sum, currentItem) =>
-          sum + (currentItem.id === item.id ? quantity : currentItem.quantity),
-        0,
-      ),
-    );
-    updateTimers.current.set(
-      item.id,
-      window.setTimeout(() => {
-        updateTimers.current.delete(item.id);
-        void commitQuantity(item.id, quantity);
-      }, 250),
-    );
+    mutations.set(item.id, quantity);
   }
 
-  async function removeItem(item: CartItem): Promise<void> {
-    const timer = updateTimers.current.get(item.id);
-    if (timer) window.clearTimeout(timer);
-    updateTimers.current.delete(item.id);
-    // 删除操作的网络链路包含鉴权与数据库写入。先同步提交本地状态，
-    // 确保浏览器在请求开始前就移除条目；失败时 loadCart 会恢复服务端状态。
-    flushSync(() => {
-      setItems((current) => current.filter((entry) => entry.id !== item.id));
-      setSelectedIds((current) => {
-        const next = new Set(current);
-        next.delete(item.id);
-        return next;
-      });
+  function removeItem(item: CartItem): void {
+    publishItems(itemsRef.current.filter((entry) => entry.id !== item.id));
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      next.delete(item.id);
+      return next;
     });
-    dispatchCartUpdated(
-      items.reduce(
-        (sum, entry) => sum + (entry.id === item.id ? 0 : entry.quantity),
-        0,
-      ),
-    );
     setPendingIds((current) => new Set(current).add(item.id));
-    try {
-      const response = await fetch(`/api/cart/items/${item.id}`, {
-        method: 'DELETE',
-      });
-      const body = (await response.json()) as CartMutationResponse;
-      if (!response.ok) throw new Error(body.message);
-      dispatchCartUpdated(body.data?.cartCount);
-    } catch (caught: unknown) {
-      setError(caught instanceof Error ? caught.message : '购物车更新失败');
-      await loadCart();
-    } finally {
-      setPendingIds((current) => {
-        const next = new Set(current);
-        next.delete(item.id);
-        return next;
-      });
-    }
+    setItemErrors((current) => ({ ...current, [item.id]: '' }));
+    mutations.set(item.id, null);
   }
 
   function proceedToCheckout(): void {
+    if (pendingIds.size) return;
     const selectedItems = items
       .filter((item) => item.isAvailable && selectedIds.has(item.id))
       .map((item) => ({
@@ -215,16 +232,21 @@ export function CartManager() {
         quantity: item.quantity,
       }));
     if (selectedItems.length === 0) return;
-    window.sessionStorage.setItem(
-      CHECKOUT_STORAGE_KEY,
-      JSON.stringify({ items: selectedItems, fromCart: true }),
-    );
+    try {
+      window.sessionStorage.setItem(
+        CHECKOUT_STORAGE_KEY,
+        JSON.stringify({ items: selectedItems, fromCart: true }),
+      );
+    } catch {
+      setError('无法保存结算信息，请允许浏览器使用站点存储后重试');
+      return;
+    }
     router.push('/checkout');
   }
 
   if (loading && items.length === 0) {
     return (
-      <p className="py-24 text-center text-sm text-stone-500">
+      <p role="status" className="py-24 text-center text-sm text-stone-500">
         正在加载购物车…
       </p>
     );
@@ -234,7 +256,9 @@ export function CartManager() {
     return (
       <div className="py-20 text-center">
         <ShoppingBag className="mx-auto size-12 text-stone-300" />
-        <h2 className="mt-5 text-xl font-semibold">购物车还是空的</h2>
+        <h2 role="status" className="mt-5 text-xl font-semibold">
+          {pendingIds.size ? '正在保存购物车…' : '购物车还是空的'}
+        </h2>
         <p className="mt-2 text-sm text-stone-500">
           去挑选一件喜欢的 3D 打印作品吧。
         </p>
@@ -250,10 +274,11 @@ export function CartManager() {
 
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_22rem]">
-      <section className="space-y-3">
+      <section className="min-w-0 space-y-3">
         {error ? (
           <button
             type="button"
+            disabled={pendingIds.size > 0}
             onClick={() => void loadCart()}
             className="flex w-full items-center justify-center gap-2 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700"
           >
@@ -263,7 +288,7 @@ export function CartManager() {
         {items.map((item) => (
           <article
             key={item.id}
-            className={`grid grid-cols-[auto_5.5rem_1fr] gap-4 rounded-3xl border p-4 sm:grid-cols-[auto_7rem_1fr_auto] sm:items-center ${
+            className={`grid grid-cols-[auto_4rem_minmax(0,1fr)] gap-3 rounded-lg border p-4 sm:grid-cols-[auto_7rem_minmax(0,1fr)_auto] sm:items-center ${
               item.isAvailable
                 ? 'border-stone-900/8 bg-white/70'
                 : 'border-red-900/8 bg-stone-100/80 opacity-75'
@@ -314,6 +339,20 @@ export function CartManager() {
                 {item.variantName} · {item.skuCode}
               </p>
               <p className="mt-3 text-sm font-semibold">¥{item.unitPrice}</p>
+              <DeviceFit devices={item.deviceModels} />
+              {itemErrors[item.id] ? (
+                <p role="alert" className="mt-2 text-xs text-red-700">
+                  {itemErrors[item.id]}，已恢复该商品，请重试。
+                  <button
+                    type="button"
+                    disabled={pendingIds.size > 0}
+                    onClick={() => void loadCart()}
+                    className="ml-2 min-h-11 underline disabled:opacity-50"
+                  >
+                    刷新核对购物车
+                  </button>
+                </p>
+              ) : null}
               {!item.isAvailable && item.unavailableReason ? (
                 <p className="mt-2 text-xs font-semibold text-red-600">
                   已失效：{reasonLabels[item.unavailableReason]}
@@ -323,18 +362,16 @@ export function CartManager() {
                 </p>
               ) : null}
             </div>
-            <div className="col-start-3 flex items-center justify-between gap-4 sm:col-start-auto sm:block sm:text-right">
-              <div className="inline-flex h-9 items-center rounded-full border border-stone-900/10 bg-white px-1">
+            <div className="col-span-2 col-start-2 flex flex-wrap items-center justify-between gap-3 sm:col-span-1 sm:col-start-auto sm:block sm:text-right">
+              <div className="inline-flex h-11 items-center rounded-lg border border-stone-900/10 bg-white">
                 <button
                   type="button"
                   aria-label="减少数量"
                   disabled={
-                    pendingIds.has(item.id) ||
-                    item.quantity <= 1 ||
-                    !item.isAvailable
+                    item.quantity <= 1 || item.unavailableReason === 'off_shelf'
                   }
                   onClick={() => scheduleQuantity(item, item.quantity - 1)}
-                  className="grid size-8 place-items-center disabled:text-stone-300"
+                  className="grid size-11 place-items-center disabled:text-stone-300"
                 >
                   <Minus className="size-3.5" />
                 </button>
@@ -345,12 +382,11 @@ export function CartManager() {
                   type="button"
                   aria-label="增加数量"
                   disabled={
-                    pendingIds.has(item.id) ||
                     !item.isAvailable ||
-                    item.quantity >= item.availableQty
+                    item.quantity >= Math.min(99, item.availableQty)
                   }
                   onClick={() => scheduleQuantity(item, item.quantity + 1)}
-                  className="grid size-8 place-items-center disabled:text-stone-300"
+                  className="grid size-11 place-items-center disabled:text-stone-300"
                 >
                   <Plus className="size-3.5" />
                 </button>
@@ -360,9 +396,8 @@ export function CartManager() {
                 <button
                   type="button"
                   aria-label={`删除 ${item.productName}`}
-                  disabled={pendingIds.has(item.id)}
                   onClick={() => void removeItem(item)}
-                  className="text-stone-400 hover:text-red-600"
+                  className="grid size-11 place-items-center text-stone-500 hover:text-red-600"
                 >
                   <Trash2 className="size-4" />
                 </button>
@@ -396,11 +431,11 @@ export function CartManager() {
         </div>
         <button
           type="button"
-          disabled={selectedIds.size === 0}
+          disabled={selectedIds.size === 0 || pendingIds.size > 0}
           onClick={proceedToCheckout}
           className="bg-store-accent text-store-ink h-12 w-full rounded-full text-sm font-bold disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/30"
         >
-          去结算
+          {pendingIds.size ? '正在保存…' : '去结算'}
         </button>
         <p className="mt-3 text-center text-xs text-white/45">
           提交前将重新校验价格与可售状态

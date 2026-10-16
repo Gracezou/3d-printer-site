@@ -2,7 +2,7 @@
 
 import { ShoppingBag } from 'lucide-react';
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface CartResponse {
   code: number;
@@ -19,16 +19,22 @@ export function dispatchCartUpdated(count?: number): void {
 
 export function CartIndicator() {
   const [count, setCount] = useState(0);
+  const version = useRef(0);
   const refresh = useCallback(async () => {
+    const requestVersion = ++version.current;
     try {
       const response = await fetch('/api/cart', { cache: 'no-store' });
-      if (!response.ok) return setCount(0);
+      if (!response.ok) {
+        if (requestVersion === version.current) setCount(0);
+        return;
+      }
       const body = (await response.json()) as CartResponse;
-      setCount(
-        body.data?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0,
-      );
+      if (requestVersion === version.current)
+        setCount(
+          body.data?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0,
+        );
     } catch {
-      setCount(0);
+      if (requestVersion === version.current) setCount(0);
     }
   }, []);
 
@@ -36,8 +42,10 @@ export function CartIndicator() {
     void refresh();
     const handleUpdate = (event: Event) => {
       const count = (event as CustomEvent<{ count?: number }>).detail?.count;
-      if (typeof count === 'number') setCount(count);
-      else void refresh();
+      if (typeof count === 'number') {
+        version.current += 1;
+        setCount(count);
+      } else void refresh();
     };
     window.addEventListener(CART_UPDATED_EVENT, handleUpdate);
     return () => window.removeEventListener(CART_UPDATED_EVENT, handleUpdate);

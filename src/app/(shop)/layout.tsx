@@ -1,5 +1,6 @@
 import { SiteFooter } from '@/components/shop/site-footer';
 import { SiteHeader } from '@/components/shop/site-header';
+import { ShopSurface } from '@/components/shop/shop-surface';
 import { getStorefrontSiteInfo } from '@/lib/services/storefront.service';
 
 // Site settings come from PostgreSQL and must be resolved when the container is
@@ -12,10 +13,10 @@ export default async function ShopLayout({
   const siteInfo = await getStorefrontSiteInfo();
 
   return (
-    <div className="bg-store-canvas min-h-screen text-stone-950">
+    <ShopSurface>
       <SiteHeader />
       {children}
       <SiteFooter siteInfo={siteInfo} />
-    </div>
+    </ShopSurface>
   );
 }

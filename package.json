@@ -17,6 +17,7 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:shop:e2e": "playwright test",
     "test:acceptance": "./scripts/run-acceptance-v03.sh",
     "sandbox:refund-check": "dotenv -e .env.sandbox -- tsx scripts/check-sandbox-refund.ts",
     "security:audit": "./scripts/security-audit.sh",
@@ -97,6 +98,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
+    "@playwright/test": "1.64.1",
     "@tailwindcss/postcss": "^4.1.12",
     "@types/node": "^22.10.5",
     "@types/nodemailer": "8.0.2",

@@ -1,4 +1,5 @@
 export const zhCN = {
+  legal: { icpLicense: '鲁ICP备2026057815号' },
   brand: {
     name: '书衣',
     englishName: 'Bookskin',
@@ -53,6 +54,19 @@ export const zhCN = {
     done: '已完成',
     failed: '打印失败',
   },
+  returnStatus: {
+    pending: '待审核',
+    approved: '已通过',
+    rejected: '未通过',
+    cancelled: '已撤销',
+  } as Record<string, string>,
+  returnReason: {
+    quality_issue: '质量问题',
+    wrong_item: '商品不符',
+    size_mismatch: '尺寸不符',
+    assembly_issue: '装配问题',
+    other: '其他原因',
+  } as Record<string, string>,
   errors: {
     network: '网络异常，请稍后再试',
     requestFailed: '请求失败',

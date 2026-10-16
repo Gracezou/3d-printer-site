@@ -1,8 +1,9 @@
 'use client';
 
 import { Check, MapPin, Pencil, Plus, Star, Trash2, X } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
+import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 
 import { chinaProvinces, parseChineseAddress } from '@/lib/address-parser';
 
@@ -47,6 +48,8 @@ const emptyDraft: AddressDraft = {
 
 export function AddressManager() {
   const router = useRouter();
+  const returnToCheckout = useSearchParams().get('next') === '/checkout';
+  const dialogRef = useRef<HTMLDialogElement>(null);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<AddressDraft>(emptyDraft);
@@ -57,6 +60,17 @@ export function AddressManager() {
   const [message, setMessage] = useState<string | null>(null);
   const [quickInput, setQuickInput] = useState('');
   const [parseMessage, setParseMessage] = useState<string | null>(null);
+  useEffect(() => {
+    if (!formOpen) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    dialogRef.current?.showModal();
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      if (previous?.isConnected) previous.focus();
+    };
+  }, [formOpen]);
 
   const loadAddresses = useCallback(async () => {
     setLoading(true);
@@ -66,7 +80,9 @@ export function AddressManager() {
         fetch('/api/auth/me', { cache: 'no-store' }),
       ]);
       if (response.status === 401) {
-        router.replace('/auth/login?next=%2Faccount%2Faddresses');
+        router.replace(
+          `/auth/login?next=${encodeURIComponent(`/account/addresses${returnToCheckout ? '?next=%2Fcheckout' : ''}`)}`,
+        );
         return;
       }
       const body = (await response.json()) as AddressResponse;
@@ -83,7 +99,7 @@ export function AddressManager() {
     } finally {
       setLoading(false);
     }
-  }, [router]);
+  }, [router, returnToCheckout]);
 
   useEffect(() => void loadAddresses(), [loadAddresses]);
 
@@ -156,6 +172,7 @@ export function AddressManager() {
       if (!response.ok) throw new Error(body.message);
       setFormOpen(false);
       await loadAddresses();
+      if (returnToCheckout) router.push('/checkout');
     } catch (error: unknown) {
       setMessage(error instanceof Error ? error.message : '地址保存失败');
     } finally {
@@ -188,9 +205,24 @@ export function AddressManager() {
         </button>
       </div>
 
-      {message ? (
-        <p className="mt-5 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">
+      {returnToCheckout ? (
+        <Link href="/checkout" className="store-button mb-4">
+          返回结算
+        </Link>
+      ) : null}
+      {message && !formOpen ? (
+        <p
+          role="alert"
+          className="mt-5 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700"
+        >
           {message}
+          <button
+            type="button"
+            onClick={() => void loadAddresses()}
+            className="ml-3 min-h-11 underline"
+          >
+            重新加载地址
+          </button>
         </p>
       ) : null}
       {loading ? (
@@ -278,24 +310,60 @@ export function AddressManager() {
       </div>
 
       {formOpen ? (
-        <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-stone-950/45 p-4 backdrop-blur-sm">
+        <dialog
+          ref={dialogRef}
+          aria-labelledby="address-dialog-title"
+          onKeyDown={(event) => {
+            if (event.key !== 'Tab') return;
+            const elements = Array.from(
+              event.currentTarget.querySelectorAll<HTMLElement>(
+                'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href]',
+              ),
+            ).filter((element) => element.getClientRects().length > 0);
+            const first = elements[0];
+            const last = elements.at(-1);
+            if (event.shiftKey && document.activeElement === first) {
+              event.preventDefault();
+              last?.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+              event.preventDefault();
+              first?.focus();
+            }
+          }}
+          onCancel={(event) => {
+            event.preventDefault();
+            if (!saving) setFormOpen(false);
+          }}
+          className="fixed m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-2xl overflow-y-auto rounded-lg bg-transparent p-0 backdrop:bg-stone-950/45"
+        >
           <form
             onSubmit={submit}
-            className="bg-store-canvas my-6 w-full max-w-2xl rounded-3xl p-6 shadow-2xl sm:p-8"
+            aria-describedby={message ? 'address-form-error' : undefined}
+            className="bg-store-canvas w-full rounded-lg p-5 sm:p-8"
           >
             <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-semibold">
+              <h2 id="address-dialog-title" className="text-2xl font-semibold">
                 {editingId ? '编辑收货地址' : '新增收货地址'}
               </h2>
               <button
                 type="button"
                 aria-label="关闭地址表单"
+                disabled={saving}
                 onClick={() => setFormOpen(false)}
                 className="grid size-9 place-items-center rounded-full hover:bg-stone-900/5"
               >
                 <X className="size-5" />
               </button>
             </div>
+            {message ? (
+              <p
+                id="address-form-error"
+                role="alert"
+                className="mt-4 text-sm text-red-700"
+              >
+                {message}
+              </p>
+            ) : null}
             <div className="border-store-muted/20 bg-store-mist/60 mt-6 rounded-2xl border p-4">
               <label className="block text-sm font-semibold text-stone-700">
                 快捷识别
@@ -317,7 +385,10 @@ export function AddressManager() {
                   识别并填入
                 </button>
                 {parseMessage ? (
-                  <p className="flex-1 text-xs leading-5 text-stone-500">
+                  <p
+                    role="status"
+                    className="flex-1 text-xs leading-5 text-stone-500"
+                  >
                     {parseMessage}
                   </p>
                 ) : null}
@@ -441,6 +512,7 @@ export function AddressManager() {
             <div className="mt-8 flex justify-end gap-3">
               <button
                 type="button"
+                disabled={saving}
                 onClick={() => setFormOpen(false)}
                 className="h-11 rounded-full border border-stone-900/10 px-6 text-sm font-semibold"
               >
@@ -454,7 +526,7 @@ export function AddressManager() {
               </button>
             </div>
           </form>
-        </div>
+        </dialog>
       ) : null}
     </div>
   );

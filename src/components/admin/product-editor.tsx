@@ -26,6 +26,7 @@ import { useRouter } from 'next/navigation';
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
   type FormEvent,
   type ReactNode,
@@ -505,6 +506,8 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
   const [loading, setLoading] = useState(true);
   const [savingBase, setSavingBase] = useState(false);
   const [savingVariants, setSavingVariants] = useState(false);
+  const [savingAll, setSavingAll] = useState(false);
+  const saveLock = useRef(false);
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -538,7 +541,16 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
     JSON.stringify({ ...form, slug: productId ? form.slug : '' }) !==
     baseSnapshot;
   const variantsDirty = JSON.stringify(variants) !== variantSnapshot;
-  const confirmDiscard = useUnsavedChanges(baseDirty || variantsDirty);
+  const unsavedSections = [
+    baseDirty ? '基础信息' : '',
+    variantsDirty ? '变体与 BOM' : '',
+  ]
+    .filter(Boolean)
+    .join('、');
+  const confirmDiscard = useUnsavedChanges(
+    baseDirty || variantsDirty,
+    `${unsavedSections}尚未保存，确定放弃并离开吗？`,
+  );
 
   const applyProduct = useCallback(
     (
@@ -655,7 +667,9 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
     );
   }
 
-  async function saveBase(event?: FormEvent<HTMLFormElement>): Promise<void> {
+  async function saveBase(
+    event?: FormEvent<HTMLFormElement>,
+  ): Promise<boolean> {
     event?.preventDefault();
     setSavingBase(true);
     setError('');
@@ -696,15 +710,27 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
         router.replace(`/admin/products/${created.id}`);
         router.refresh();
       }
+      return true;
     } catch (caught: unknown) {
       setError(caught instanceof Error ? caught.message : '保存失败');
+      return false;
     } finally {
       setSavingBase(false);
     }
   }
 
   async function saveVariants(): Promise<void> {
-    if (!productId) return;
+    if (!productId || saveLock.current) return;
+    saveLock.current = true;
+    setSavingAll(true);
+    setNotice('');
+    // The bottom action explicitly saves both sections when base fields changed.
+    // A failed base save must not silently proceed with the variant write.
+    if (baseDirty && !(await saveBase())) {
+      saveLock.current = false;
+      setSavingAll(false);
+      return;
+    }
     setSavingVariants(true);
     setError('');
     try {
@@ -731,11 +757,19 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
         },
       );
       applyProduct(detail, false, true);
-      setNotice('变体与 BOM 已保存，可售数量已刷新；基础信息单独保存');
+      setNotice(
+        baseDirty
+          ? '基础信息、变体与 BOM 已全部保存'
+          : '变体与 BOM 已保存，可售数量已刷新',
+      );
     } catch (caught: unknown) {
-      setError(caught instanceof Error ? caught.message : '变体保存失败');
+      setError(
+        `${baseDirty ? '基础信息已保存；' : ''}${caught instanceof Error ? caught.message : '变体保存失败'}。变体修改仍保留，请重试。`,
+      );
     } finally {
       setSavingVariants(false);
+      setSavingAll(false);
+      saveLock.current = false;
     }
   }
 
@@ -770,9 +804,16 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
 
   const flatCategories = categories.flatMap((root) => [root, ...root.children]);
   return (
-    <div className="admin-page">
+    <fieldset
+      disabled={savingBase || savingVariants || savingAll || publishing}
+      className="admin-page min-w-0"
+      aria-busy={savingBase || savingVariants || savingAll || publishing}
+    >
       {notice ? (
-        <div className="fixed top-5 right-5 z-[90] flex items-center gap-2 rounded-lg bg-[#151816] px-5 py-3 text-sm font-medium text-white shadow-xl">
+        <div
+          role="status"
+          className="fixed top-5 right-5 z-[90] flex items-center gap-2 rounded-lg bg-[#151816] px-5 py-3 text-sm font-medium text-white shadow-xl"
+        >
           <Check className="size-4 text-lime-300" />
           {notice}
         </div>
@@ -829,7 +870,10 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
         </div>
       </div>
       {error ? (
-        <div className="mt-5 flex items-start gap-2 rounded-lg bg-red-50 p-4 text-sm text-red-700">
+        <div
+          role="alert"
+          className="mt-5 flex items-start gap-2 rounded-lg bg-red-50 p-4 text-sm text-red-700"
+        >
           <CircleAlert className="mt-0.5 size-4 shrink-0" />
           {error}
         </div>
@@ -1495,7 +1539,12 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
             </div>
             <div className="flex items-center justify-between border-t border-black/6 bg-neutral-50 px-4 py-3 sm:px-7">
               <p className="text-xs text-neutral-400">
-                保存后会覆盖当前商品的全部变体和 BOM。
+                {variantsDirty
+                  ? '变体与 BOM 有未保存修改。'
+                  : '变体与 BOM 已保存。'}
+                {baseDirty
+                  ? '基础信息也有修改，点击右侧将一并保存。'
+                  : '保存后会覆盖当前商品的全部变体和 BOM。'}
               </p>
               <button
                 type="button"
@@ -1508,7 +1557,11 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
                 ) : (
                   <Save className="size-4" />
                 )}
-                保存变体与 BOM
+                {savingAll
+                  ? '正在保存…'
+                  : baseDirty
+                    ? '保存全部修改'
+                    : '保存变体与 BOM'}
               </button>
             </div>
           </Section>
@@ -1533,6 +1586,6 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
           }}
         />
       ) : null}
-    </div>
+    </fieldset>
   );
 }

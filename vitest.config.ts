@@ -9,6 +9,7 @@ export default defineConfig({
     },
   },
   test: {
+    exclude: ['node_modules/**', '.next/**', 'tests/e2e/**'],
     environment: 'node',
     coverage: {
       reporter: ['text', 'json', 'html'],

@@ -85,7 +85,7 @@ export function DeviceSelector({ brands }: DeviceSelectorProps) {
   }
 
   return (
-    <div className="rounded-store-xl border border-white/12 bg-white/10 p-4 shadow-2xl backdrop-blur-xl sm:p-5">
+    <div className="rounded-lg border border-white/20 bg-white/10 p-4">
       <p className="mb-3 text-sm font-semibold text-white">选择你的机型</p>
       {brands.length ? (
         <>
@@ -198,7 +198,7 @@ export function DeviceSelector({ brands }: DeviceSelectorProps) {
                   ))
                 ) : (
                   <p className="px-3 py-4 text-sm text-stone-500">
-                    暂未收录这个型号。可先选择相近机型查看，更多品牌将按登记需求补充。
+                    未找到该型号。请核对设备设置中的完整名称，或清空搜索后按品牌选择；名称相近不代表保护壳通用。
                   </p>
                 )}
               </div>
@@ -210,7 +210,7 @@ export function DeviceSelector({ brands }: DeviceSelectorProps) {
           role="status"
           className="rounded-2xl border border-dashed border-white/20 px-5 py-6 text-sm leading-6 text-white/60"
         >
-          机型目录正在准备中。迁移完成后，这里会显示阅星瞳、Kindle、掌阅和文石机型。
+          机型目录正在准备中，请稍后再来，或先浏览全部作品。
         </div>
       )}
     </div>

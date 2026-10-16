@@ -2,10 +2,13 @@
 
 import { useCallback, useEffect } from 'react';
 
-export function useUnsavedChanges(dirty: boolean) {
+export function useUnsavedChanges(
+  dirty: boolean,
+  message = '有尚未保存的修改，确定放弃并离开吗？',
+) {
   const confirmDiscard = useCallback(
-    () => !dirty || window.confirm('有尚未保存的修改，确定放弃并离开吗？'),
-    [dirty],
+    () => !dirty || window.confirm(message),
+    [dirty, message],
   );
   useEffect(() => {
     if (!dirty) return;

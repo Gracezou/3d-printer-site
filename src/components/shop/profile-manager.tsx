@@ -25,8 +25,10 @@ export function ProfileManager() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
+    setLoading(true);
     void (async () => {
       try {
         const response = await fetch('/api/auth/me', { cache: 'no-store' });
@@ -45,7 +47,7 @@ export function ProfileManager() {
         setLoading(false);
       }
     })();
-  }, [router]);
+  }, [router, attempt]);
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -70,8 +72,24 @@ export function ProfileManager() {
     }
   }
 
-  if (loading) return <p className="text-sm text-stone-500">正在加载资料…</p>;
-  if (!profile) return <p className="text-sm text-red-700">{message}</p>;
+  if (loading)
+    return (
+      <p role="status" className="text-sm text-stone-500">
+        正在加载资料…
+      </p>
+    );
+  if (!profile)
+    return (
+      <div role="alert">
+        <p className="text-sm text-red-700">{message}</p>
+        <button
+          onClick={() => setAttempt((value) => value + 1)}
+          className="store-button mt-4"
+        >
+          重新加载资料
+        </button>
+      </div>
+    );
 
   return (
     <form
@@ -116,7 +134,11 @@ export function ProfileManager() {
       >
         {saving ? '保存中…' : '保存资料'}
       </button>
-      {message ? <p className="text-sm text-stone-600">{message}</p> : null}
+      {message ? (
+        <p role="status" className="text-sm text-stone-600">
+          {message}
+        </p>
+      ) : null}
     </form>
   );
 }

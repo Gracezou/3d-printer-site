@@ -130,7 +130,7 @@ export default async function DevicePage({ params }: DevicePageProps) {
             <span className="text-stone-700">{device.name}</span>
           </nav>
 
-          <div className="grid gap-10 py-12 lg:grid-cols-[1.2fr_0.8fr] lg:items-end lg:py-20">
+          <div className="grid gap-6 py-6 lg:grid-cols-[1.2fr_0.8fr] lg:items-end lg:py-10">
             <div>
               <p className="text-store-muted text-xs font-bold tracking-[0.22em]">
                 {device.brandName} · 电子阅读器
@@ -232,14 +232,23 @@ export default async function DevicePage({ params }: DevicePageProps) {
           {device.products.length ? (
             <div className="mt-10 grid grid-cols-2 gap-x-4 gap-y-10 md:grid-cols-3 lg:grid-cols-4">
               {device.products.map((product) => (
-                <ProductCard key={product.id} product={product} />
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  deviceModelId={device.id}
+                />
               ))}
             </div>
           ) : (
             <StorefrontEmptyState
               className="mt-10"
               title="这台设备暂时没有现成保护壳"
-              description="冷门和停产机型也值得被好好保护。登记需求后，我们会根据人数和实机条件安排开模。"
+              description="该型号暂时没有关联商品，名称相近或同属兼容组也不代表通用。可登记需求，或返回重新选择机型。"
+              action={
+                <Link href="/#choose-device" className="store-button">
+                  重新选择机型
+                </Link>
+              }
             />
           )}
         </div>

@@ -9,11 +9,16 @@ import {
   ShoppingBag,
   Truck,
 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { deviceLabel, type ProductDevice } from '@/lib/product-devices';
 
 import { CHECKOUT_STORAGE_KEY } from '@/lib/checkout-storage';
-import { productDimensionLabels } from '@/lib/display-labels';
+import {
+  productDimensionHints,
+  productDimensionLabels,
+} from '@/lib/display-labels';
 import {
   optionHasStock,
   selectCompatibleAttributes,
@@ -49,14 +54,24 @@ interface ProductPurchasePanelProps {
   productName: string;
   slug: string;
   variants: ProductVariant[];
+  deviceModels?: ProductDevice[];
+  mainImageUrl?: string | null;
 }
 
 export function ProductPurchasePanel({
   productName,
   slug,
   variants,
+  deviceModels = [],
+  mainImageUrl,
 }: ProductPurchasePanelProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const deviceId = searchParams.get('device');
+  const selectedDevice = deviceModels.find((device) => device.id === deviceId);
+  const incompatibleDevice = Boolean(deviceId && !selectedDevice);
+  const purchaseLock = useRef(false);
+  const initializedSelection = useRef(false);
   const [availability, setAvailability] = useState<Map<string, number> | null>(
     null,
   );
@@ -125,10 +140,16 @@ export function ProductPurchasePanel({
   }, [loadAvailability]);
 
   useEffect(() => {
-    if (!availability || normalizedVariants.length !== 1) return;
+    if (
+      !availability ||
+      normalizedVariants.length !== 1 ||
+      initializedSelection.current
+    )
+      return;
     const onlyVariant = normalizedVariants[0]!;
     if ((availability.get(onlyVariant.id) ?? 0) > 0) {
       setSelectedAttributes(onlyVariant.selection);
+      initializedSelection.current = true;
     }
   }, [availability, normalizedVariants]);
 
@@ -150,25 +171,37 @@ export function ProductPurchasePanel({
 
   function chooseOption(dimension: string, value: string): void {
     if (!availability) return;
-    setSelectedAttributes((current) =>
-      selectCompatibleAttributes(
-        normalizedVariants,
-        availability,
-        current,
-        dimension,
-        value,
-      ),
+    const next = selectCompatibleAttributes(
+      normalizedVariants,
+      availability,
+      selectedAttributes,
+      dimension,
+      value,
     );
+    const cleared = Object.keys(selectedAttributes).filter(
+      (key) => key !== dimension && !next[key],
+    );
+    setSelectedAttributes(next);
     setQuantity(1);
-    setNotice(null);
+    setNotice(
+      cleared.length
+        ? `原组合不存在或已售罄，已清除${cleared.map((key) => productDimensionLabels[key] ?? key).join('、')}，请重新选择。`
+        : null,
+    );
   }
 
   const purchasable = Boolean(
-    selectedVariant && selectedAvailableQty > 0 && !availabilityError,
+    selectedVariant &&
+    selectedAvailableQty >= quantity &&
+    quantity <= 99 &&
+    !availabilityError &&
+    !incompatibleDevice,
   );
 
   const submitCartItem = useCallback(
     async (variantId: string, itemQuantity: number) => {
+      if (purchaseLock.current || incompatibleDevice) return;
+      purchaseLock.current = true;
       setIsAdding(true);
       setNotice(null);
       try {
@@ -193,7 +226,7 @@ export function ProductPurchasePanel({
             }),
           );
           router.replace(
-            `/auth/login?next=${encodeURIComponent(`/products/${slug}?resumePurchase=1`)}`,
+            `/auth/login?next=${encodeURIComponent(`/products/${slug}?resumePurchase=1${deviceId ? `&device=${encodeURIComponent(deviceId)}` : ''}`)}`,
           );
           return;
         }
@@ -208,14 +241,17 @@ export function ProductPurchasePanel({
         );
         await loadAvailability();
       } finally {
+        purchaseLock.current = false;
         setIsAdding(false);
       }
     },
-    [loadAvailability, router, slug],
+    [loadAvailability, router, slug, deviceId, incompatibleDevice],
   );
 
   const startCheckout = useCallback(
     async (variantId: string, itemQuantity: number) => {
+      if (purchaseLock.current || incompatibleDevice) return;
+      purchaseLock.current = true;
       setIsAdding(true);
       setNotice(null);
       try {
@@ -231,7 +267,7 @@ export function ProductPurchasePanel({
             }),
           );
           router.replace(
-            `/auth/login?next=${encodeURIComponent(`/products/${slug}?resumePurchase=1`)}`,
+            `/auth/login?next=${encodeURIComponent(`/products/${slug}?resumePurchase=1${deviceId ? `&device=${encodeURIComponent(deviceId)}` : ''}`)}`,
           );
           return;
         }
@@ -248,7 +284,8 @@ export function ProductPurchasePanel({
                 productName,
                 productSlug: slug,
                 variantName: variant.name,
-                imageUrl: variant.imageUrl,
+                imageUrl: variant.imageUrl ?? mainImageUrl ?? null,
+                deviceModels,
                 unitPrice: variant.price,
                 quantity: itemQuantity,
               })),
@@ -260,10 +297,20 @@ export function ProductPurchasePanel({
           error instanceof Error ? error.message : '暂时无法结算，请重试',
         );
       } finally {
+        purchaseLock.current = false;
         setIsAdding(false);
       }
     },
-    [productName, router, slug, variants],
+    [
+      productName,
+      router,
+      slug,
+      variants,
+      deviceModels,
+      deviceId,
+      incompatibleDevice,
+      mainImageUrl,
+    ],
   );
 
   useEffect(() => {
@@ -299,6 +346,30 @@ export function ProductPurchasePanel({
 
   return (
     <div>
+      {incompatibleDevice ? (
+        <p
+          role="alert"
+          className="mb-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900"
+        >
+          此商品未关联你选择的机型，请先核对型号。
+          <Link href="/#choose-device" className="ml-2 underline">
+            重新选择机型
+          </Link>
+          <Link href={`/products/${slug}`} className="ml-2 underline">
+            清除机型条件
+          </Link>
+        </p>
+      ) : null}
+      {deviceModels.length ? (
+        <p className="mb-4 text-sm text-stone-600">
+          {selectedDevice
+            ? `当前机型：${deviceLabel(selectedDevice)}`
+            : `适配：${deviceModels.map(deviceLabel).join('、')}`}
+          <Link href="/#choose-device" className="ml-2 underline">
+            切换机型
+          </Link>
+        </p>
+      ) : null}
       <div className="flex items-end gap-3">
         <p className="text-3xl font-semibold tracking-[-0.03em]">
           {displayVariant ? `¥${displayVariant.price}` : '暂未定价'}
@@ -316,6 +387,18 @@ export function ProductPurchasePanel({
         </div>
       ) : (
         <div className="mt-8 space-y-7">
+          <button
+            type="button"
+            onClick={() => {
+              initializedSelection.current = true;
+              setSelectedAttributes({});
+              setQuantity(1);
+              setNotice('请重新选择商品规格');
+            }}
+            className="min-h-11 text-sm underline"
+          >
+            重新选择规格
+          </button>
           {dimensions.map((dimension) => {
             const values = [
               ...new Set(
@@ -336,6 +419,11 @@ export function ProductPurchasePanel({
                     </span>
                   ) : null}
                 </legend>
+                {productDimensionHints[dimension] ? (
+                  <p className="mb-3 text-xs leading-5 text-stone-600">
+                    {productDimensionHints[dimension]}
+                  </p>
+                ) : null}
                 <div className="flex flex-wrap gap-2.5">
                   {values.map((value) => {
                     const available = optionIsAvailable(dimension, value);
@@ -345,6 +433,7 @@ export function ProductPurchasePanel({
                         key={value}
                         type="button"
                         disabled={!available}
+                        aria-pressed={selected}
                         onClick={() => chooseOption(dimension, value)}
                         className={`relative min-w-20 rounded-xl border px-4 py-2.5 text-sm transition ${
                           selected
@@ -355,6 +444,7 @@ export function ProductPurchasePanel({
                         }`}
                       >
                         {value}
+                        {availability && !available ? '（售罄）' : ''}
                         {selected ? (
                           <Check className="ml-2 inline size-3.5" />
                         ) : null}
@@ -393,7 +483,15 @@ export function ProductPurchasePanel({
                 : '可按单生产'}
           </p>
         ) : (
-          <p className="mt-5 text-sm text-stone-500">请选择完整的商品规格</p>
+          <p className="mt-5 text-sm text-stone-500">
+            请选择
+            {dimensions
+              .filter((dimension) => !selectedAttributes[dimension])
+              .map(
+                (dimension) => productDimensionLabels[dimension] ?? dimension,
+              )
+              .join('、') || '有效的商品规格'}
+          </p>
         )}
       </div>
 
@@ -412,7 +510,9 @@ export function ProductPurchasePanel({
           <button
             type="button"
             aria-label="增加数量"
-            disabled={!purchasable || quantity >= selectedAvailableQty}
+            disabled={
+              !purchasable || quantity >= Math.min(99, selectedAvailableQty)
+            }
             onClick={() =>
               setQuantity((value) => Math.min(selectedAvailableQty, value + 1))
             }

@@ -1,5 +1,4 @@
 import {
-  ArrowDown,
   ArrowRight,
   Box,
   Hammer,
@@ -139,7 +138,7 @@ export default async function HomePage() {
         }}
       />
 
-      <section className="bg-store-ink relative isolate min-h-[calc(100svh-72px)] overflow-hidden text-white">
+      <section className="bg-store-ink relative isolate text-white">
         {heroImage ? (
           <Image
             src={heroImage}
@@ -153,50 +152,40 @@ export default async function HomePage() {
           <div className="store-hero-gradient absolute inset-0 -z-20" />
         )}
         <div className="absolute inset-0 -z-10 bg-gradient-to-r from-black/70 via-black/35 to-black/10" />
-        <div className="border-store-accent/20 absolute top-16 right-[6%] -z-10 size-72 rounded-full border sm:size-[28rem]" />
-        <div className="mx-auto flex min-h-[calc(100svh-72px)] max-w-7xl items-center px-5 py-14 sm:px-8 sm:py-20">
+        <div className="mx-auto flex max-w-7xl items-center px-5 py-8 sm:px-8 sm:py-10">
           <div className="w-full max-w-4xl">
             <p className="text-store-accent flex items-center gap-3 text-xs font-bold tracking-[0.25em]">
               <span className="h-px w-8 bg-current" /> {zhCN.brand.name} ·
               阅读器保护壳
             </p>
-            <h1 className="mt-5 text-5xl leading-[1.03] font-semibold tracking-[-0.06em] text-balance sm:text-7xl lg:text-8xl">
+            <h1 className="mt-4 text-3xl leading-tight font-semibold tracking-[-0.04em] text-balance sm:text-5xl">
               {zhCN.brand.heroTitle}
             </h1>
-            <p className="mt-6 max-w-2xl text-base leading-8 text-white/70 sm:text-lg">
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-white/85 sm:text-base">
               {zhCN.brand.heroDescription}
             </p>
-            <div id="choose-device" className="mt-9 max-w-3xl scroll-mt-28">
+            <div id="choose-device" className="mt-5 max-w-3xl scroll-mt-28">
               <DeviceSelector brands={data.deviceCatalog} />
             </div>
           </div>
         </div>
-        <a
-          href="#why-bookskin"
-          aria-label={`继续了解${zhCN.brand.name}`}
-          className="absolute bottom-5 left-1/2 grid size-10 -translate-x-1/2 place-items-center rounded-full border border-white/15 text-white/50"
-        >
-          <ArrowDown className="size-4" />
-        </a>
       </section>
 
       <section
         id="why-bookskin"
-        className="mx-auto max-w-7xl scroll-mt-24 px-5 py-16 sm:px-8 sm:py-24"
+        className="mx-auto max-w-7xl scroll-mt-24 px-5 py-5 sm:px-8"
       >
         <div className="grid gap-4 sm:grid-cols-3">
           {values.map(({ icon: Icon, title, description }, index) => (
             <article
               key={title}
-              className={`rounded-store-xl p-6 sm:p-7 ${
-                index === 1 ? 'bg-store-accent' : 'bg-white/65'
+              className={`flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-stone-900/10 py-3 ${
+                index === 1 ? 'text-store-ink' : ''
               }`}
             >
               <Icon className="text-store-muted size-6" />
-              <h2 className="mt-8 text-2xl font-semibold tracking-[-0.03em]">
-                {title}
-              </h2>
-              <p className="mt-3 text-sm leading-7 text-stone-600">
+              <h2 className="text-base font-semibold">{title}</h2>
+              <p className="w-full text-xs leading-5 text-stone-600">
                 {description}
               </p>
             </article>
@@ -205,7 +194,7 @@ export default async function HomePage() {
       </section>
 
       <section className="border-y border-stone-900/8 bg-white/55">
-        <div className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-24">
+        <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8 sm:py-10">
           <SectionHeading
             eyebrow="已开模机型"
             title="现在就能买的"
@@ -213,9 +202,9 @@ export default async function HomePage() {
             linkLabel="浏览全部机型"
           />
           {data.featuredProducts.length ? (
-            <div className="grid gap-x-5 gap-y-10 sm:grid-cols-2">
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
               {data.featuredProducts.map((product) => (
-                <ProductCard key={product.id} product={product} />
+                <ProductCard key={product.id} product={product} imageOnly />
               ))}
             </div>
           ) : (
@@ -229,25 +218,27 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-24">
-        <SectionHeading
-          eyebrow="新开模"
-          title="刚做出来的"
-          href="/products?sort=newest"
-          linkLabel="查看更多"
-        />
-        {data.newestProducts.length ? (
-          <div className="grid grid-cols-2 gap-x-4 gap-y-10 md:grid-cols-3 lg:grid-cols-4">
-            {data.newestProducts.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
-        ) : (
-          <p className="rounded-store-xl border border-dashed border-stone-900/15 px-6 py-12 text-center text-sm text-stone-600">
-            新开模款式正在准备中。
-          </p>
-        )}
-      </section>
+      {data.newestProducts.length ? (
+        <section className="mx-auto max-w-7xl px-5 py-8 sm:px-8 sm:py-10">
+          <SectionHeading
+            eyebrow="新开模"
+            title="刚做出来的"
+            href="/products?sort=newest"
+            linkLabel="查看更多"
+          />
+          {data.newestProducts.length ? (
+            <div className="grid grid-cols-2 gap-x-4 gap-y-10 md:grid-cols-3 lg:grid-cols-4">
+              {data.newestProducts.map((product) => (
+                <ProductCard key={product.id} product={product} imageOnly />
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-store-xl border border-dashed border-stone-900/15 px-6 py-12 text-center text-sm text-stone-600">
+              新开模款式正在准备中。
+            </p>
+          )}
+        </section>
+      ) : null}
 
       <section className="mx-auto max-w-7xl px-5 pb-16 sm:px-8 sm:pb-24">
         <div className="bg-store-accent rounded-store-xl grid gap-8 overflow-hidden px-7 py-10 sm:px-10 sm:py-14 lg:grid-cols-[1.25fr_0.75fr] lg:items-end">

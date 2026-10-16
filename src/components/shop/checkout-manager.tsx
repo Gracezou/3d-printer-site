@@ -9,13 +9,22 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import {
   CHECKOUT_STORAGE_KEY,
   type CheckoutSelection,
 } from '@/lib/checkout-storage';
 import { zhCN } from '@/messages/zh-CN';
+import type { ProductDevice } from '@/lib/product-devices';
+import { DeviceFit } from './device-fit';
 
 interface Address {
   id: string;
@@ -29,6 +38,7 @@ interface Address {
 }
 
 interface CartItem {
+  deviceModels?: ProductDevice[];
   id: string;
   variantId: string;
   productName: string;
@@ -110,8 +120,22 @@ export function CheckoutManager() {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [createdOrder, setCreatedOrder] = useState<CreatedOrder | null>(null);
+  const submittingRef = useRef(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const [previewAttempt, setPreviewAttempt] = useState(0);
+  const [loaded, setLoaded] = useState(false);
+  const [previewKey, setPreviewKey] = useState('');
+  const currentPreviewKey = JSON.stringify([
+    selection?.items,
+    addressId,
+    appliedCode,
+  ]);
+  const previewIsCurrent = preview !== null && previewKey === currentPreviewKey;
 
   useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setLoaded(false);
     void (async () => {
       try {
         const authResponse = await fetch('/api/auth/me', {
@@ -143,6 +167,7 @@ export function CheckoutManager() {
           throw new Error(cartBody.message);
         if (!addressResponse.ok || !addressBody.data)
           throw new Error(addressBody.message);
+        if (!active) return;
         setCartItems(cartBody.data.items);
         setAddresses(addressBody.data.addresses);
         setAddressId(
@@ -150,22 +175,31 @@ export function CheckoutManager() {
             addressBody.data.addresses[0]?.id ??
             '',
         );
+        setLoaded(true);
       } catch (error: unknown) {
-        setMessage(error instanceof Error ? error.message : '结算信息加载失败');
+        if (active)
+          setMessage(
+            error instanceof Error ? error.message : '结算信息加载失败',
+          );
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     })();
-  }, [router]);
+    return () => {
+      active = false;
+    };
+  }, [loadAttempt, router]);
 
   const requestPreview = useCallback(
     async (
       code: string | null,
       selectedAddressId: string,
+      signal?: AbortSignal,
     ): Promise<Preview> => {
       if (!selection) throw new Error('没有可结算的商品');
       const response = await fetch('/api/orders/preview', {
         method: 'POST',
+        signal,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           items: selection.items,
@@ -185,27 +219,43 @@ export function CheckoutManager() {
   );
 
   useEffect(() => {
-    if (!selection || loading) return;
+    if (!selection || loading || !loaded || createdOrder) return;
     let active = true;
+    const controller = new AbortController();
     setPreviewing(true);
-    void requestPreview(appliedCode, addressId)
+    void requestPreview(appliedCode, addressId, controller.signal)
       .then((result) => {
         if (active) {
           setPreview(result);
+          setPreviewKey(currentPreviewKey);
           setMessage(null);
         }
       })
       .catch((error: unknown) => {
-        if (active)
+        if (active) {
+          setPreview(null);
+          setPreviewKey('');
           setMessage(error instanceof Error ? error.message : '订单试算失败');
+        }
       })
       .finally(() => {
         if (active) setPreviewing(false);
       });
     return () => {
       active = false;
+      controller.abort();
     };
-  }, [addressId, appliedCode, loading, requestPreview, selection]);
+  }, [
+    addressId,
+    appliedCode,
+    loading,
+    loaded,
+    requestPreview,
+    selection,
+    currentPreviewKey,
+    previewAttempt,
+    createdOrder,
+  ]);
 
   const selectedCartItems = useMemo(() => {
     if (!selection) return [];
@@ -227,26 +277,25 @@ export function CheckoutManager() {
   const hasUnavailableItems =
     missingItemCount > 0 || (preview?.unavailableItems.length ?? 0) > 0;
 
-  async function applyDiscount(event: FormEvent<HTMLFormElement>) {
+  function applyDiscount(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const code = discountInput.trim().toUpperCase();
     if (!code) return;
-    setPreviewing(true);
-    setMessage(null);
-    try {
-      const result = await requestPreview(code, addressId);
-      setPreview(result);
-      setAppliedCode(code);
-      setDiscountInput(code);
-    } catch (error: unknown) {
-      setMessage(error instanceof Error ? error.message : '折扣码不可用');
-    } finally {
-      setPreviewing(false);
-    }
+    setAppliedCode(code);
+    setDiscountInput(code);
   }
 
   async function submitOrder(): Promise<void> {
-    if (!selection || !addressId) return;
+    if (
+      !selection ||
+      !addressId ||
+      submittingRef.current ||
+      !previewIsCurrent ||
+      previewing ||
+      hasUnavailableItems
+    )
+      return;
+    submittingRef.current = true;
     setSubmitting(true);
     setMessage(null);
     try {
@@ -263,15 +312,18 @@ export function CheckoutManager() {
       });
       const body = (await response.json()) as ApiResponse<CreatedOrder>;
       if (!response.ok || !body.data) throw new Error(body.message);
-      window.sessionStorage.removeItem(CHECKOUT_STORAGE_KEY);
       setCreatedOrder(body.data);
+      // An order already exists even if browser storage is unavailable.
+      try {
+        window.sessionStorage.removeItem(CHECKOUT_STORAGE_KEY);
+      } catch {
+        /* no retry of a successful order */
+      }
     } catch (error: unknown) {
       setMessage(error instanceof Error ? error.message : '订单提交失败');
-      try {
-        setPreview(await requestPreview(appliedCode, addressId));
-      } catch {
-        // 保留原始提交错误，用户可修改后重试。
-      }
+      setPreview(null);
+      setPreviewKey('');
+      submittingRef.current = false;
     } finally {
       setSubmitting(false);
     }
@@ -305,7 +357,7 @@ export function CheckoutManager() {
 
   if (loading) {
     return (
-      <p className="py-24 text-center text-sm text-stone-500">
+      <p role="status" className="py-24 text-center text-sm text-stone-500">
         正在准备结算信息…
       </p>
     );
@@ -326,11 +378,31 @@ export function CheckoutManager() {
     );
   }
 
+  if (!loaded)
+    return (
+      <div role="alert" className="store-panel space-y-4">
+        <p>{message ?? '结算信息加载失败'}</p>
+        <button
+          className="store-button"
+          onClick={() => setLoadAttempt((value) => value + 1)}
+        >
+          重新加载结算信息
+        </button>
+        <Link href="/cart" className="ml-4 underline">
+          返回购物车
+        </Link>
+      </div>
+    );
+
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_23rem]">
-      <div className="space-y-6">
+      <fieldset disabled={submitting} className="min-w-0 space-y-6">
+        <legend className="sr-only">结算信息</legend>
         {message ? (
-          <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">
+          <p
+            role="alert"
+            className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700"
+          >
             {message}
           </p>
         ) : null}
@@ -342,7 +414,7 @@ export function CheckoutManager() {
               收货地址
             </h2>
             <Link
-              href="/account/addresses"
+              href="/account/addresses?next=%2Fcheckout"
               className="text-store-success text-xs font-semibold hover:underline"
             >
               新增或管理地址
@@ -417,6 +489,7 @@ export function CheckoutManager() {
                   <p className="mt-1 text-xs text-stone-500">
                     {item.variantName}
                   </p>
+                  <DeviceFit devices={item.deviceModels} />
                   <p className="mt-3 text-sm">
                     ¥{item.unitPrice} × {item.quantity}
                   </p>
@@ -439,6 +512,8 @@ export function CheckoutManager() {
           </h2>
           <form onSubmit={applyDiscount} className="mt-5 flex gap-2">
             <input
+              aria-label="折扣码"
+              aria-describedby={message ? 'checkout-preview-status' : undefined}
               maxLength={32}
               value={discountInput}
               disabled={Boolean(appliedCode)}
@@ -487,10 +562,33 @@ export function CheckoutManager() {
             </span>
           </label>
         </section>
-      </div>
+      </fieldset>
 
-      <aside className="bg-store-ink h-fit rounded-3xl p-6 text-white lg:sticky lg:top-24">
+      <aside
+        aria-busy={previewing}
+        className="bg-store-ink h-fit rounded-lg p-6 text-white lg:sticky lg:top-24"
+      >
         <h2 className="text-xl font-semibold">金额明细</h2>
+        <div
+          id="checkout-preview-status"
+          role="status"
+          className="mt-3 text-sm text-white/80"
+        >
+          {previewing
+            ? '正在更新金额与运费…'
+            : previewIsCurrent
+              ? '金额已更新'
+              : '金额尚未确认，请重新试算后提交'}
+          {!previewing && !previewIsCurrent ? (
+            <button
+              type="button"
+              onClick={() => setPreviewAttempt((value) => value + 1)}
+              className="mt-2 block min-h-11 underline"
+            >
+              重新试算
+            </button>
+          ) : null}
+        </div>
         <dl className="mt-6 space-y-4 border-b border-white/10 pb-6 text-sm">
           <div className="flex justify-between">
             <dt className="text-white/60">商品小计</dt>
@@ -532,7 +630,7 @@ export function CheckoutManager() {
           type="button"
           disabled={
             !addressId ||
-            !preview ||
+            !previewIsCurrent ||
             previewing ||
             hasUnavailableItems ||
             submitting

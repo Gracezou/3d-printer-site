@@ -2,7 +2,8 @@
 
 import { Menu, Search, UserRound, X } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 
 import { zhCN } from '@/messages/zh-CN';
 
@@ -17,12 +18,38 @@ const navigation = [
 
 export function SiteHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuButton = useRef<HTMLButtonElement>(null);
+  const pathname = usePathname();
+  const router = useRouter();
+  useEffect(() => setMenuOpen(false), [pathname]);
+  function search(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const keyword = String(
+      new FormData(event.currentTarget).get('keyword') ?? '',
+    ).trim();
+    setMenuOpen(false);
+    router.push(
+      keyword
+        ? `/products?keyword=${encodeURIComponent(keyword)}`
+        : '/products',
+    );
+  }
 
   return (
-    <header className="bg-store-canvas/90 sticky top-0 z-40 border-b border-stone-900/8 backdrop-blur-xl">
+    <header
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' && menuOpen) {
+          setMenuOpen(false);
+          menuButton.current?.focus();
+        }
+      }}
+      className="bg-store-canvas/90 sticky top-0 z-40 border-b border-stone-900/8 backdrop-blur-xl"
+    >
       <div className="mx-auto flex h-[72px] max-w-7xl items-center gap-5 px-5 sm:px-8">
         <button
           type="button"
+          ref={menuButton}
+          aria-controls="mobile-navigation"
           aria-label={menuOpen ? '关闭导航菜单' : '打开导航菜单'}
           aria-expanded={menuOpen}
           onClick={() => setMenuOpen((open) => !open)}
@@ -57,6 +84,7 @@ export function SiteHeader() {
 
         <form
           action="/products"
+          onSubmit={search}
           className="ml-auto hidden max-w-xs flex-1 md:block"
         >
           <label className="relative block">
@@ -71,9 +99,9 @@ export function SiteHeader() {
           </label>
         </form>
 
-        <div className="flex items-center gap-1">
+        <div className="ml-auto flex items-center gap-1 md:ml-0">
           <Link
-            href="/account/profile"
+            href="/account/orders"
             aria-label="进入用户中心"
             className="grid size-10 place-items-center rounded-full transition hover:bg-stone-900/5"
           >
@@ -85,10 +113,11 @@ export function SiteHeader() {
 
       {menuOpen ? (
         <nav
+          id="mobile-navigation"
           aria-label="移动端导航"
           className="border-t border-stone-900/8 px-5 py-4 lg:hidden"
         >
-          <form action="/products" className="mb-4 md:hidden">
+          <form action="/products" onSubmit={search} className="mb-4 md:hidden">
             <label className="relative block">
               <span className="sr-only">搜索保护壳</span>
               <Search className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-stone-400" />

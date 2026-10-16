@@ -16,8 +16,11 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { zhCN } from '@/messages/zh-CN';
+import type { ProductDevice } from '@/lib/product-devices';
+import { DeviceFit } from './device-fit';
 
 interface OrderItem {
+  deviceModels?: ProductDevice[];
   id: string;
   productName: string;
   variantName: string;
@@ -266,9 +269,24 @@ export function OrderDetail({ orderNo }: { orderNo: string }) {
   if (!order)
     return (
       <div className="mx-auto max-w-4xl px-5 py-20">
-        <p className="rounded-2xl bg-rose-50 p-5 text-rose-700">
+        <p role="alert" className="rounded-2xl bg-rose-50 p-5 text-rose-700">
           {error || '订单不存在'}
         </p>
+        <div className="mt-4 flex gap-4">
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="min-h-11 underline"
+          >
+            重新加载
+          </button>
+          <Link
+            href="/account/orders"
+            className="inline-flex min-h-11 items-center underline"
+          >
+            返回订单列表
+          </Link>
+        </div>
       </div>
     );
 
@@ -385,6 +403,7 @@ export function OrderDetail({ orderNo }: { orderNo: string }) {
                         <p className="mt-1 text-xs text-stone-500">
                           {item.variantName} × {item.quantity}
                         </p>
+                        <DeviceFit devices={item.deviceModels} current />
                       </div>
                       <p className="shrink-0 text-sm font-medium">
                         ¥{item.subtotal}
@@ -450,6 +469,7 @@ export function OrderDetail({ orderNo }: { orderNo: string }) {
                   审核结果请以订单中心为准，邮件通知也会发送到你的登录邮箱。
                 </p>
                 <select
+                  aria-label="售后原因"
                   value={returnReason}
                   onChange={(event) => {
                     setReturnReason(event.target.value);
@@ -464,6 +484,7 @@ export function OrderDetail({ orderNo }: { orderNo: string }) {
                   <option value="other">其他原因</option>
                 </select>
                 <textarea
+                  aria-label="售后问题说明"
                   value={returnReasonText}
                   onChange={(event) => setReturnReasonText(event.target.value)}
                   maxLength={500}
@@ -513,11 +534,13 @@ export function OrderDetail({ orderNo }: { orderNo: string }) {
                     <div className="flex justify-between gap-3">
                       <span className="font-medium">{request.requestNo}</span>
                       <span className="rounded-full bg-stone-200 px-2.5 py-1 text-xs">
-                        {request.status}
+                        {zhCN.returnStatus[request.status] ?? '处理中'}
                       </span>
                     </div>
                     <p className="mt-2 text-xs leading-5 text-stone-500">
-                      {request.reasonText || request.reasonCode}
+                      {request.reasonText ||
+                        zhCN.returnReason[request.reasonCode] ||
+                        '其他原因'}
                     </p>
                     {request.reviewRemark ? (
                       <p className="mt-2 text-xs text-rose-700">

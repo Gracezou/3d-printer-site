@@ -6,6 +6,8 @@ import { cartItems, carts, products, productVariants } from '@/lib/db/schema';
 import { BizError } from '@/lib/errors';
 import { publicAvailableQty } from '@/lib/services/availability.service';
 import type { AddCartItemInput } from '@/lib/validators/cart';
+import { productDevicesSelection } from '@/lib/services/product-devices';
+import type { ProductDevice } from '@/lib/product-devices';
 
 export type CartUnavailableReason = 'off_shelf' | 'out_of_stock' | null;
 
@@ -23,6 +25,7 @@ export interface CartItemView {
   availableQty: number;
   isAvailable: boolean;
   unavailableReason: CartUnavailableReason;
+  deviceModels: ProductDevice[];
 }
 
 export interface CartMutationResult {
@@ -90,6 +93,7 @@ export async function listCartItems(userId: string): Promise<CartItemView[]> {
   const rows = await getDb()
     .select({
       id: cartItems.id,
+      deviceModels: productDevicesSelection(products.id),
       variantId: productVariants.id,
       productName: products.name,
       productSlug: products.slug,
@@ -124,6 +128,7 @@ export async function listCartItems(userId: string): Promise<CartItemView[]> {
         : null;
     return {
       id: row.id,
+      deviceModels: row.deviceModels,
       variantId: row.variantId,
       productName: row.productName,
       productSlug: row.productSlug,

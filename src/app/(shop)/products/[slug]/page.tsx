@@ -177,6 +177,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
               productName={product.name}
               slug={product.slug}
               variants={product.variants}
+              deviceModels={product.deviceModels}
+              mainImageUrl={product.mainImageUrl}
             />
           </div>
         </div>

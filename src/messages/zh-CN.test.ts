@@ -10,6 +10,7 @@ import {
 describe('zh-CN shared copy', () => {
   it('keeps the approved brand and delivery promises', () => {
     expect(zhCN.brand.name).toBe('书衣');
+    expect(zhCN.legal.icpLicense).toBe('鲁ICP备2026057815号');
     expect(zhCN.brand.heroTitle).toBe('量卷裁衣');
     expect(zhCN.commerce.deliveryExpected).toContain('7 个自然日内发出');
   });

@@ -24,6 +24,8 @@ import { BizError } from '@/lib/errors';
 import type { StorefrontProductListQuery } from '@/lib/validators/storefront';
 import { storefrontCacheTags } from '@/lib/storefront-cache';
 import { getPublicDeviceCatalog } from '@/lib/services/device.service';
+import { productDevicesSelection } from '@/lib/services/product-devices';
+import type { ProductDevice } from '@/lib/product-devices';
 
 export interface StorefrontBanner {
   title: string;
@@ -48,6 +50,7 @@ export interface StorefrontProduct {
   mainImageUrl: string | null;
   minPrice: string | null;
   isSoldOut: boolean;
+  deviceModels?: ProductDevice[];
 }
 
 export interface StorefrontCategory {
@@ -111,6 +114,7 @@ function parseSiteInfo(value: unknown): StorefrontSiteInfo {
 }
 
 const productSelection = {
+  deviceModels: productDevicesSelection(products.id),
   id: products.id,
   name: products.name,
   slug: products.slug,
@@ -347,6 +351,16 @@ export async function listStorefrontProducts(
       or(ilike(products.name, keyword), ilike(products.subtitle, keyword))!,
     );
   }
+  if (query.deviceModelId) {
+    filters.push(sql`EXISTS (
+      SELECT 1 FROM product_device_models relation
+      JOIN device_models model ON model.id = relation.device_model_id
+      JOIN device_brands brand ON brand.id = model.brand_id
+      WHERE relation.product_id = ${products.id}
+        AND relation.device_model_id = ${query.deviceModelId}::uuid
+        AND model.is_visible = true AND brand.is_visible = true
+    )`);
+  }
   if (query.categoryId) {
     filters.push(sql`(
       ${products.categoryId} = ${query.categoryId}
@@ -405,6 +419,7 @@ async function loadStorefrontProductBySlug(slug: string) {
       slug: products.slug,
       subtitle: products.subtitle,
       description: products.description,
+      deviceModels: productDevicesSelection(products.id),
       mainImageUrl: products.mainImageUrl,
       gallery: products.gallery,
       modelPreviewUrl: products.modelPreviewUrl,
@@ -460,6 +475,7 @@ async function loadStorefrontProductBySlug(slug: string) {
   );
   return {
     id: first.id,
+    deviceModels: first.deviceModels,
     name: first.name,
     slug: first.slug,
     subtitle: first.subtitle,

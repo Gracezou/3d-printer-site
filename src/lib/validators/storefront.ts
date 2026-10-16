@@ -45,6 +45,7 @@ export const storefrontProductListQuerySchema = z
   .object({
     keyword: optionalText(150),
     categoryId: optionalText(36).pipe(z.string().uuid().optional()),
+    deviceModelId: optionalText(36).pipe(z.string().uuid().optional()),
     minPrice: optionalPrice,
     maxPrice: optionalPrice,
     materialType: optionalMaterialType,
