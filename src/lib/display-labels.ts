@@ -16,7 +16,7 @@ export const productDimensionLabels: Record<string, string> = {
   variant: '规格',
   size: '尺寸',
   material: '材质',
-  color: '颜色',
+  color: '配色',
   style: '款式',
 };
 

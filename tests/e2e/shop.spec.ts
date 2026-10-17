@@ -12,6 +12,12 @@ async function respond(route: Route, data: unknown, status = 200) {
   });
 }
 async function mockShop(page: Page) {
+  await page.route('**/_next/image?*', (route) =>
+    route.fulfill({
+      contentType: 'image/svg+xml',
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600"><rect width="600" height="600" fill="#e5e7eb"/></svg>',
+    }),
+  );
   await page.route('**/api/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path === '/api/cart') return respond(route, { items: cartItems });
@@ -73,7 +79,10 @@ async function mockShop(page: Page) {
       });
     if (path.endsWith('/availability'))
       return respond(route, {
-        variants: [fixtureIds.small, fixtureIds.large].map((variantId) => ({
+        variants: (path.includes('e2e-colorways')
+          ? [fixtureIds.black, fixtureIds.dual, fixtureIds.standBlack]
+          : [fixtureIds.small, fixtureIds.large]
+        ).map((variantId) => ({
           variantId,
           availableQty: 10,
         })),
@@ -166,7 +175,7 @@ test('filters keep URL history and update without reloading the document', async
   ).toHaveValue(fixtureIds.model);
 });
 
-test('sparse SKU change clears conflicting color and guards incompatible device', async ({
+test('style change clears incompatible colors without a device confirmation step', async ({
   page,
 }) => {
   await page.goto(`/products/e2e-v031-case?device=${device.id}`);
@@ -179,9 +188,10 @@ test('sparse SKU change clears conflicting color and guards incompatible device'
   await expect(
     page.getByRole('button', { name: '立即购买', exact: true }),
   ).toBeDisabled();
-  await expect(
-    page.getByRole('button', { name: '黑色', exact: true }),
-  ).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByRole('button', { name: /^黑色/ })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
   await page.getByRole('button', { name: '拼色', exact: true }).click();
   await expect(
     page.getByRole('button', { name: '立即购买', exact: true }),
@@ -191,12 +201,12 @@ test('sparse SKU change clears conflicting color and guards incompatible device'
     page.getByRole('button', { name: '立即购买', exact: true }),
   ).toBeDisabled();
   await page.goto('/products/e2e-v031-case?device=unrelated');
-  await expect(page.locator('main').getByRole('alert')).toContainText(
-    '未关联你选择的机型',
-  );
+  await expect(page.getByRole('link', { name: '切换机型' })).toHaveCount(0);
+  await page.getByRole('button', { name: '小号', exact: true }).click();
+  await page.getByRole('button', { name: '黑色', exact: true }).click();
   await expect(
     page.getByRole('button', { name: '立即购买', exact: true }),
-  ).toBeDisabled();
+  ).toBeEnabled();
 });
 
 test('cart serializes rapid edits and restores only a failed row', async ({
@@ -232,6 +242,83 @@ test('cart serializes rapid edits and restores only a failed row', async ({
   await expect(
     page.getByRole('link', { name: '购物车，当前 5 件商品' }),
   ).toBeVisible();
+});
+
+test('adding a selected SKU locks duplicate clicks and updates the cart badge', async ({
+  page,
+}) => {
+  let writes = 0;
+  await page.route('**/api/cart/items', async (route) => {
+    writes++;
+    expect(route.request().postDataJSON()).toEqual({
+      variantId: fixtureIds.small,
+      quantity: 2,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    await respond(route, { id: 'cart-a', quantity: 2, cartCount: 4 });
+  });
+  await page.goto('/products/e2e-v031-case');
+  await page.getByRole('button', { name: '小号', exact: true }).click();
+  await page.getByRole('button', { name: '黑色', exact: true }).click();
+  await page.getByRole('button', { name: '增加数量', exact: true }).click();
+  await page
+    .getByRole('button', { name: '加入购物车', exact: true })
+    .evaluate((node) => {
+      (node as HTMLButtonElement).click();
+      (node as HTMLButtonElement).click();
+    });
+  await expect(
+    page.getByText('已加入购物车，购物车内共 2 件', { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: '购物车，当前 4 件商品' }),
+  ).toBeVisible();
+  expect(writes).toBe(1);
+});
+
+test('coupon entry stays collapsed and recalculates discount and delivery locally', async ({
+  page,
+}) => {
+  await setCheckout(page);
+  const requests: Array<string | null> = [];
+  await page.route('**/api/orders/preview', async (route) => {
+    const code = route.request().postDataJSON().discountCode ?? null;
+    requests.push(code);
+    await respond(
+      route,
+      code
+        ? {
+            ...preview,
+            discountAmount: '2.00',
+            shippingAmount: '0.00',
+            payableAmount: '18.00',
+            discount: { code, name: '受控优惠', type: 'fixed_amount' },
+            shipping: {
+              ruleName: '普通配送',
+              freeThreshold: null,
+              reason: 'discount_code',
+            },
+          }
+        : preview,
+    );
+  });
+  await page.goto('/checkout');
+  await expect(
+    page.getByRole('button', { name: '提交订单', exact: true }),
+  ).toBeEnabled();
+  await expect(
+    page.getByRole('textbox', { name: '折扣码', exact: true }),
+  ).toBeHidden();
+  await page.getByText('有折扣码？', { exact: true }).click();
+  await page
+    .getByRole('textbox', { name: '折扣码', exact: true })
+    .fill('private2');
+  await page.getByRole('button', { name: '使用', exact: true }).click();
+  await expect(page.getByText('已使用：受控优惠（PRIVATE2）')).toBeVisible();
+  await expect(page.getByText('¥18.00', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '取消', exact: true }).click();
+  await expect(page.getByText('¥26.00', { exact: true })).toBeVisible();
+  expect(requests).toEqual([null, 'PRIVATE2', null]);
 });
 
 test('checkout invalidates failed previews and prevents duplicate submit', async ({
@@ -312,6 +399,186 @@ test('login returns to the intended checkout path', async ({ page }) => {
   await expect(
     page.getByRole('button', { name: '提交订单', exact: true }),
   ).toBeEnabled();
+});
+
+test('payment launch returns to the result page and waits for authoritative success', async ({
+  page,
+}) => {
+  let payments = 0;
+  let queries = 0;
+  await page.route('**/api/payments', async (route) => {
+    payments++;
+    expect(route.request().postDataJSON()).toEqual({ orderNo: 'E2E-ORDER' });
+    await respond(route, {
+      outTradeNo: 'E2E-PAYMENT',
+      payUrl: '/checkout/pay/result?outTradeNo=E2E-PAYMENT',
+      amount: '56.00',
+      reservedUntil: new Date(Date.now() + 600_000).toISOString(),
+    });
+  });
+  await page.route('**/api/payments/E2E-PAYMENT/status', (route) => {
+    queries++;
+    return respond(route, {
+      status: queries > 1 ? 'success' : 'pending',
+      orderStatus: queries > 1 ? 'in_production' : 'pending_payment',
+      orderNo: 'E2E-ORDER',
+      reservedUntil: new Date(Date.now() + 600_000).toISOString(),
+    });
+  });
+  await page.goto('/checkout/pay/E2E-ORDER');
+  await expect(page).toHaveURL(
+    /\/checkout\/pay\/result\?outTradeNo=E2E-PAYMENT$/,
+  );
+  await expect(
+    page.getByRole('heading', { name: '等待支付结果' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: '支付成功', exact: true }),
+  ).toBeVisible();
+  expect(payments).toBe(1);
+  await page.getByRole('link', { name: '查看订单进度' }).click();
+  await expect(page).toHaveURL(/\/account\/orders\/E2E-ORDER$/);
+});
+
+test('closed payment never displays success and missing references are handled', async ({
+  page,
+}) => {
+  await page.route('**/api/payments/E2E-CLOSED/status', (route) =>
+    respond(route, {
+      status: 'closed',
+      orderStatus: 'cancelled',
+      orderNo: 'E2E-ORDER',
+      reservedUntil: null,
+    }),
+  );
+  await page.goto('/checkout/pay/result?outTradeNo=E2E-CLOSED');
+  await expect(
+    page.getByRole('heading', { name: '订单已关闭或支付超时' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: '支付成功', exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole('link', { name: '返回商品列表' }).click();
+  await expect(page).toHaveURL(/\/products$/);
+  await page.goto('/checkout/pay/result');
+  await expect(
+    page.getByRole('heading', { name: '缺少支付单号' }),
+  ).toBeVisible();
+});
+
+test('payment result with an expired session restores its exact login destination', async ({
+  page,
+}) => {
+  await page.route('**/api/payments/E2E-EXPIRED/status', (route) =>
+    respond(route, null, 401),
+  );
+  await page.goto('/checkout/pay/result?outTradeNo=E2E-EXPIRED');
+  await expect(page).toHaveURL(/\/auth\/login\?next=/);
+  expect(new URL(page.url()).searchParams.get('next')).toBe(
+    '/checkout/pay/result?outTradeNo=E2E-EXPIRED',
+  );
+});
+
+test('after-sales uploads evidence, retains a failed draft and shows the successful request', async ({
+  page,
+}) => {
+  let attempts = 0;
+  let uploaded = 0;
+  let submitted = false;
+  await page.route('**/api/orders/E2E-RETURN-ORDER', (route) =>
+    respond(route, {
+      ...orderFixture('E2E-RETURN-ORDER', 'completed'),
+      itemsAmount: '50.00',
+      discountAmount: '0.00',
+      shippingAmount: '6.00',
+      buyerRemark: null,
+      discountCode: null,
+      paidAt: null,
+      shippedAt: null,
+      completedAt: null,
+      cancelledAt: null,
+      shipment: null,
+      receiver: {
+        name: '测试收件人',
+        phone: '13800000000',
+        address: '上海市本地测试地址',
+      },
+      items: [
+        {
+          ...cartItems[0],
+          printStatus: null,
+          printStatusText: null,
+          printerName: null,
+          refundedQuantity: 0,
+          refundableQuantity: submitted ? 0 : 1,
+          ordinaryReturnAllowed: true,
+          exceptionReturnAllowed: true,
+        },
+      ],
+      returnRequests: submitted
+        ? [
+            {
+              requestNo: 'E2E-RETURN-SUCCESS',
+              reasonCode: 'quality_issue',
+              reasonText: '外壳边缘有破损',
+              status: 'pending',
+              reviewRemark: null,
+              createdAt: new Date().toISOString(),
+              reviewedAt: null,
+            },
+          ]
+        : [],
+    }),
+  );
+  await page.route('**/api/returns/upload', (route) => {
+    uploaded++;
+    expect(route.request().headers()['content-type']).toContain(
+      'multipart/form-data',
+    );
+    return respond(route, { url: 'https://browser-test.invalid/evidence.png' });
+  });
+  await page.route('**/api/returns', async (route) => {
+    attempts++;
+    expect(route.request().postDataJSON()).toEqual({
+      orderNo: 'E2E-RETURN-ORDER',
+      reasonCode: 'quality_issue',
+      reasonText: '外壳边缘有破损',
+      images: ['https://browser-test.invalid/evidence.png'],
+      items: [{ orderItemId: cartItems[0].id, quantity: 1 }],
+    });
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    if (attempts === 1) return respond(route, null, 500);
+    submitted = true;
+    return respond(route, { requestNo: 'E2E-RETURN-SUCCESS' });
+  });
+  await page.goto('/account/orders/E2E-RETURN-ORDER');
+  await expect(
+    page.getByRole('button', { name: '提交申请', exact: true }),
+  ).toBeDisabled();
+  await page.getByRole('checkbox', { name: '申请退款' }).check();
+  await page
+    .getByRole('textbox', { name: '售后问题说明' })
+    .fill('外壳边缘有破损');
+  await page.getByLabel('凭证图片', { exact: false }).setInputFiles({
+    name: 'evidence.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aT1sAAAAASUVORK5CYII=',
+      'base64',
+    ),
+  });
+  await page.getByRole('button', { name: '提交申请', exact: true }).click();
+  await expect(page.getByRole('button', { name: '提交中…' })).toBeDisabled();
+  await expect(page.locator('main')).toContainText('模拟网络失败');
+  await expect(page.getByRole('textbox', { name: '售后问题说明' })).toHaveValue(
+    '外壳边缘有破损',
+  );
+  await page.getByRole('button', { name: '提交申请', exact: true }).click();
+  await expect(
+    page.getByText('E2E-RETURN-SUCCESS', { exact: true }),
+  ).toBeVisible();
+  expect(attempts).toBe(2);
+  expect(uploaded).toBe(2);
 });
 
 test('order links and action buttons share size and shape', async ({
@@ -516,6 +783,8 @@ for (const width of [360, 390, 768, 1440]) {
     for (const path of [
       '/',
       '/products',
+      '/products/e2e-v031-case',
+      '/products/e2e-colorways',
       '/devices/e2e-v031/x3',
       '/cart',
       '/checkout',

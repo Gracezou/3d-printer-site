@@ -11,6 +11,7 @@ import {
   orders,
   products,
   productVariants,
+  productStyles,
   settings,
   variantMaterials,
   type BomSnapshotItem,
@@ -75,6 +76,22 @@ export async function createOrder(
   try {
     const created = await getDb().transaction(async (tx) => {
       const variantIds = input.items.map((item) => item.variantId);
+      const parents = await tx
+        .selectDistinct({ id: productVariants.productId })
+        .from(productVariants)
+        .where(inArray(productVariants.id, variantIds));
+      if (parents.length)
+        await tx
+          .select({ id: products.id })
+          .from(products)
+          .where(
+            inArray(
+              products.id,
+              parents.map((p) => p.id),
+            ),
+          )
+          .orderBy(asc(products.id))
+          .for('share');
 
       // 1. 商品与变体状态校验。
       const variantRows = await tx
@@ -84,7 +101,9 @@ export async function createOrder(
           productName: products.name,
           variantName: productVariants.name,
           skuCode: productVariants.skuCode,
-          variantImageUrl: productVariants.imageUrl,
+          variantImageUrl: sql<
+            string | null
+          >`COALESCE(${productVariants.imageUrl}, ${productStyles.imageUrl})`,
           productImageUrl: products.mainImageUrl,
           price: productVariants.price,
           weightGrams: productVariants.weightGrams,
@@ -94,6 +113,7 @@ export async function createOrder(
         })
         .from(productVariants)
         .innerJoin(products, eq(products.id, productVariants.productId))
+        .leftJoin(productStyles, eq(productStyles.id, productVariants.styleId))
         .where(inArray(productVariants.id, variantIds));
       const variantsById = new Map(
         variantRows.map((row) => [row.variantId, row]),

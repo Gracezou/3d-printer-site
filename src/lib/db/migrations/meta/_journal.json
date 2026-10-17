@@ -71,6 +71,20 @@
       "when": 1792072445149,
       "tag": "0009_new_sunspot",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792135762019,
+      "tag": "0010_product_styles",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792136988814,
+      "tag": "0011_style_lookup_index",
+      "breakpoints": true
     }
   ]
 }

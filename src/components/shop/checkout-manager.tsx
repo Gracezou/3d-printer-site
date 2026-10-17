@@ -510,38 +510,45 @@ export function CheckoutManager() {
             <TicketPercent className="size-5" />
             折扣与备注
           </h2>
-          <form onSubmit={applyDiscount} className="mt-5 flex gap-2">
-            <input
-              aria-label="折扣码"
-              aria-describedby={message ? 'checkout-preview-status' : undefined}
-              maxLength={32}
-              value={discountInput}
-              disabled={Boolean(appliedCode)}
-              onChange={(event) =>
-                setDiscountInput(event.target.value.toUpperCase())
-              }
-              placeholder="输入折扣码"
-              className="h-11 min-w-0 flex-1 rounded-full border border-stone-900/10 bg-white px-4 text-sm outline-none focus:border-stone-900/30"
-            />
-            <button
-              disabled={previewing || Boolean(appliedCode)}
-              className="border-store-ink h-11 rounded-full border px-5 text-sm font-bold disabled:opacity-40"
-            >
-              使用
-            </button>
-            {appliedCode ? (
+          <details className="mt-5" open={appliedCode ? true : undefined}>
+            <summary className="min-h-11 cursor-pointer text-sm font-medium">
+              有折扣码？
+            </summary>
+            <form onSubmit={applyDiscount} className="mt-3 flex gap-2">
+              <input
+                aria-label="折扣码"
+                aria-describedby={
+                  message ? 'checkout-preview-status' : undefined
+                }
+                maxLength={32}
+                value={discountInput}
+                disabled={Boolean(appliedCode)}
+                onChange={(event) =>
+                  setDiscountInput(event.target.value.toUpperCase())
+                }
+                placeholder="输入折扣码"
+                className="h-11 min-w-0 flex-1 rounded-full border border-stone-900/10 bg-white px-4 text-sm outline-none focus:border-stone-900/30"
+              />
               <button
-                type="button"
-                onClick={() => {
-                  setAppliedCode(null);
-                  setDiscountInput('');
-                }}
-                className="h-11 rounded-full px-3 text-xs font-semibold text-red-600"
+                disabled={previewing || Boolean(appliedCode)}
+                className="border-store-ink h-11 rounded-full border px-5 text-sm font-bold disabled:opacity-40"
               >
-                取消
+                使用
               </button>
-            ) : null}
-          </form>
+              {appliedCode ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAppliedCode(null);
+                    setDiscountInput('');
+                  }}
+                  className="h-11 rounded-full px-3 text-xs font-semibold text-red-600"
+                >
+                  取消
+                </button>
+              ) : null}
+            </form>
+          </details>
           {preview?.discount ? (
             <p className="text-store-success mt-3 text-sm font-semibold">
               已使用：{preview.discount.name}（{preview.discount.code}）

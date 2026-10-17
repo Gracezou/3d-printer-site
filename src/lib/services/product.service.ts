@@ -20,6 +20,7 @@ import {
   materials,
   orderItems,
   products,
+  productStyles,
   productVariants,
   variantMaterials,
 } from '@/lib/db/schema';
@@ -163,6 +164,8 @@ export async function getProductDetail(productId: string) {
     db
       .select({
         id: productVariants.id,
+        styleId: productVariants.styleId,
+        sourceMaterialId: productVariants.sourceMaterialId,
         skuCode: productVariants.skuCode,
         name: productVariants.name,
         attributes: productVariants.attributes,
@@ -213,6 +216,11 @@ export async function getProductDetail(productId: string) {
 
   return {
     ...product,
+    styles: await db
+      .select()
+      .from(productStyles)
+      .where(eq(productStyles.productId, productId))
+      .orderBy(asc(productStyles.sortOrder)),
     variants: variantRows.map((variant) => ({
       ...variant,
       bom: bomByVariant.get(variant.id) ?? [],
@@ -403,6 +411,17 @@ export async function replaceProductVariants(
           .limit(1)
           .for('update');
         if (!product) throw new BizError('NOT_FOUND', '商品不存在');
+
+        const [managed] = await tx
+          .select({ id: productStyles.id })
+          .from(productStyles)
+          .where(eq(productStyles.productId, productId))
+          .limit(1);
+        if (managed)
+          throw new BizError(
+            'PARAM_INVALID',
+            '此商品已使用款式与配色，请通过款式编辑器保存',
+          );
 
         const existing = await tx
           .select({ id: productVariants.id })

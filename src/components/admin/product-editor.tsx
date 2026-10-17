@@ -33,6 +33,8 @@ import {
 } from 'react';
 
 import { useUnsavedChanges } from '@/lib/use-unsaved-changes';
+import { ProductStylesEditor } from './product-styles-editor';
+import type { ProductStyleInput } from '@/lib/validators/product-style';
 
 import { notifyAdminUnauthorized } from '@/lib/admin-session-client';
 import { generateProductSlug } from '@/lib/admin-generated-fields';
@@ -87,6 +89,7 @@ interface VariantDraft {
 }
 
 interface ProductDetail {
+  styles?: Array<Omit<ProductStyleInput, 'colorways' | 'singleImages'>>;
   id: string;
   categoryId: string | null;
   name: string;
@@ -103,6 +106,8 @@ interface ProductDetail {
   minPrice: string | null;
   variants: Array<
     Omit<VariantDraft, 'comparePrice' | 'printHours' | 'imageUrl' | 'bom'> & {
+      styleId?: string | null;
+      sourceMaterialId?: string | null;
       comparePrice: string | null;
       printHours: string | null;
       imageUrl: string | null;
@@ -507,6 +512,9 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
   const [savingBase, setSavingBase] = useState(false);
   const [savingVariants, setSavingVariants] = useState(false);
   const [savingAll, setSavingAll] = useState(false);
+  const [styleEditorOpen, setStyleEditorOpen] = useState(false);
+  const [styleDirty, setStyleDirty] = useState(false);
+  const [savingStyles, setSavingStyles] = useState(false);
   const saveLock = useRef(false);
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState('');
@@ -540,15 +548,17 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
   const baseDirty =
     JSON.stringify({ ...form, slug: productId ? form.slug : '' }) !==
     baseSnapshot;
-  const variantsDirty = JSON.stringify(variants) !== variantSnapshot;
+  const variantsDirty =
+    !styleEditorOpen && JSON.stringify(variants) !== variantSnapshot;
   const unsavedSections = [
     baseDirty ? '基础信息' : '',
     variantsDirty ? '变体与 BOM' : '',
+    styleDirty ? '款式与配色' : '',
   ]
     .filter(Boolean)
     .join('、');
   const confirmDiscard = useUnsavedChanges(
-    baseDirty || variantsDirty,
+    baseDirty || variantsDirty || styleDirty,
     `${unsavedSections}尚未保存，确定放弃并离开吗？`,
   );
 
@@ -607,16 +617,19 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
         Promise<ProductDetail> | null,
       ] = [
         apiRequest('/api/admin/categories'),
-        apiRequest(
-          '/api/admin/materials?page=1&pageSize=100&lowStockOnly=false',
-        ),
+        apiRequest('/api/admin/products/material-options'),
         productId ? apiRequest(`/api/admin/products/${productId}`) : null,
       ];
       const [categoryResult, materialResult, detail] =
         await Promise.all(requests);
       setCategories(categoryResult.list);
       setMaterials(materialResult.list);
-      if (detail) applyProduct(detail);
+      if (detail) {
+        applyProduct(detail);
+        setStyleEditorOpen(
+          Boolean(detail.styles?.length) || detail.variants.length === 0,
+        );
+      }
     } catch (caught: unknown) {
       setError(caught instanceof Error ? caught.message : '页面加载失败');
     } finally {
@@ -805,9 +818,13 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
   const flatCategories = categories.flatMap((root) => [root, ...root.children]);
   return (
     <fieldset
-      disabled={savingBase || savingVariants || savingAll || publishing}
+      disabled={
+        savingBase || savingVariants || savingAll || savingStyles || publishing
+      }
       className="admin-page min-w-0"
-      aria-busy={savingBase || savingVariants || savingAll || publishing}
+      aria-busy={
+        savingBase || savingVariants || savingAll || savingStyles || publishing
+      }
     >
       {notice ? (
         <div
@@ -1015,8 +1032,8 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
 
         <Section
           icon={<ImageIcon className="size-5" />}
-          title="图片与模型"
-          description="图片支持 JPG、PNG、WebP（≤5MB），模型支持 GLB（≤20MB）"
+          title="商品图片"
+          description="主图与图集支持 JPG、PNG、WebP（≤5MB）"
         >
           <div className="space-y-5 px-5 py-6 sm:px-7">
             <Field label="主图 URL">
@@ -1094,28 +1111,33 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
                 />
               </div>
             </Field>
-            <Field label="GLB 模型预览 URL">
-              <div className="flex gap-2">
-                <input
-                  type="url"
-                  value={form.modelPreviewUrl}
-                  onChange={(event) =>
-                    patchForm('modelPreviewUrl', event.target.value)
-                  }
-                  className={inputClass}
-                  placeholder="https://.../model.glb"
-                />
-                <AssetUploadButton
-                  type="model"
-                  label="上传 GLB"
-                  onUploaded={(url) => {
-                    patchForm('modelPreviewUrl', url);
-                    setNotice('GLB 模型上传成功');
-                  }}
-                  onError={setError}
-                />
-              </div>
-            </Field>
+            <details className="rounded-md border border-black/10 p-3">
+              <summary className="min-h-11 cursor-pointer text-sm text-neutral-500">
+                模型素材（暂不在前台展示）
+              </summary>
+              <Field label="GLB 模型预览 URL">
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    value={form.modelPreviewUrl}
+                    onChange={(event) =>
+                      patchForm('modelPreviewUrl', event.target.value)
+                    }
+                    className={inputClass}
+                    placeholder="https://.../model.glb"
+                  />
+                  <AssetUploadButton
+                    type="model"
+                    label="上传 GLB"
+                    onUploaded={(url) => {
+                      patchForm('modelPreviewUrl', url);
+                      setNotice('GLB 模型上传成功');
+                    }}
+                    onError={setError}
+                  />
+                </div>
+              </Field>
+            </details>
           </div>
         </Section>
 
@@ -1200,8 +1222,31 @@ export function ProductEditor({ productId, canPublish }: ProductEditorProps) {
         </div>
       </form>
 
-      {productId ? (
+      {productId && product && styleEditorOpen ? (
+        <ProductStylesEditor
+          productId={productId}
+          product={product}
+          importLegacy={!product.styles?.length && product.variants.length > 0}
+          beforeSave={async () => !baseDirty || (await saveBase())}
+          onSaved={(detail) => applyProduct(detail, false, true)}
+          onDirtyChange={setStyleDirty}
+          onSavingChange={setSavingStyles}
+        />
+      ) : productId ? (
         <div className="mt-5">
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            当前商品使用旧版规格。可先预览整理为款式与配色，核对后再保存。
+            <button
+              type="button"
+              className="ml-3 min-h-11 underline"
+              onClick={() => {
+                if (variantsDirty && !confirmDiscard()) return;
+                setStyleEditorOpen(true);
+              }}
+            >
+              预览整理为款式与配色
+            </button>
+          </div>
           <Section
             icon={<Layers3 className="size-5" />}
             title="变体与 BOM"

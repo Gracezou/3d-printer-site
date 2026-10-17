@@ -2,7 +2,13 @@ import Decimal from 'decimal.js';
 import { and, asc, eq, sql } from 'drizzle-orm';
 
 import { getDb } from '@/lib/db/client';
-import { cartItems, carts, products, productVariants } from '@/lib/db/schema';
+import {
+  cartItems,
+  carts,
+  products,
+  productVariants,
+  productStyles,
+} from '@/lib/db/schema';
 import { BizError } from '@/lib/errors';
 import { publicAvailableQty } from '@/lib/services/availability.service';
 import type { AddCartItemInput } from '@/lib/validators/cart';
@@ -99,7 +105,9 @@ export async function listCartItems(userId: string): Promise<CartItemView[]> {
       productSlug: products.slug,
       variantName: productVariants.name,
       skuCode: productVariants.skuCode,
-      variantImageUrl: productVariants.imageUrl,
+      variantImageUrl: sql<
+        string | null
+      >`COALESCE(${productVariants.imageUrl}, ${productStyles.imageUrl})`,
       productImageUrl: products.mainImageUrl,
       unitPrice: productVariants.price,
       quantity: cartItems.quantity,
@@ -113,6 +121,7 @@ export async function listCartItems(userId: string): Promise<CartItemView[]> {
     .innerJoin(productVariants, eq(productVariants.id, cartItems.variantId))
     .innerJoin(products, eq(products.id, productVariants.productId))
     .where(eq(carts.userId, userId))
+    .leftJoin(productStyles, eq(productStyles.id, productVariants.styleId))
     .orderBy(asc(cartItems.createdAt));
 
   return rows.map((row) => {

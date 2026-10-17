@@ -25,6 +25,10 @@ import {
 } from '@/lib/db/schema';
 import { BizError } from '@/lib/errors';
 import { withAdminLog } from '@/lib/services/admin-log.service';
+import {
+  lockStyleCatalog,
+  syncMaterialProductStyles,
+} from './product-style.service';
 import type {
   AdjustMaterialInput,
   CreateMaterialInput,
@@ -132,6 +136,7 @@ export async function createMaterial(
   try {
     return await withAdminLog(
       async (tx) => {
+        await lockStyleCatalog(tx);
         const [created] = await tx
           .insert(materials)
           .values(normalizedInput)
@@ -139,6 +144,7 @@ export async function createMaterial(
         if (!created) {
           throw new BizError('INTERNAL_ERROR', '创建耗材失败');
         }
+        await syncMaterialProductStyles(tx);
         return created;
       },
       {
@@ -164,6 +170,7 @@ export async function updateMaterial(
   try {
     return await withAdminLog(
       async (tx) => {
+        await lockStyleCatalog(tx);
         const [existing] = await tx
           .select({
             materialType: materials.materialType,
@@ -195,6 +202,7 @@ export async function updateMaterial(
         if (!updated) {
           throw new BizError('NOT_FOUND', '耗材不存在');
         }
+        await syncMaterialProductStyles(tx);
         return updated;
       },
       {
@@ -331,6 +339,7 @@ export async function toggleMaterial(
 ) {
   return withAdminLog(
     async (tx) => {
+      await lockStyleCatalog(tx);
       const [updated] = await tx
         .update(materials)
         .set({ isActive })
@@ -339,6 +348,7 @@ export async function toggleMaterial(
       if (!updated) {
         throw new BizError('NOT_FOUND', '耗材不存在');
       }
+      await syncMaterialProductStyles(tx);
       return updated;
     },
     {

@@ -1,0 +1,1 @@
+CREATE INDEX "idx_variants_style" ON "product_variants" USING btree ("style_id");

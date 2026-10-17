@@ -1,10 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import {
-  chmodSync,
-  mkdirSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -18,11 +13,31 @@ import {
   databaseIdentityHash,
   hasNearbyRuntimeFilename,
   parseArgs,
+  publicGitHubRepository,
   redactRemoteDiagnostic,
   shouldSuggestSessionPooler,
 } from './deploy-target';
 
 const repoRoot = path.resolve(import.meta.dirname, '..');
+
+describe('public CI read-only fallback', () => {
+  it('only accepts ordinary GitHub HTTPS or SSH origins without credentials', () => {
+    expect(
+      publicGitHubRepository('git@github.com:Gracezou/3d-printer-site.git'),
+    ).toBe('Gracezou/3d-printer-site');
+    expect(
+      publicGitHubRepository('https://github.com/Gracezou/3d-printer-site'),
+    ).toBe('Gracezou/3d-printer-site');
+    for (const remote of [
+      'https://token@github.com/a/b',
+      'https://github.com.evil.invalid/a/b',
+      'https://github.com/a/b?token=secret',
+      'file:///a/b',
+      'git@other.invalid:a/b',
+    ])
+      expect(publicGitHubRepository(remote)).toBeNull();
+  });
+});
 const fixtureDir = path.join(
   repoRoot,
   '.local',
@@ -185,7 +200,10 @@ describe.sequential('deploy-target', () => {
   });
 
   it('detects a runtime filename with accidental surrounding whitespace', () => {
-    writePrivateFile(path.join(fixtureDir, '.env.stage '), 'placeholder=true\n');
+    writePrivateFile(
+      path.join(fixtureDir, '.env.stage '),
+      'placeholder=true\n',
+    );
     expect(hasNearbyRuntimeFilename(fixtureDir, '.env.stage')).toBe(true);
     rmSync(path.join(fixtureDir, '.env.stage '));
   });
@@ -438,8 +456,7 @@ describe.sequential('deploy-target', () => {
   it('redacts credentials, private keys, tokens, URLs, and standalone hosts', () => {
     const jwt =
       'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJmYWtlLXVzZXIifQ.fake_signature_value';
-    const base64 =
-      'QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo1MjM0NTY3ODkwYWJjZGVm';
+    const base64 = 'QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo1MjM0NTY3ODkwYWJjZGVm';
     const databaseHost = 'fake-project.pooler.supabase.com';
     const privateKeyBegin = ['-----BEGIN RSA', ' PRIVATE KEY-----'].join('');
     const diagnostic = redactRemoteDiagnostic(

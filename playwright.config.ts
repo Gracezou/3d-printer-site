@@ -13,7 +13,7 @@ export default defineConfig({
   timeout: 45_000,
   use: {
     baseURL: 'http://127.0.0.1:5103',
-    channel: 'chromium',
+    channel: process.env.E2E_BROWSER_CHANNEL === 'chrome' ? 'chrome' : 'chromium',
     trace: 'retain-on-failure',
   },
   globalSetup: './tests/e2e/setup.ts',

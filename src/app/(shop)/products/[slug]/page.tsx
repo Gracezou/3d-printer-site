@@ -5,8 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import rehypeSanitize from 'rehype-sanitize';
 import remarkGfm from 'remark-gfm';
 
-import { ProductGallery } from '@/components/shop/product-gallery';
-import { ProductPurchasePanel } from '@/components/shop/product-purchase-panel';
+import { ProductDetailPurchase } from '@/components/shop/product-detail-purchase';
 import { BizError } from '@/lib/errors';
 import { getProductSpecLabel } from '@/lib/display-labels';
 import { absoluteSiteUrl, serializeJsonLd } from '@/lib/seo';
@@ -111,10 +110,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
       })),
     },
   ];
-  const ModelPreviewLauncher = product.modelPreviewUrl
-    ? (await import('@/components/shop/model-preview-launcher'))
-        .ModelPreviewLauncher
-    : undefined;
 
   return (
     <main>
@@ -150,45 +145,21 @@ export default async function ProductPage({ params }: ProductPageProps) {
         </nav>
       </div>
 
-      <section className="mx-auto grid max-w-7xl gap-10 px-5 pb-16 sm:px-8 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16 lg:pb-24">
-        <div className="relative">
-          <ProductGallery productName={product.name} images={uniqueImages} />
-          {product.modelPreviewUrl && ModelPreviewLauncher ? (
-            <ModelPreviewLauncher
-              modelUrl={product.modelPreviewUrl}
-              productName={product.name}
-            />
-          ) : null}
-        </div>
-        <div className="lg:pt-6">
-          <p className="text-store-muted text-xs font-bold tracking-[0.2em]">
-            按单生产
-          </p>
-          <h1 className="mt-4 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
-            {product.name}
-          </h1>
-          {product.subtitle ? (
-            <p className="mt-5 text-base leading-8 text-stone-500">
-              {product.subtitle}
-            </p>
-          ) : null}
-          <div className="mt-8 border-t border-stone-900/8 pt-8">
-            <ProductPurchasePanel
-              productName={product.name}
-              slug={product.slug}
-              variants={product.variants}
-              deviceModels={product.deviceModels}
-              mainImageUrl={product.mainImageUrl}
-            />
-          </div>
-        </div>
-      </section>
+      <ProductDetailPurchase
+        productName={product.name}
+        slug={product.slug}
+        variants={product.variants}
+        deviceModels={product.deviceModels}
+        mainImageUrl={product.mainImageUrl}
+        images={uniqueImages}
+        subtitle={product.subtitle}
+      />
 
       <section className="border-y border-stone-900/8 bg-white/55">
-        <div className="mx-auto grid max-w-7xl gap-12 px-5 py-16 sm:px-8 sm:py-24 lg:grid-cols-[1.35fr_0.65fr] lg:gap-20">
+        <div className="mx-auto grid max-w-7xl gap-8 px-5 py-8 sm:px-8 sm:py-10 lg:grid-cols-[1.35fr_0.65fr]">
           <div>
             <p className="text-store-muted text-xs font-bold tracking-[0.2em]">
-              作品故事
+              商品说明
             </p>
             <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em]">
               作品详情

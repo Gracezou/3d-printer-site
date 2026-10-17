@@ -18,6 +18,7 @@ import {
   categories,
   productVariants,
   products,
+  productStyles,
   settings,
 } from '@/lib/db/schema';
 import { BizError } from '@/lib/errors';
@@ -384,7 +385,14 @@ export async function listStorefrontProducts(
       FROM product_variants variant
       WHERE variant.product_id = ${products.id}
         AND variant.is_active = true
-        AND UPPER(variant.attributes ->> 'material') = ${query.materialType}
+        AND (
+          UPPER(variant.attributes ->> 'material') = ${query.materialType}
+          OR EXISTS (
+            SELECT 1 FROM variant_materials vm
+            JOIN materials material ON material.id = vm.material_id
+            WHERE vm.variant_id = variant.id AND UPPER(material.material_type) = ${query.materialType}
+          )
+        )
     )`);
   }
 
@@ -433,7 +441,12 @@ async function loadStorefrontProductBySlug(slug: string) {
       variantAttributes: productVariants.attributes,
       variantPrice: productVariants.price,
       variantComparePrice: productVariants.comparePrice,
-      variantImageUrl: productVariants.imageUrl,
+      variantImageUrl: sql<
+        string | null
+      >`COALESCE(${productVariants.imageUrl}, ${productStyles.imageUrl})`,
+      variantColors: sql<
+        Array<{ name: string; hex: string | null }>
+      >`COALESCE((SELECT jsonb_agg(jsonb_build_object('name', m.color_name, 'hex', m.color_hex) ORDER BY vm.sort_order) FROM variant_materials vm JOIN materials m ON m.id = vm.material_id WHERE vm.variant_id = ${sql.identifier('product_variants')}.${sql.identifier('id')}), '[]'::jsonb)`,
     })
     .from(products)
     .leftJoin(categories, eq(categories.id, products.categoryId))
@@ -451,6 +464,7 @@ async function loadStorefrontProductBySlug(slug: string) {
         isNull(products.deletedAt),
       ),
     )
+    .leftJoin(productStyles, eq(productStyles.id, productVariants.styleId))
     .orderBy(asc(productVariants.sortOrder), asc(productVariants.createdAt));
 
   const first = rows[0];
@@ -469,6 +483,7 @@ async function loadStorefrontProductBySlug(slug: string) {
             price: row.variantPrice,
             comparePrice: row.variantComparePrice,
             imageUrl: row.variantImageUrl,
+            colors: row.variantColors,
           },
         ]
       : [],

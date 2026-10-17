@@ -54,7 +54,10 @@ type GitContext = {
   upstreamSha: string | null;
 };
 
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const repoRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+);
 const targetKeys = [
   'TARGET_NAME',
   'SSH_HOST',
@@ -102,8 +105,12 @@ export function parseArgs(argv: string[]): Options {
     flag.startsWith('--restore-point='),
   );
   if (restoreFlags.length > 1) fail('--restore-point 只能提供一次');
-  const restorePoint = restoreFlags[0]?.slice('--restore-point='.length) ?? null;
-  if (restorePoint !== null && !/^[A-Za-z0-9._:@+-]{1,128}$/u.test(restorePoint)) {
+  const restorePoint =
+    restoreFlags[0]?.slice('--restore-point='.length) ?? null;
+  if (
+    restorePoint !== null &&
+    !/^[A-Za-z0-9._:@+-]{1,128}$/u.test(restorePoint)
+  ) {
     fail('--restore-point 必须是非空且不含空白的恢复点标识');
   }
 
@@ -164,12 +171,7 @@ function parseDatabaseTarget(databaseUrl: string): DatabaseTarget {
   if (hostname.includes(',')) {
     fail('DATABASE_URL 不得包含多个主机');
   }
-  if (
-    !hostname ||
-    !database ||
-    !username ||
-    database.includes('/')
-  ) {
+  if (!hostname || !database || !username || database.includes('/')) {
     fail('DATABASE_URL 缺少主机、数据库名或用户名');
   }
   return {
@@ -195,10 +197,7 @@ export function databaseClusterKeyFromUrl(databaseUrl: string): string {
   // Supabase pooler routing uses <role>.<project-ref>. Custom database roles
   // are valid here, so the project ref must not be tied to the postgres role.
   const poolerUser = /^.+\.([a-z0-9_-]+)$/iu.exec(target.username);
-  if (
-    target.hostname.endsWith('.pooler.supabase.com') &&
-    poolerUser
-  ) {
+  if (target.hostname.endsWith('.pooler.supabase.com') && poolerUser) {
     return `supabase:${poolerUser[1]!.toLowerCase()}`;
   }
 
@@ -271,7 +270,8 @@ export function hasNearbyRuntimeFilename(
   expectedName: string,
 ): boolean {
   return readdirSync(directory).some(
-    (candidate) => candidate !== expectedName && candidate.trim() === expectedName,
+    (candidate) =>
+      candidate !== expectedName && candidate.trim() === expectedName,
   );
 }
 
@@ -358,7 +358,9 @@ export function loadTargetConfig(
       !relativeOverride.startsWith(`.local${path.sep}`) ||
       path.basename(resolvedOverride) !== expectedRuntimeFile
     ) {
-      fail(`dry-run 运行配置必须位于 .local/ 且文件名为 ${expectedRuntimeFile}`);
+      fail(
+        `dry-run 运行配置必须位于 .local/ 且文件名为 ${expectedRuntimeFile}`,
+      );
     }
     runtimeEnv = resolvedOverride;
   } else {
@@ -377,8 +379,7 @@ export function loadTargetConfig(
   if (!runtimeValues.DATABASE_URL) {
     fail('应用运行配置缺少 DATABASE_URL');
   }
-  const expectedAppEnvironment =
-    target === 'stage' ? 'staging' : 'production';
+  const expectedAppEnvironment = target === 'stage' ? 'staging' : 'production';
   if (runtimeValues.APP_ENV !== expectedAppEnvironment) {
     fail(`应用运行配置 APP_ENV 必须为 ${expectedAppEnvironment}`);
   }
@@ -459,11 +460,10 @@ function commandExists(command: string): boolean {
 }
 
 export function assertProductionPrivateKeyProtected(filePath: string): void {
-  const probe = spawnSync(
-    'ssh-keygen',
-    ['-y', '-P', '', '-f', filePath],
-    { cwd: repoRoot, stdio: 'ignore' },
-  );
+  const probe = spawnSync('ssh-keygen', ['-y', '-P', '', '-f', filePath], {
+    cwd: repoRoot,
+    stdio: 'ignore',
+  });
   if (probe.error) fail('无法执行 ssh-keygen 检查生产私钥口令');
   if (probe.status === 0) {
     fail('生产私钥必须设置口令，禁止使用空口令私钥');
@@ -567,7 +567,9 @@ function checkDatabaseIsolation(
     );
     if (!matches) continue;
     if (target === 'production') {
-      fail(`Production 与 ${candidate.name} 共用数据库；生产目标禁止共用数据库`);
+      fail(
+        `Production 与 ${candidate.name} 共用数据库；生产目标禁止共用数据库`,
+      );
     }
     if (!acceptedNames.has(candidate.name)) {
       fail(
@@ -603,10 +605,18 @@ export function checkProductionDatabaseIsolation(
   productionClusterKey: string,
   scanRoot: string,
 ): void {
-  checkDatabaseIsolation('production', productionClusterKey, new Set(), scanRoot);
+  checkDatabaseIsolation(
+    'production',
+    productionClusterKey,
+    new Set(),
+    scanRoot,
+  );
 }
 
-function sshArgs(config: TargetConfig, command: string): {
+function sshArgs(
+  config: TargetConfig,
+  command: string,
+): {
   executable: string;
   args: string[];
   env: NodeJS.ProcessEnv;
@@ -614,9 +624,7 @@ function sshArgs(config: TargetConfig, command: string): {
   const common = [
     '-o',
     'StrictHostKeyChecking=yes',
-    ...(config.SSH_AUTH === 'key'
-      ? ['-o', 'IdentitiesOnly=yes']
-      : []),
+    ...(config.SSH_AUTH === 'key' ? ['-o', 'IdentitiesOnly=yes'] : []),
     '-o',
     `BatchMode=${config.SSH_AUTH === 'key' ? 'yes' : 'no'}`,
     '-p',
@@ -655,7 +663,7 @@ async function verifyRemoteDatabaseIdentity(
     "if (!['postgres:', 'postgresql:'].includes(candidate.protocol)) process.exit(2);",
     "const forbidden = new Set(['host','hostaddr','port','dbname','user']);",
     'for (const key of candidate.searchParams.keys()) if (forbidden.has(key.toLowerCase())) process.exit(2);',
-    "const database = decodeURIComponent(candidate.pathname.slice(1));",
+    'const database = decodeURIComponent(candidate.pathname.slice(1));',
     'const username = decodeURIComponent(candidate.username);',
     'const hostname = decodeURIComponent(candidate.hostname).toLowerCase();',
     "if (!hostname || hostname.includes(',') || !database || !username || database.includes('/')) process.exit(2);",
@@ -784,9 +792,7 @@ async function runRemote(
       stderr = appendTail(stderr, chunk.toString('utf8'));
     });
     child.on('error', () => resolve({ status: 1, stdout, stderr }));
-    child.on('close', (code) =>
-      resolve({ status: code ?? 1, stdout, stderr }),
-    );
+    child.on('close', (code) => resolve({ status: code ?? 1, stdout, stderr }));
   });
 }
 
@@ -822,7 +828,10 @@ function writeRemoteDiagnostics(
 
 async function promptFor(expected: string, prompt: string): Promise<void> {
   if (!process.stdin.isTTY) fail('该确认必须在交互终端中完成');
-  const readline = createInterface({ input: process.stdin, output: process.stdout });
+  const readline = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
   try {
     const answer = await readline.question(prompt);
     if (answer !== expected) fail('交互确认不匹配，已取消');
@@ -831,33 +840,90 @@ async function promptFor(expected: string, prompt: string): Promise<void> {
   }
 }
 
-function waitForImageWorkflow(
+export function publicGitHubRepository(remote: string): string | null {
+  const match =
+    /^(?:git@github\.com:|https:\/\/github\.com\/)([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+?)(?:\.git)?$/u.exec(
+      remote,
+    );
+  return match?.[1] ?? null;
+}
+
+async function waitForImageWorkflow(
   branch: string,
   sha: string,
   target: Target,
-): void {
+): Promise<void> {
+  const usePublicApi = run('gh', ['auth', 'status']).status !== 0;
+  const repository = usePublicApi
+    ? publicGitHubRepository(gitOutput(['remote', 'get-url', 'origin']))
+    : null;
+  if (usePublicApi && !repository)
+    fail('GitHub CLI 未授权，且 origin 不是支持公开 CI 查询的 GitHub 仓库');
+  if (usePublicApi)
+    process.stdout.write(
+      'GitHub CLI 未授权，尝试仅查询公开仓库 CI；私有仓库仍需登录。\n',
+    );
   const deadline = Date.now() + 30 * 60 * 1000;
   while (Date.now() < deadline) {
-    const result = run('gh', [
-      'run',
-      'list',
-      '--workflow',
-      'release-image.yml',
-      '--branch',
-      branch,
-      '--commit',
-      sha,
-      '--limit',
-      '20',
-      '--json',
-      'status,conclusion,displayTitle',
-    ]);
-    if (result.status !== 0) fail('无法查询镜像构建流水线');
-    const runs = JSON.parse(result.stdout) as Array<{
+    let runs: Array<{
       status: string;
       conclusion: string | null;
       displayTitle: string;
     }>;
+    if (usePublicApi) {
+      const url = new URL(
+        `https://api.github.com/repos/${repository}/actions/workflows/release-image.yml/runs`,
+      );
+      url.searchParams.set('branch', branch);
+      url.searchParams.set('head_sha', sha);
+      url.searchParams.set('per_page', '20');
+      const response = await fetch(url, {
+        signal: AbortSignal.timeout(15_000),
+        headers: { Accept: 'application/vnd.github+json' },
+      });
+      if (!response.ok)
+        fail('公开 CI 查询不可用；请完成 gh auth login 后重试，未绕过 CI 检查');
+      const body = (await response.json()) as {
+        workflow_runs: Array<{
+          status: string;
+          conclusion: string | null;
+          display_title: string;
+          head_sha: string;
+          head_branch: string;
+        }>;
+      };
+      runs = body.workflow_runs
+        .filter(
+          (candidate) =>
+            candidate.head_sha === sha && candidate.head_branch === branch,
+        )
+        .map((candidate) => ({
+          status: candidate.status,
+          conclusion: candidate.conclusion,
+          displayTitle: candidate.display_title,
+        }));
+    } else {
+      const result = run('gh', [
+        'run',
+        'list',
+        '--workflow',
+        'release-image.yml',
+        '--branch',
+        branch,
+        '--commit',
+        sha,
+        '--limit',
+        '20',
+        '--json',
+        'status,conclusion,displayTitle',
+      ]);
+      if (result.status !== 0) fail('无法查询镜像构建流水线');
+      runs = JSON.parse(result.stdout) as Array<{
+        status: string;
+        conclusion: string | null;
+        displayTitle: string;
+      }>;
+    }
     const workflow = runs.find((run) =>
       run.displayTitle.includes(`[${target}]`),
     );
@@ -865,7 +931,7 @@ function waitForImageWorkflow(
       if (workflow.conclusion !== 'success') fail('镜像构建流水线未成功');
       return;
     }
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10_000);
+    await new Promise((resolve) => setTimeout(resolve, 10_000));
   }
   fail('等待镜像构建超时');
 }
@@ -914,10 +980,7 @@ function checkPendingMigrations(
   return state === 'pending';
 }
 
-function runMigrations(
-  config: TargetConfig,
-  databaseHostname: string,
-): void {
+function runMigrations(config: TargetConfig, databaseHostname: string): void {
   const result = run(
     'pnpm',
     [
@@ -953,7 +1016,10 @@ function runMigrations(
   }
 }
 
-async function verifyDeployment(config: TargetConfig, sha: string): Promise<void> {
+async function verifyDeployment(
+  config: TargetConfig,
+  sha: string,
+): Promise<void> {
   const health = await fetch(config.HEALTH_URL, {
     cache: 'no-store',
     signal: AbortSignal.timeout(15_000),
@@ -1018,10 +1084,7 @@ async function main(): Promise<void> {
 
   if (options.target === 'production') {
     const expectedDomain = new URL(config.SITE_URL).hostname;
-    await promptFor(
-      expectedDomain,
-      '请输入目标站点域名以确认本次生产发布：',
-    );
+    await promptFor(expectedDomain, '请输入目标站点域名以确认本次生产发布：');
   }
 
   process.stdout.write(`部署计划：${options.target}\n`);
@@ -1039,14 +1102,18 @@ async function main(): Promise<void> {
       `共享数据库例外：${acceptedSharedDatabases.join(',')}\n`,
     );
   }
-  process.stdout.write('计划：确认推送状态 → 等待 CI → 检查迁移 → 发布 → 健康检查\n');
+  process.stdout.write(
+    '计划：确认推送状态 → 等待 CI → 检查迁移 → 发布 → 健康检查\n',
+  );
 
   if (options.dryRun) {
-    process.stdout.write('Dry-run 完成：未推送、未连接数据库、未连接服务器、未发布。\n');
+    process.stdout.write(
+      'Dry-run 完成：未推送、未连接数据库、未连接服务器、未发布。\n',
+    );
     return;
   }
 
-  for (const command of ['gh', 'docker', 'pnpm', 'ssh']) {
+  for (const command of ['gh', 'pnpm', 'ssh']) {
     if (!commandExists(command)) fail(`缺少发布依赖：${command}`);
   }
 
@@ -1063,8 +1130,15 @@ async function main(): Promise<void> {
     fail('生产发布不允许自动推送；当前提交必须已存在于上游分支');
   }
 
-  waitForImageWorkflow(git.branch, git.sha, options.target);
-  const manifest = run('docker', ['manifest', 'inspect', image]);
+  await waitForImageWorkflow(git.branch, git.sha, options.target);
+  // A local daemon/CLI is not needed for publishing an existing immutable image.
+  // The same inspection can run on the verified target using its registry access.
+  const manifest = commandExists('docker')
+    ? run('docker', ['manifest', 'inspect', image])
+    : await runRemote(
+        config,
+        `docker manifest inspect ${shellQuote(image)} >/dev/null`,
+      );
   if (manifest.status !== 0) fail('不可变镜像标签不存在或当前账号无权读取');
 
   await verifyRemoteDatabaseIdentity(
@@ -1097,11 +1171,7 @@ async function main(): Promise<void> {
   const remoteCommand = `cd ${config.DEPLOY_DIR} && ./${releaseScript} ${image}`;
   const release = await runRemote(config, remoteCommand);
   if (release.status !== 0) {
-    writeRemoteDiagnostics(
-      config,
-      release,
-      loaded.diagnosticSensitiveValues,
-    );
+    writeRemoteDiagnostics(config, release, loaded.diagnosticSensitiveValues);
     fail('服务器发布失败；远端发布脚本已负责自动回滚');
   }
 
@@ -1122,7 +1192,9 @@ async function main(): Promise<void> {
   process.stdout.write(`分支：${git.branch}\n`);
   process.stdout.write(`提交：${git.sha}\n`);
   process.stdout.write(`镜像标签：${imageTag}\n`);
-  process.stdout.write(`数据库迁移：${pendingMigrations ? '已执行' : '无需执行'}\n`);
+  process.stdout.write(
+    `数据库迁移：${pendingMigrations ? '已执行' : '无需执行'}\n`,
+  );
   if (options.restorePoint) {
     process.stdout.write(`恢复点：${options.restorePoint}\n`);
   }

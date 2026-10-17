@@ -1,6 +1,6 @@
 {
   "name": "3d-printer-site",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "packageManager": "pnpm@11.22.0",
   "engines": {
@@ -18,6 +18,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:shop:e2e": "playwright test",
+    "test:storefront:performance": "tsx scripts/measure-storefront.ts",
+    "test:product-styles": "tsx scripts/test-product-styles.ts",
     "test:acceptance": "./scripts/run-acceptance-v03.sh",
     "sandbox:refund-check": "dotenv -e .env.sandbox -- tsx scripts/check-sandbox-refund.ts",
     "security:audit": "./scripts/security-audit.sh",

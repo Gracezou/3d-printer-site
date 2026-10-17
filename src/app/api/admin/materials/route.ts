@@ -1,4 +1,6 @@
 import { requirePermission } from '@/lib/auth/admin';
+import { revalidateTag } from 'next/cache';
+import { storefrontCacheTags } from '@/lib/storefront-cache';
 import { getClientIp } from '@/lib/auth/request';
 import {
   ok,
@@ -25,5 +27,6 @@ export const POST = withErrorHandler(async (request: Request) => {
     admin,
     ip: getClientIp(request),
   });
+  revalidateTag(storefrontCacheTags.products);
   return ok(material, { status: 201 });
 });

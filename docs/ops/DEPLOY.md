@@ -101,6 +101,8 @@ Grace 需要在 GitHub 分别创建 `stage`、`production` Environment，并在�
 
 CI 从这一份 JSON 原子读取全部构建参数，断言 `environment` 与当前构建目标一致、四个 `NEXT_PUBLIC_*` 字段均为非空单行字符串，再注入构建；回退到另一环境的配置时会因环境标记不匹配而失败。
 
+v0.3.1 发布补充：工作流增加精确的 `release-v0.3.1` 分支，不放宽为通配分支。CLI 未登录时，仅对标准 github.com origin 尝试公开仓库只读 Actions API，仍要求对应工作流、分支、完整 SHA、目标环境与成功结论匹配；私有仓库或公开接口失败时停止，不能跳过 CI。本机没有 Docker CLI 时，使用同一受信任 SSH 目标的 Docker 检查不可变镜像，检查失败仍停止；不需要安装或启动本机 Docker 守护进程。
+
 GitHub 对 Environment 缺失变量的回退没有来源标记：如果仓库级或组织级恰好存在同名且 `environment` 也相同的 `BUILD_CONFIG`，CI 无法区分。生产首发前及每次调整构建配置后，Grace 必须人工执行以下命令，确认两层均不存在 `BUILD_CONFIG`；组织未使用 Actions variables 时可跳过第二条：
 
 ```bash

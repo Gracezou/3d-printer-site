@@ -9,10 +9,10 @@ import {
   ShoppingBag,
   Truck,
 } from 'lucide-react';
-import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { deviceLabel, type ProductDevice } from '@/lib/product-devices';
+import { type ProductDevice } from '@/lib/product-devices';
+import { normalizeProductColors } from '@/lib/product-color-selection';
 
 import { CHECKOUT_STORAGE_KEY } from '@/lib/checkout-storage';
 import {
@@ -34,6 +34,7 @@ interface ProductVariant {
   price: string;
   comparePrice: string | null;
   imageUrl: string | null;
+  colors?: Array<{ name: string | null; hex: string | null }>;
 }
 
 interface AvailabilityResponse {
@@ -56,6 +57,10 @@ interface ProductPurchasePanelProps {
   variants: ProductVariant[];
   deviceModels?: ProductDevice[];
   mainImageUrl?: string | null;
+  onSelectedImageChange?: (
+    url: string | null,
+    variantId: string | null,
+  ) => void;
 }
 
 export function ProductPurchasePanel({
@@ -64,12 +69,9 @@ export function ProductPurchasePanel({
   variants,
   deviceModels = [],
   mainImageUrl,
+  onSelectedImageChange,
 }: ProductPurchasePanelProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const deviceId = searchParams.get('device');
-  const selectedDevice = deviceModels.find((device) => device.id === deviceId);
-  const incompatibleDevice = Boolean(deviceId && !selectedDevice);
   const purchaseLock = useRef(false);
   const initializedSelection = useRef(false);
   const [availability, setAvailability] = useState<Map<string, number> | null>(
@@ -84,24 +86,10 @@ export function ProductPurchasePanel({
   const [isAdding, setIsAdding] = useState(false);
 
   const normalizedVariants = useMemo(
-    () =>
-      variants.map((variant) => ({
-        ...variant,
-        selection:
-          Object.keys(variant.attributes).length > 0
-            ? variant.attributes
-            : { variant: variant.name },
-      })),
+    () => normalizeProductColors(variants),
     [variants],
   );
-  const dimensions = useMemo(
-    () => [
-      ...new Set(
-        normalizedVariants.flatMap((variant) => Object.keys(variant.selection)),
-      ),
-    ],
-    [normalizedVariants],
-  );
+  const dimensions = ['style', 'color'] as const;
 
   const loadAvailability = useCallback(async () => {
     try {
@@ -119,12 +107,20 @@ export function ProductPurchasePanel({
           body.data.variants.map((item) => [item.variantId, item.availableQty]),
         ),
       );
+      const activeIds = new Set(body.data.variants.map((v) => v.variantId));
+      if (
+        body.data.variants.some(
+          (v) => !variants.some((known) => known.id === v.variantId),
+        ) ||
+        variants.some((v) => !activeIds.has(v.id))
+      )
+        router.refresh();
       setAvailabilityError(false);
     } catch {
       setAvailability(new Map());
       setAvailabilityError(true);
     }
-  }, [slug]);
+  }, [slug, variants, router]);
 
   useEffect(() => {
     void loadAvailability();
@@ -140,17 +136,14 @@ export function ProductPurchasePanel({
   }, [loadAvailability]);
 
   useEffect(() => {
-    if (
-      !availability ||
-      normalizedVariants.length !== 1 ||
-      initializedSelection.current
-    )
-      return;
-    const onlyVariant = normalizedVariants[0]!;
-    if ((availability.get(onlyVariant.id) ?? 0) > 0) {
-      setSelectedAttributes(onlyVariant.selection);
-      initializedSelection.current = true;
-    }
+    if (!availability || initializedSelection.current) return;
+    const styles = [
+      ...new Set(normalizedVariants.map((v) => v.selection.style)),
+    ];
+    if (normalizedVariants.length === 1)
+      setSelectedAttributes(normalizedVariants[0]!.selection);
+    else if (styles.length === 1) setSelectedAttributes({ style: styles[0]! });
+    initializedSelection.current = true;
   }, [availability, normalizedVariants]);
 
   const selectedVariant = normalizedVariants.find((variant) =>
@@ -162,11 +155,25 @@ export function ProductPurchasePanel({
   const selectedAvailableQty = selectedVariant
     ? (availability?.get(selectedVariant.id) ?? 0)
     : 0;
-  const displayVariant = selectedVariant ?? normalizedVariants[0];
+  const prices = variants.map((v) => Number(v.price)).filter(Number.isFinite);
+  const lowestPrice = prices.length ? Math.min(...prices).toFixed(2) : null;
+  const highestPrice = prices.length ? Math.max(...prices).toFixed(2) : null;
+  useEffect(() => {
+    onSelectedImageChange?.(
+      selectedVariant?.imageUrl ?? null,
+      selectedVariant?.id ?? null,
+    );
+  }, [selectedVariant, onSelectedImageChange]);
 
   function optionIsAvailable(dimension: string, value: string): boolean {
     if (!availability) return false;
-    return optionHasStock(normalizedVariants, availability, dimension, value);
+    const candidates =
+      dimension === 'color'
+        ? normalizedVariants.filter(
+            (v) => v.selection.style === selectedAttributes.style,
+          )
+        : normalizedVariants;
+    return optionHasStock(candidates, availability, dimension, value);
   }
 
   function chooseOption(dimension: string, value: string): void {
@@ -194,13 +201,12 @@ export function ProductPurchasePanel({
     selectedVariant &&
     selectedAvailableQty >= quantity &&
     quantity <= 99 &&
-    !availabilityError &&
-    !incompatibleDevice,
+    !availabilityError,
   );
 
   const submitCartItem = useCallback(
     async (variantId: string, itemQuantity: number) => {
-      if (purchaseLock.current || incompatibleDevice) return;
+      if (purchaseLock.current) return;
       purchaseLock.current = true;
       setIsAdding(true);
       setNotice(null);
@@ -226,7 +232,7 @@ export function ProductPurchasePanel({
             }),
           );
           router.replace(
-            `/auth/login?next=${encodeURIComponent(`/products/${slug}?resumePurchase=1${deviceId ? `&device=${encodeURIComponent(deviceId)}` : ''}`)}`,
+            `/auth/login?next=${encodeURIComponent(`/products/${slug}?resumePurchase=1`)}`,
           );
           return;
         }
@@ -245,12 +251,12 @@ export function ProductPurchasePanel({
         setIsAdding(false);
       }
     },
-    [loadAvailability, router, slug, deviceId, incompatibleDevice],
+    [loadAvailability, router, slug],
   );
 
   const startCheckout = useCallback(
     async (variantId: string, itemQuantity: number) => {
-      if (purchaseLock.current || incompatibleDevice) return;
+      if (purchaseLock.current) return;
       purchaseLock.current = true;
       setIsAdding(true);
       setNotice(null);
@@ -267,7 +273,7 @@ export function ProductPurchasePanel({
             }),
           );
           router.replace(
-            `/auth/login?next=${encodeURIComponent(`/products/${slug}?resumePurchase=1${deviceId ? `&device=${encodeURIComponent(deviceId)}` : ''}`)}`,
+            `/auth/login?next=${encodeURIComponent(`/products/${slug}?resumePurchase=1`)}`,
           );
           return;
         }
@@ -301,16 +307,7 @@ export function ProductPurchasePanel({
         setIsAdding(false);
       }
     },
-    [
-      productName,
-      router,
-      slug,
-      variants,
-      deviceModels,
-      deviceId,
-      incompatibleDevice,
-      mainImageUrl,
-    ],
+    [productName, router, slug, variants, deviceModels, mainImageUrl],
   );
 
   useEffect(() => {
@@ -346,37 +343,19 @@ export function ProductPurchasePanel({
 
   return (
     <div>
-      {incompatibleDevice ? (
-        <p
-          role="alert"
-          className="mb-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900"
-        >
-          此商品未关联你选择的机型，请先核对型号。
-          <Link href="/#choose-device" className="ml-2 underline">
-            重新选择机型
-          </Link>
-          <Link href={`/products/${slug}`} className="ml-2 underline">
-            清除机型条件
-          </Link>
-        </p>
-      ) : null}
-      {deviceModels.length ? (
-        <p className="mb-4 text-sm text-stone-600">
-          {selectedDevice
-            ? `当前机型：${deviceLabel(selectedDevice)}`
-            : `适配：${deviceModels.map(deviceLabel).join('、')}`}
-          <Link href="/#choose-device" className="ml-2 underline">
-            切换机型
-          </Link>
-        </p>
-      ) : null}
       <div className="flex items-end gap-3">
         <p className="text-3xl font-semibold tracking-[-0.03em]">
-          {displayVariant ? `¥${displayVariant.price}` : '暂未定价'}
+          {selectedVariant
+            ? `¥${selectedVariant.price}`
+            : lowestPrice === null
+              ? '暂未定价'
+              : lowestPrice === highestPrice
+                ? `¥${lowestPrice}`
+                : `¥${lowestPrice}–${highestPrice}`}
         </p>
-        {displayVariant?.comparePrice ? (
+        {selectedVariant?.comparePrice ? (
           <p className="pb-1 text-sm text-stone-400 line-through">
-            ¥{displayVariant.comparePrice}
+            ¥{selectedVariant.comparePrice}
           </p>
         ) : null}
       </div>
@@ -391,7 +370,12 @@ export function ProductPurchasePanel({
             type="button"
             onClick={() => {
               initializedSelection.current = true;
-              setSelectedAttributes({});
+              const styles = [
+                ...new Set(normalizedVariants.map((v) => v.selection.style)),
+              ];
+              setSelectedAttributes(
+                styles.length === 1 ? { style: styles[0]! } : {},
+              );
               setQuantity(1);
               setNotice('请重新选择商品规格');
             }}
@@ -409,10 +393,17 @@ export function ProductPurchasePanel({
                 ),
               ),
             ];
+            if (dimension === 'style' && values.length === 1)
+              return (
+                <p key="style" className="text-sm">
+                  <span className="font-semibold">款式：</span>
+                  {values[0]}
+                </p>
+              );
             return (
               <fieldset key={dimension}>
                 <legend className="mb-3 text-sm font-semibold">
-                  {productDimensionLabels[dimension] ?? dimension}
+                  {dimension === 'color' ? '配色' : '款式'}
                   {selectedAttributes[dimension] ? (
                     <span className="ml-2 font-normal text-stone-400">
                       {selectedAttributes[dimension]}
@@ -428,6 +419,20 @@ export function ProductPurchasePanel({
                   {values.map((value) => {
                     const available = optionIsAvailable(dimension, value);
                     const selected = selectedAttributes[dimension] === value;
+                    const matching = normalizedVariants.filter(
+                      (v) =>
+                        v.selection[dimension] === value &&
+                        (dimension !== 'color' ||
+                          v.selection.style === selectedAttributes.style),
+                    );
+                    const swatches = matching[0]?.colors ?? [];
+                    const reason = !availability
+                      ? '加载中'
+                      : dimension === 'color' && !selectedAttributes.style
+                        ? '先选款式'
+                        : !matching.length
+                          ? '此款不提供'
+                          : '库存不足';
                     return (
                       <button
                         key={value}
@@ -443,8 +448,31 @@ export function ProductPurchasePanel({
                               : 'cursor-not-allowed border-stone-900/6 bg-stone-100 text-stone-300 line-through'
                         }`}
                       >
+                        {dimension === 'color' &&
+                        swatches.some((c) => c.hex) ? (
+                          <span
+                            aria-hidden="true"
+                            className="mr-2 inline-flex h-4 w-6 overflow-hidden rounded-sm border border-black/15"
+                          >
+                            {swatches
+                              .filter((c) => c.hex)
+                              .map((c, i) => (
+                                <span
+                                  key={i}
+                                  className="inline-block h-4 min-w-2 flex-1"
+                                  style={{
+                                    backgroundColor: /^#[0-9a-f]{6}$/i.test(
+                                      c.hex!,
+                                    )
+                                      ? c.hex!
+                                      : '#dddddd',
+                                  }}
+                                />
+                              ))}
+                          </span>
+                        ) : null}
                         {value}
-                        {availability && !available ? '（售罄）' : ''}
+                        {!available ? `（${reason}）` : ''}
                         {selected ? (
                           <Check className="ml-2 inline size-3.5" />
                         ) : null}
@@ -495,7 +523,12 @@ export function ProductPurchasePanel({
         )}
       </div>
 
-      <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+      <p className="mt-4 text-sm text-stone-600" aria-live="polite">
+        已选：{selectedAttributes.style || '请选择款式'} /{' '}
+        {selectedAttributes.color || '请选择配色'} / {quantity} 件
+      </p>
+
+      <div className="mt-7">
         <div className="flex h-12 w-36 items-center justify-between rounded-full border border-stone-900/12 bg-white px-2">
           <button
             type="button"
@@ -521,6 +554,8 @@ export function ProductPurchasePanel({
             <Plus className="size-4" />
           </button>
         </div>
+      </div>
+      <div className="fixed inset-x-0 bottom-0 z-30 flex gap-3 border-t border-stone-200 bg-white px-5 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:static sm:mt-5 sm:border-0 sm:bg-transparent sm:p-0">
         <button
           type="button"
           disabled={!purchasable || isAdding}

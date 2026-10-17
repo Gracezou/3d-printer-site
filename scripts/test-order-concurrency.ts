@@ -8,6 +8,7 @@ import {
   materialStockMovements,
   materials,
   orders,
+  shippingRules,
   productVariants,
   products,
   userProfiles,
@@ -16,15 +17,27 @@ import {
 import { BizError } from '@/lib/errors';
 import { getByVariantIds } from '@/lib/services/availability.service';
 import { createOrder } from '@/lib/services/order.service';
+import { assertLocalDatabaseUrl } from './assert-local-database';
 
 async function main() {
+  assertLocalDatabaseUrl(process.env.DATABASE_URL, false);
   const db = getDb();
   const suffix = crypto.randomUUID().replaceAll('-', '').slice(0, 10);
   const userIds = Array.from({ length: 10 }, () => crypto.randomUUID());
   let productId = '';
   let materialId = '';
+  const shippingId = crypto.randomUUID();
 
   try {
+    await db
+      .insert(shippingRules)
+      .values({
+        id: shippingId,
+        name: `T101-${suffix}`,
+        provinceCodes: ['440000'],
+        firstAmount: '0.00',
+        sortOrder: -999999,
+      });
     await db.insert(userProfiles).values(
       userIds.map((id, index) => ({
         id,
@@ -142,6 +155,7 @@ async function main() {
     if (materialId)
       await db.delete(materials).where(eq(materials.id, materialId));
     await db.delete(userProfiles).where(inArray(userProfiles.id, userIds));
+    await db.delete(shippingRules).where(eq(shippingRules.id, shippingId));
     await closeDatabaseConnection();
   }
 }

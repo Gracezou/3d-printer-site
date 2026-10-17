@@ -15,6 +15,11 @@ const workflow = readFileSync(
 );
 
 describe('release image workflow environment guard', () => {
+  it('builds Stage images for the v0.3.1 release branch without widening branch scope', () => {
+    expect(workflow).toContain('      - release-v0.3.1');
+    expect(workflow).not.toContain('      - release-v*');
+  });
+
   it('loads all public build variables from one Environment JSON value', () => {
     expect(workflow).toContain('BUILD_CONFIG: ${{ vars.BUILD_CONFIG }}');
     expect(workflow).toContain(

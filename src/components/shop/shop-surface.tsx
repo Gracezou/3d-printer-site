@@ -3,12 +3,10 @@
 import { usePathname } from 'next/navigation';
 
 export function ShopSurface({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
-  // Product detail presentation belongs to the separately reviewed T227 task.
-  const isProductDetail = /^\/products\/[^/]+/.test(pathname);
+  const isDetail = /^\/products\/[^/]+/.test(usePathname());
   return (
     <div
-      className={`bg-store-canvas min-h-screen text-stone-950 ${isProductDetail ? '' : 'store-flat'}`}
+      className={`store-flat bg-store-canvas min-h-screen text-stone-950 ${isDetail ? 'pb-[calc(6rem+env(safe-area-inset-bottom))] sm:pb-0' : ''}`}
     >
       {children}
     </div>

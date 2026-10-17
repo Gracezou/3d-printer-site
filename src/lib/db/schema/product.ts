@@ -9,6 +9,7 @@ import {
   numeric,
   pgTable,
   text,
+  uniqueIndex,
   timestamp,
   uuid,
   varchar,
@@ -96,6 +97,10 @@ export const productVariants = pgTable(
     productId: uuid('product_id')
       .notNull()
       .references(() => products.id, { onDelete: 'cascade' }),
+    styleId: uuid('style_id').references(() => productStyles.id, {
+      onDelete: 'set null',
+    }),
+    sourceMaterialId: uuid('source_material_id'),
     skuCode: varchar('sku_code', { length: 64 }).notNull().unique(),
     name: varchar('name', { length: 150 }).notNull(),
     attributes: jsonb('attributes')
@@ -121,5 +126,57 @@ export const productVariants = pgTable(
   (table) => [
     check('product_variants_price_check', sql`${table.price} >= 0`),
     index('idx_variants_product').on(table.productId, table.sortOrder),
+    index('idx_variants_style').on(table.styleId),
+    uniqueIndex('uq_variant_style_material')
+      .on(table.styleId, table.sourceMaterialId)
+      .where(sql`${table.sourceMaterialId} IS NOT NULL`),
+  ],
+);
+
+export const productStyles = pgTable(
+  'product_styles',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    productId: uuid('product_id')
+      .notNull()
+      .references(() => products.id, { onDelete: 'cascade' }),
+    name: varchar('name', { length: 80 }).notNull(),
+    price: numeric('price', { precision: 10, scale: 2 }).notNull(),
+    weightGrams: numeric('weight_grams', { precision: 10, scale: 2 }).notNull(),
+    materialGrams: numeric('material_grams', {
+      precision: 10,
+      scale: 2,
+    }).notNull(),
+    printHours: numeric('print_hours', { precision: 6, scale: 2 }),
+    imageUrl: text('image_url'),
+    singleMaterialMode: varchar('single_material_mode', { length: 20 })
+      .$type<'none' | 'selected' | 'all'>()
+      .notNull()
+      .default('none'),
+    materialIds: jsonb('material_ids')
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    isActive: boolean('is_active').notNull().default(true),
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('uq_product_style_name').on(table.productId, table.name),
+    index('idx_styles_product').on(table.productId, table.sortOrder),
+    check('styles_price_check', sql`${table.price} >= 0`),
+    check(
+      'styles_grams_check',
+      sql`${table.weightGrams} >= 0 AND ${table.materialGrams} > 0`,
+    ),
+    check(
+      'styles_mode_check',
+      sql`${table.singleMaterialMode} IN ('none','selected','all')`,
+    ),
   ],
 );
