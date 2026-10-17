@@ -1,6 +1,6 @@
 # Stage 与生产发布
 
-本文描述 `release-v0.3.0` 的目标配置、镜像构建、数据库迁移和服务器发布流程。脚本只发布环境隔离的不可变镜像：`stage-sha-<commit>` 或 `production-sha-<commit>`。
+本文描述 v0.3.x 的目标配置、镜像构建、数据库迁移和服务器发布流程。脚本只发布环境隔离的不可变镜像：`stage-sha-<commit>` 或 `production-sha-<commit>`。
 
 ## 配置文件分工
 
@@ -89,7 +89,7 @@ pnpm exec dotenv -e .env.dev --override -- pnpm db:migrate
 
 ## CI 与镜像
 
-`release-image.yml` 明确监听 `release-v0.3.0`，没有改成 `release-v*` 通配。普通 push 使用 GitHub `stage` Environment；生产镜像必须由 Grace 批准后手工触发 workflow，选择 `production` Environment。相同 SHA 的两个环境使用不同标签，不能互相覆盖：
+`release-image.yml` 明确监听 `release-v0.3.0`、`release-v0.3.1` 等已列出的发布分支，没有改成 `release-v*` 通配。普通 push 使用 GitHub `stage` Environment；生产镜像必须由 Grace 批准后手工触发 workflow，选择 `production` Environment。相同 SHA 的两个环境使用不同标签，不能互相覆盖：
 
 - Stage 标签：`stage-sha-<commit>`
 - 生产标签：`production-sha-<commit>`

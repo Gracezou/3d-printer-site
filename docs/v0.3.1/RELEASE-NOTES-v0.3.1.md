@@ -1,6 +1,6 @@
 # v0.3.1 Release Notes
 
-状态：Stage 候选，尚未完成 T226 人工验收；不是生产正式发布声明。
+状态：Stage 候选已部署（功能提交 `42cf5ac`），尚未完成 T226 人工验收；不是生产正式发布声明。详见 [Stage 发布记录](./STAGE-DEPLOYMENT-v0.3.1.md)。
 
 ## 主要更新
 
